@@ -80,7 +80,7 @@ export default function ReportsIndex({
                             ) : (
                                 covernoteReport.map((item) => (
                                     <div key={item.status} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                                        <span>{item.status}</span>
+                                        <span>{covernoteStatusLabel(item.status)}</span>
                                         <span className="font-medium tabular-nums">{item.total}</span>
                                     </div>
                                 ))
@@ -156,6 +156,17 @@ export default function ReportsIndex({
             </div>
         </>
     );
+}
+
+function covernoteStatusLabel(status: string) {
+    return {
+        aktif: 'Aktif',
+        mendekati_jatuh_tempo: 'Mendekati jatuh tempo',
+        diperpanjang: 'Diperpanjang',
+        diganti_sertifikat: 'Diganti sertifikat',
+        kedaluwarsa: 'Kedaluwarsa',
+        belum_ada: 'Belum ada covernote',
+    }[status] ?? 'Status tidak diketahui';
 }
 
 function Summary({ label, value, icon: Icon, tone = 'neutral' }: { label: string; value: number; icon?: LucideIcon; tone?: 'neutral' | 'info' | 'success' | 'danger' }) {

@@ -212,3 +212,54 @@ Referensi dashboard modern dipakai terutama untuk rasa penggunaan: cepat, tenang
 - Empty state harus membedakan kondisi kosong, loading, dan error, lalu menawarkan satu tindakan berikutnya yang relevan.
 - Transisi singkat boleh membantu orientasi, tetapi tidak boleh menunda pekerjaan atau menjadi dekorasi.
 - Keyboard focus, urutan tab, kontras, label aksesibilitas, target sentuh, dan perilaku mobile harus diperlakukan sebagai bagian dari UX inti.
+
+## Spesifikasi Dashboard Admin Utama
+
+Dashboard adalah pusat pemantauan operasional Admin Legal atau admin utama. Isinya bukan sekadar ringkasan angka, tetapi alat untuk mengetahui kondisi sistem dan menentukan pekerjaan berikutnya.
+
+### Susunan informasi
+
+1. **Header konteks**
+   Menampilkan identitas area kerja, judul `Overview`, deskripsi singkat, serta aksi menuju laporan dan pembuatan order.
+
+2. **KPI utama**
+   Menampilkan order aktif, order yang perlu perhatian, order selesai, dan persentase dokumen final tervalidasi. Setiap KPI dapat dibuka untuk melihat daftar terkait.
+
+3. **Antrian tindakan**
+   Menampilkan pekerjaan prioritas seperti SLA terlambat, covernote kedaluwarsa, dan dokumen fisik yang belum dihandover. Setiap baris mengarah langsung ke detail order.
+
+4. **Kontrol harian**
+   Menampilkan jumlah SLA terlambat, SLA yang mendekati batas, covernote kedaluwarsa, dan handover yang belum tercatat.
+
+5. **Performa cabang**
+   Menampilkan total order, order aktif, dan jumlah risiko per cabang. Tujuannya membantu admin melihat cabang yang memiliki beban atau risiko paling tinggi.
+
+6. **Pipeline pengajuan**
+   Menampilkan distribusi order pada setiap tahap: draft, persetujuan order, verifikasi notaris, proses akta, validasi BPR, fisik dan pembayaran, serta selesai.
+
+7. **Kesehatan dokumen**
+   Menampilkan aging pekerjaan aktif berdasarkan tahap dan rentang umur `0-7`, `8-14`, `15-30`, serta `>30` hari.
+
+8. **Pergerakan aktivitas**
+   Menampilkan tren delapan minggu untuk order masuk, order selesai, dan order berisiko.
+
+9. **Funnel pembayaran**
+   Menampilkan posisi invoice dari diajukan, diverifikasi, disetujui, sampai dibayar.
+
+10. **Order terbaru**
+    Menampilkan aktivitas order terakhir dengan nomor order, nasabah, dan statusnya.
+
+11. **Distribusi status order**
+    Menampilkan jumlah order berdasarkan status terkini dengan badge status yang konsisten.
+
+12. **Performa notaris**
+    Menampilkan beban order, jumlah selesai, dan risiko per notaris sebagai pembanding performa cabang.
+
+### Aturan komposisi
+
+- Dashboard memakai bento grid yang padat dengan bobot panel berbeda sesuai kepentingan informasi.
+- Antrian tindakan dan KPI menjadi prioritas visual tertinggi.
+- Panel monitoring memakai header tipis, separator ringan, dan baris compact.
+- Setiap angka penting dapat ditelusuri ke daftar atau detail terkait.
+- Tidak ada grafik dekoratif tanpa keputusan yang dapat diambil dari datanya.
+- Di mobile, semua blok turun menjadi satu kolom dengan urutan prioritas yang sama.

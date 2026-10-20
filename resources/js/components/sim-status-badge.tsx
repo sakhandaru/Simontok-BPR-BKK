@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 type StatusTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
 
 const toneClasses: Record<StatusTone, string> = {
-    neutral: 'border-border bg-secondary text-secondary-foreground',
+    neutral: 'border-foreground/35 bg-foreground/5 text-foreground',
     success: 'sim-status-success',
     warning: 'sim-status-warning',
     danger: 'sim-status-danger',

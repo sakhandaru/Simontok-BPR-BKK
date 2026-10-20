@@ -13,8 +13,10 @@ export function NavMain({ items, label = 'Navigasi' }: { items: NavItem[]; label
     const { isCurrentOrParentUrl } = useCurrentUrl();
 
     return (
-        <SidebarGroup className="px-2 py-0">
-            <SidebarGroupLabel>{label}</SidebarGroupLabel>
+        <SidebarGroup className="px-2 py-1">
+            <SidebarGroupLabel className="px-2 text-[11px] font-medium uppercase tracking-wide text-sidebar-foreground/50">
+                {label}
+            </SidebarGroupLabel>
             <SidebarMenu>
                 {items.map((item) => (
                     <SidebarMenuItem key={item.title}>

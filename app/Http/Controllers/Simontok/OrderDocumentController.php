@@ -81,6 +81,9 @@ class OrderDocumentController extends Controller
                 $file = $request->file("documents.$index.file");
                 $isChecklist = ! empty($item['checklist_id']);
                 $type = $isChecklist ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
+                $checklist = $isChecklist
+                    ? \App\Models\OrderChecklist::with('documentChecklist')->whereKey($item['checklist_id'])->where('order_id', $order->id)->firstOrFail()
+                    : null;
                 if (! $isChecklist) {
                     validator($item, ['display_name' => ['required', 'string', 'max:255']], ['display_name.required' => 'Nama dokumen pendukung wajib diisi.'])->validate();
                 }
@@ -89,7 +92,7 @@ class OrderDocumentController extends Controller
                 $document = $order->documents()->create([
                     'order_collateral_id' => $data['order_collateral_id'],
                     'document_type' => $type,
-                    'display_name' => $item['display_name'] ?? null,
+                    'display_name' => $item['display_name'] ?? $checklist?->documentChecklist?->name,
                     'version' => $version,
                     'original_name' => $file->getClientOriginalName(),
                     'stored_name' => basename($path),
@@ -99,7 +102,6 @@ class OrderDocumentController extends Controller
                     'uploaded_by' => $request->user()->id,
                 ]);
                 if ($isChecklist) {
-                    $checklist = \App\Models\OrderChecklist::whereKey($item['checklist_id'])->where('order_id', $order->id)->firstOrFail();
                     $checklist->update(['order_document_id' => $document->id, 'is_checked' => true, 'checked_by' => $request->user()->id, 'checked_at' => now()]);
                 }
                 Audit::record($request, 'documents', $order, 'upload', 'Dokumen awal diunggah.', ['document_id' => $document->id, 'document_type' => $type->value, 'collateral_id' => $data['order_collateral_id']]);

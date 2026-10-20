@@ -53,10 +53,10 @@ export default function OrdersIndex({
                 />
 
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <Summary label="Total order" value={orderSummary.total} icon={FileText} onClick={() => go({})} />
-                    <Summary label="Aktif" value={orderSummary.active} icon={TimerReset} onClick={() => go({})} />
-                    <Summary label="Risiko" value={orderSummary.risk} icon={AlertTriangle} onClick={() => go({ risk: '1' })} danger />
-                    <Summary label="Antrian invoice" value={orderSummary.invoice_queue} icon={ReceiptText} onClick={() => go({ payment: 'requested' })} />
+                    <Summary label="Total order" value={orderSummary.total} note="Seluruh order yang tercatat" icon={FileText} onClick={() => go({})} tone="info" />
+                    <Summary label="Aktif" value={orderSummary.active} note="Masih dalam proses pengerjaan" icon={TimerReset} onClick={() => go({})} tone="success" />
+                    <Summary label="Risiko" value={orderSummary.risk} note="Perlu perhatian atau tindak lanjut" icon={AlertTriangle} onClick={() => go({ risk: '1' })} tone="danger" />
+                    <Summary label="Antrian invoice" value={orderSummary.invoice_queue} note="Menunggu pemeriksaan pembayaran" icon={ReceiptText} onClick={() => go({ payment: 'requested' })} tone="warning" />
                 </section>
 
                 <SimFilterBar search={data.search} searchPlaceholder="Cari no order, nasabah, atau rekening" onSearchChange={(value) => setData('search', value)} onApply={submit} onReset={() => router.get('/orders')} activeFilterCount={[data.status, data.risk, data.sla, data.payment].filter(Boolean).length} quickFilters={[
@@ -91,7 +91,7 @@ export default function OrdersIndex({
                                 {orders.data.length === 0 ? (
                                     <tr><td colSpan={8}><SimEmptyState title="Tidak ada order sesuai filter" description="Coba ubah kata kunci atau hapus sebagian filter." /></td></tr>
                                 ) : sortedOrders.map((order) => (
-                                    <tr key={order.id} className="border-t align-top">
+                                    <tr key={order.id} className={`border-t border-l-2 align-top ${order.risk_flag ? 'border-l-red-500/80' : toneBorder(order.status)}`}>
                                         <td className="px-4 py-3">
                                             <Link href={`/orders/${order.id}`} className="font-medium underline-offset-4 hover:underline">{order.order_no}</Link>
                                             {order.risk_flag && <div className="mt-2"><SimStatusBadge label="Risiko" tone="danger" /></div>}
@@ -105,7 +105,7 @@ export default function OrdersIndex({
                                             <div className="text-muted-foreground">{order.notary ?? '-'}</div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <SimJourneyNodes status={order.status} />
+                                            <div className="inline-block rounded-md px-2 py-1"><SimJourneyNodes status={order.status} /></div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <div>{order.documents_count} file / {order.collaterals_count} agunan</div>
@@ -126,7 +126,7 @@ export default function OrdersIndex({
                         {orders.data.length === 0 ? (
                             <SimEmptyState title="Tidak ada order sesuai filter" description="Coba ubah kata kunci atau hapus sebagian filter." />
                         ) : sortedOrders.map((order) => (
-                            <article key={order.id} className="space-y-4 p-4">
+                            <article key={order.id} className={`space-y-4 border-l-2 p-4 ${order.risk_flag ? 'border-l-red-500/80' : toneBorder(order.status)}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <Link href={`/orders/${order.id}`} className="font-medium underline-offset-4 hover:underline">{order.order_no}</Link>
@@ -165,16 +165,29 @@ export default function OrdersIndex({
     );
 }
 
-function Summary({ label, value, icon: Icon, onClick, danger = false }: { label: string; value: number; icon: typeof FileText; onClick: () => void; danger?: boolean }) {
+function Summary({ label, value, note, icon: Icon, onClick, tone }: { label: string; value: number; note: string; icon: typeof FileText; onClick: () => void; tone: 'info' | 'success' | 'warning' | 'danger' }) {
+    const labelStyles = {
+        info: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+        success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+        warning: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+        danger: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300',
+    };
     return (
-        <button type="button" onClick={onClick} className="sim-metric text-left">
+        <button type="button" onClick={onClick} className="sim-metric text-left transition-colors hover:bg-muted/30">
             <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">{label}</span>
-                <Icon className={danger ? 'size-4 text-red-600 dark:text-red-300' : 'size-4 text-muted-foreground'} />
+                <span className={`inline-flex h-6 items-center rounded-full border px-2.5 text-xs font-medium ${labelStyles[tone]}`}>{label}</span>
+                <Icon className="size-4 text-muted-foreground" />
             </div>
             <div className="mt-3 text-2xl font-semibold">{value}</div>
+            <div className="mt-2 text-xs leading-5 text-muted-foreground">{note}</div>
+            <div className="mt-3 flex items-center gap-1 text-xs font-medium text-muted-foreground">Buka daftar <ArrowRight className="size-3.5" /></div>
         </button>
     );
+}
+
+function toneBorder(status: string): string {
+    const tone = toneForStatus(status);
+    return tone === 'success' ? 'border-l-emerald-500/60' : tone === 'warning' ? 'border-l-amber-500/60' : tone === 'danger' ? 'border-l-red-500/60' : tone === 'info' ? 'border-l-sky-500/60' : 'border-l-transparent';
 }
 
 OrdersIndex.layout = {

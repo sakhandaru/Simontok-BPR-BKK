@@ -3,13 +3,13 @@ import { ArrowLeft, Check, FileCheck2, FileUp, Save, Send, X } from 'lucide-reac
 import { FormEvent, useMemo, useState } from 'react';
 import InputError from '@/components/input-error';
 import { RupiahInput } from '@/components/rupiah-input';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SimSelect } from '@/components/sim-select';
 import { SimFileUpload } from '@/components/sim-file-upload';
 import { SimTable } from '@/components/sim-table';
+import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 
 type Option = { value: string; label: string };
 
@@ -148,21 +148,21 @@ export default function NotaryOrdersShow({
                     <div>
                         <div className="flex flex-wrap items-center gap-2">
                             <h1 className="text-2xl font-semibold">{order.order_no}</h1>
-                            <Badge variant="secondary">{order.status}</Badge>
+                            <SimStatusBadge label={order.status} tone={toneForStatus(order.status)} />
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">{order.customer_name} - {order.no_rekening}</p>
                     </div>
                     <Button variant="outline" asChild><Link href="/notary/orders"><ArrowLeft className="size-4" />Kembali</Link></Button>
                 </div>
 
-                <section className="grid gap-4 rounded-lg border p-4 md:grid-cols-3">
+                <section className="sim-panel grid gap-4 p-4 md:grid-cols-3">
                     <Info label="Cabang" value={`${order.branch?.code ?? ''} ${order.branch?.name ?? ''}`} />
                     <Info label="Plafon" value={money(order.plafon)} />
                     <Info label="Tanggal masuk notaris" value={dateOnly(order.tgl_masuk_notaris ?? order.sent_to_notary_at)} />
                 </section>
 
                 {canViewDocuments && <section className="sim-panel overflow-hidden">
-                    <div className="border-b px-4 py-3">
+                        <div className="sim-panel-header">
                         <h2 className="font-medium">Invoice</h2>
                         <p className="mt-1 text-sm text-muted-foreground">Invoice diajukan setelah seluruh dokumen final divalidasi BPR dan covernote aman.</p>
                     </div>
@@ -213,7 +213,7 @@ export default function NotaryOrdersShow({
                 </section>}
 
                 {canReview && (
-                    <section className="rounded-lg border p-4">
+                    <section className="sim-panel p-4">
                         <h2 className="font-medium">Verifikasi dokumen awal</h2>
                         <p className="mt-1 text-sm text-muted-foreground">Pilih keputusan setelah memeriksa data nasabah, agunan, dan checklist dokumen.</p>
                         <div className="mt-4 flex flex-wrap gap-2">
@@ -235,7 +235,7 @@ export default function NotaryOrdersShow({
                 )}
 
                 {canViewDocuments && (needsCovernote || ['menunggu_approval_covernote', 'perbaikan_covernote', 'Menunggu approval covernote', 'Perbaikan covernote'].includes(String(order.status?.value ?? order.status))) ? (
-                    <form onSubmit={submitInitialCovernote} className="rounded-lg border p-4">
+                    <form onSubmit={submitInitialCovernote} className="sim-panel p-4">
                         <h2 className="font-medium">Covernote dan komitmen penyelesaian</h2>
                         <p className="mt-1 text-sm text-muted-foreground">Unggah covernote setelah order diterima. Progres baru terbuka setelah Admin Legal menyetujui.</p>
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -260,7 +260,7 @@ export default function NotaryOrdersShow({
                     </form>
                 ) : null}
 
-                {canViewDocuments && canRequestAdditionalDocuments && <section className="rounded-lg border p-4">
+                {canViewDocuments && canRequestAdditionalDocuments && <section className="sim-panel p-4">
                     <h2 className="font-medium">Minta dokumen tambahan</h2>
                     <p className="mt-1 text-sm text-muted-foreground">Ajukan dokumen yang perlu dilengkapi Admin Legal. Dokumen akan muncul setelah diunggah.</p>
                     <form onSubmit={submitDocumentRequest} className="mt-4 grid gap-4 md:grid-cols-3">
@@ -270,12 +270,12 @@ export default function NotaryOrdersShow({
                         <Button className="w-fit" disabled={documentRequest.processing}><Send className="size-4" />Kirim permintaan</Button>
                     </form>
                     <div className="mt-4 divide-y rounded-md border">
-                        {order.document_requests?.map((item: any) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span>{item.name} - {item.reason}</span><Badge variant="outline">{item.status === 'diunggah' ? 'Dokumen tersedia' : 'Menunggu Admin Legal'}</Badge></div>)}
+                        {order.document_requests?.map((item: any) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span>{item.name} - {item.reason}</span><SimStatusBadge label={item.status === 'diunggah' ? 'Dokumen tersedia' : 'Menunggu Admin Legal'} tone={item.status === 'diunggah' ? 'success' : 'warning'} /></div>)}
                     </div>
                 </section>}
 
-                <section className="rounded-lg border">
-                    <div className="border-b px-4 py-3 font-medium">Agunan dan checklist</div>
+                <section className="sim-panel">
+                    <div className="sim-panel-header font-medium">Agunan dan checklist</div>
                     <div className="divide-y">
                         {order.collaterals.map((collateral: any) => (
                             <div key={collateral.id} className="p-4">
@@ -285,8 +285,8 @@ export default function NotaryOrdersShow({
                                         <p className="mt-1 text-sm text-muted-foreground">{collateral.deskripsi_agunan}</p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        <Badge variant="outline">Dokumen: {collateral.doc_status}</Badge>
-                                        <Badge variant="outline">Covernote: {collateral.covernote_status}</Badge>
+                                        <SimStatusBadge label={`Dokumen: ${collateral.doc_status}`} tone={toneForStatus(collateral.doc_status)} />
+                                        <SimStatusBadge label={`Covernote: ${collateral.covernote_status}`} tone={toneForStatus(collateral.covernote_status)} />
                                     </div>
                                 </div>
                                 <div className="mt-4 grid gap-2 md:grid-cols-2">
@@ -304,7 +304,7 @@ export default function NotaryOrdersShow({
                 </section>
 
                 {canExtendCovernote && (
-                    <form onSubmit={submitCovernote} className="rounded-lg border p-4">
+                    <form onSubmit={submitCovernote} className="sim-panel p-4">
                         <h2 className="font-medium">Perpanjang covernote</h2>
                         <p className="mt-1 text-sm text-muted-foreground">Gunakan bagian ini saat masa berlaku covernote perlu diperpanjang.</p>
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -329,7 +329,7 @@ export default function NotaryOrdersShow({
                     </form>
                 )}
 
-                {canViewDocuments && canAddProgress && <form onSubmit={submitProgress} className="rounded-lg border p-4">
+                {canViewDocuments && canAddProgress && <form onSubmit={submitProgress} className="sim-panel p-4">
                     <h2 className="font-medium">Tambah progres</h2>
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                         <div className="grid gap-2">
@@ -363,7 +363,7 @@ export default function NotaryOrdersShow({
                     <Button className="mt-4" disabled={progress.processing}><Save className="size-4" />Simpan progres</Button>
                 </form>}
 
-                {canViewDocuments && (canUploadWork || canUploadFinal) && <form onSubmit={submitUpload} className="rounded-lg border p-4">
+                {canViewDocuments && (canUploadWork || canUploadFinal) && <form onSubmit={submitUpload} className="sim-panel p-4">
                     <h2 className="font-medium">Upload dokumen pekerjaan</h2>
                     <p className="mt-1 text-sm text-muted-foreground">Gunakan PDF untuk draft, resi BPN, dan dokumen final.</p>
                     <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -374,15 +374,19 @@ export default function NotaryOrdersShow({
                     <Button className="mt-4" disabled={upload.processing}><FileUp className="size-4" />Upload dokumen</Button>
                 </form>}
 
-                {canViewDocuments && <SimTable raw>
-                    <div className="border-b px-4 py-3 font-medium">Dokumen digital</div>
+                {canViewDocuments && <section className="sim-panel overflow-hidden">
+                    <div className="sim-panel-header">
+                        <h2 className="font-medium">Dokumen digital</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">Daftar dokumen pekerjaan dan dokumen final pada order ini.</p>
+                    </div>
+                    <SimTable raw className="!rounded-none !border-0 !bg-transparent !shadow-none">
                         <table className="sim-table w-full min-w-[760px] text-sm">
                             <thead className="bg-muted/50 text-left text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 font-medium">Jenis</th>
+                                    <th className="px-4 py-3 font-medium">Dokumen</th>
                                     <th className="px-4 py-3 font-medium">File</th>
                                     <th className="px-4 py-3 font-medium">Agunan</th>
-                                    <th className="px-4 py-3 font-medium">Status</th>
+                                    <th className="px-4 py-3 font-medium">Upload</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -390,33 +394,36 @@ export default function NotaryOrdersShow({
                                     <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Belum ada dokumen.</td></tr>
                                 ) : order.documents.map((document: any) => (
                                     <tr key={document.id} className="border-t">
-                                        <td className="px-4 py-3">{document.document_type}</td>
+                                        <td className="px-4 py-3"><div className="flex flex-wrap items-center gap-3"><div><div className="font-medium leading-5">{document.display_name || checklistNameForDocument(order, document.id) || documentTypeLabel(document.document_type)}</div><div className="mt-0.5 text-xs text-muted-foreground">{document.document_type === 'lainnya' ? 'Dokumen susulan' : documentTypeLabel(document.document_type)}</div></div>{document.document_type === 'final' && <SimStatusBadge label={document.validated_at ? 'Tervalidasi' : 'Menunggu validasi'} tone={document.validated_at ? 'success' : 'warning'} />}</div></td>
                                         <td className="px-4 py-3">
-                                            <a className="font-medium underline-offset-4 hover:underline" href={`/notary/orders/${order.id}/documents/${document.id}/download`}>{document.original_name}</a>
-                                            <div className="text-muted-foreground">v{document.version}</div>
+                                            <a className="block max-w-[260px] truncate font-medium underline-offset-4 hover:underline" title={document.original_name} href={`/notary/orders/${order.id}/documents/${document.id}/download`}>{document.original_name}</a>
+                                            <div className="text-muted-foreground">Versi {document.version} · {formatBytes(document.file_size)}</div>
                                         </td>
                                         <td className="px-4 py-3">{document.collateral?.job_type?.name ?? '-'}</td>
-                                        <td className="px-4 py-3">{document.validated_at ? <Badge variant="secondary">Tervalidasi</Badge> : <Badge variant="outline">Menunggu</Badge>}</td>
+                                        <td className="px-4 py-3">{document.uploader?.name ?? '-'}<br /><span className="text-muted-foreground">{formatTimelineDate(document.created_at)}</span></td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                </SimTable>}
+                    </SimTable>
+                </section>}
 
-                {canViewDocuments && <section className="rounded-lg border">
-                    <div className="border-b px-4 py-3 font-medium">Riwayat progres</div>
+                {canViewDocuments && <section className="sim-panel">
+                    <div className="sim-panel-header font-medium">Riwayat progres</div>
                     <div className="divide-y">
                         {order.progress.length === 0 ? (
                             <div className="px-4 py-6 text-sm text-muted-foreground">Belum ada progres.</div>
                         ) : (
                             order.progress.map((item: any) => (
-                                <div key={item.id} className="grid gap-1 px-4 py-3 text-sm md:grid-cols-[220px_1fr_180px]">
-                                    <div className="font-medium">{item.status}</div>
-                                    <div>
-                                        <div>{item.catatan}</div>
-                                        <div className="mt-1 text-muted-foreground">{item.collateral?.job_type?.name} - komitmen {dateOnly(item.komitmen_penyelesaian) || '-'}</div>
+                                <div key={item.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[145px_minmax(0,1fr)_180px] md:items-center">
+                                    <div className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground"><span className="size-2 shrink-0 rounded-full bg-primary" />Proses notaris</div>
+                                    <div className="min-w-0">
+                                        <div className="font-medium">{progressLabel(item.status)}</div>
+                                        <div className="mt-1 text-xs text-muted-foreground">{item.collateral?.job_type?.name ?? 'Agunan'} · Komitmen {dateOnly(item.komitmen_penyelesaian) || '-'}</div>
+                                        {item.catatan && <div className="mt-1 truncate text-xs text-muted-foreground" title={item.catatan}>{item.catatan}</div>}
+                                        <div className="mt-1 text-xs text-muted-foreground">Oleh {item.user?.name ?? 'Notaris'}</div>
                                     </div>
-                                    <div className="text-muted-foreground">{item.created_at}</div>
+                                    <div className="text-xs text-muted-foreground md:text-right">{formatTimelineDate(item.created_at)}</div>
                                 </div>
                             ))
                         )}
@@ -438,6 +445,47 @@ function Info({ label, value }: { label: string; value?: string | null }) {
 
 function dateOnly(value?: string | null) {
     return value?.slice(0, 10) ?? '';
+}
+
+function formatTimelineDate(value?: string | null): string {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+
+function progressLabel(value?: string | null): string {
+    if (!value) return 'Progres diperbarui';
+    return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatBytes(bytes?: number | null): string {
+    if (!bytes) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function documentTypeLabel(type?: string | null): string {
+    const labels: Record<string, string> = {
+        dokumen_awal: 'Dokumen awal',
+        draft: 'Draft',
+        resi_bpn: 'Resi BPN',
+        final: 'Dokumen final',
+        bukti_bayar: 'Bukti pembayaran',
+        tanda_terima: 'Tanda terima',
+        lainnya: 'Dokumen lainnya',
+    };
+
+    return type ? labels[type] ?? type : 'Dokumen';
+}
+
+function checklistNameForDocument(order: any, documentId: number): string | null {
+    for (const collateral of order.collaterals ?? []) {
+        const checklist = (collateral.checklists ?? []).find((item: any) => item.order_document_id === documentId);
+        if (checklist?.document_checklist?.name) return checklist.document_checklist.name;
+    }
+    return null;
 }
 
 function money(value?: string | number | null) {

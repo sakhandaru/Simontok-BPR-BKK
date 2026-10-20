@@ -1,7 +1,6 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { AlertCircle, ArrowLeft, BadgeCheck, CheckCircle2, Circle, ClipboardCheck, Clock3, FileCheck2, FilePlus2, PackageCheck, Pencil, Plus, RefreshCw, Save, Scale, Send, ShieldCheck, Trash2, Upload, WalletCards } from 'lucide-react';
 import { FormEvent, useEffect, useState, type ReactNode } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SimActionAlert } from '@/components/sim-action-alert';
@@ -357,7 +356,7 @@ export default function OrdersShow({
                 </section>}
 
                 <section className="sim-panel">
-                    <div className="sim-panel-header sim-panel-title">Agunan</div>
+                    <div className="sim-panel-header"><div className="sim-panel-title">Agunan</div><p className="sim-panel-subtitle">Objek agunan dan kelengkapan dokumen yang terkait.</p></div>
                     <div className="divide-y">
                         {order.collaterals.map((item: any) => (
                             <div key={item.id} className="grid gap-4 p-4 md:grid-cols-[1fr_220px]">
@@ -365,8 +364,8 @@ export default function OrdersShow({
                                     <div className="font-medium">{item.job_type?.name}</div>
                                     <p className="mt-1 text-sm text-muted-foreground">{item.deskripsi_agunan}</p>
                                     <div className="mt-3 flex flex-wrap gap-2">
-                                        <Badge variant="outline">Dokumen: {statusLabel(item.doc_status)}</Badge>
-                                        {item.covernote_no || item.covernote_end ? <Badge variant="outline">Covernote: {statusLabel(item.covernote_status)}</Badge> : <Badge variant="outline" className="text-muted-foreground">Covernote belum tersedia</Badge>}
+                                        <SimStatusBadge label={`Dokumen: ${statusLabel(item.doc_status)}`} tone={toneForStatus(statusLabel(item.doc_status))} />
+                                        {item.covernote_no || item.covernote_end ? <SimStatusBadge label={`Covernote: ${statusLabel(item.covernote_status)}`} tone={toneForStatus(statusLabel(item.covernote_status))} /> : <SimStatusBadge label="Covernote belum tersedia" tone="warning" />}
                                     </div>
                                 </div>
                                 <div className="text-sm text-muted-foreground">
@@ -392,7 +391,7 @@ export default function OrdersShow({
                                         <Info label="Mulai berlaku" value={dateOnly(item.covernote_start) || '-'} />
                                         <Info label="Berakhir" value={dateOnly(item.covernote_end) || '-'} />
                                     </div>
-                                    <div className="mt-4 flex flex-wrap gap-2">
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
                                         <Button variant="outline" asChild>
                                             <a href={`/orders/${order.id}/collaterals/${item.id}/covernote/preview`} target="_blank" rel="noreferrer">Buka preview</a>
                                         </Button>
@@ -420,7 +419,7 @@ export default function OrdersShow({
                                 <div className="text-sm">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <div className="font-medium">{item.job_type?.name ?? 'Agunan'}</div>
-                                        <Badge variant="outline">Menunggu approval</Badge>
+                                        <SimStatusBadge label="Menunggu approval" tone="warning" />
                                     </div>
                                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                                         <Info label="Jatuh tempo sebelumnya" value={dateOnly(item.covernote_end)} />
@@ -437,7 +436,7 @@ export default function OrdersShow({
                                             <Input name="reason" aria-label="Alasan pengembalian" placeholder="Alasan pengembalian" required />
                                             <Button type="submit" variant="outline"><AlertCircle className="size-4" />Kembalikan</Button>
                                         </form>
-                                    </div> : <Badge variant="outline">Menunggu Admin Legal</Badge>}
+                                    </div> : <SimStatusBadge label="Menunggu Admin Legal" tone="warning" />}
                                 </div>
                             </div>
                         ))) }
@@ -468,43 +467,28 @@ export default function OrdersShow({
                         </div>
                         <Button type="button" variant="outline" onClick={() => router.post(`/orders/${order.id}/covernotes/refresh-risk`, {}, { preserveScroll: true })}><RefreshCw className="size-4" />Refresh risiko covernote</Button>
                     </div>
-                    <SimTable raw minWidth="860px">
+                    <SimTable raw className="!rounded-none !border-0 !bg-transparent !shadow-none" minWidth="860px">
                         <table className="sim-table min-w-[860px]">
                             <thead className="bg-muted/30 text-left text-xs text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 font-medium">Jenis</th>
+                                    <th className="px-4 py-3 font-medium">Dokumen</th>
                                     <th className="px-4 py-3 font-medium">File</th>
                                     <th className="px-4 py-3 font-medium">Agunan</th>
                                     <th className="px-4 py-3 font-medium">Upload</th>
-                                    <th className="px-4 py-3 font-medium">Validasi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {order.documents.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Belum ada dokumen.</td></tr>
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Belum ada dokumen.</td></tr>
                                 ) : order.documents.map((document: any) => (
                                     <tr key={document.id} className="border-t">
-                                        <td className="px-4 py-3">{document.document_type}</td>
+                                        <td className="px-4 py-3"><div className="flex flex-wrap items-center gap-3"><div><div className="font-medium leading-5">{document.display_name || checklistNameForDocument(order, document.id) || documentTypeLabel(document.document_type)}</div><div className="mt-0.5 text-xs text-muted-foreground">{document.document_type === 'lainnya' ? 'Dokumen susulan' : documentTypeLabel(document.document_type)}</div></div>{canValidateDocuments && document.document_type === 'final' && !document.validated_at && <div className="flex shrink-0 items-center gap-2"><Button size="sm" className="h-9 px-3" variant="outline" onClick={() => router.post(`/orders/${order.id}/documents/${document.id}/validate-final`, {}, { preserveScroll: true })}><FileCheck2 className="size-4" />Setujui</Button><Button size="sm" className="h-9 px-3" variant="ghost" onClick={() => setFinalRevisionDocument(document.id)}>Revisi</Button></div>}{document.document_type === 'final' && document.validated_at && <SimStatusBadge label="Tervalidasi" tone="success" />}</div></td>
                                         <td className="px-4 py-3">
-                                            <a className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}/documents/${document.id}/download`}>{document.original_name}</a>
-                                            <div className="text-muted-foreground">v{document.version}</div>
+                                            <a className="block max-w-[260px] truncate font-medium underline-offset-4 hover:underline" title={document.original_name} href={`/orders/${order.id}/documents/${document.id}/download`}>{document.original_name}</a>
+                                            <div className="text-muted-foreground">Versi {document.version} · {formatBytes(document.file_size)}</div>
                                         </td>
                                         <td className="px-4 py-3">{document.collateral?.job_type?.name ?? '-'}</td>
                                         <td className="px-4 py-3">{document.uploader?.name ?? '-'}<br /><span className="text-muted-foreground">{formatTimelineDate(document.created_at)}</span></td>
-                                        <td className="px-4 py-3">
-                                            {canValidateDocuments && document.document_type === 'final' && !document.validated_at ? (
-                                                <div className="flex flex-wrap gap-2">
-                                                    <Button size="sm" variant="outline" onClick={() => router.post(`/orders/${order.id}/documents/${document.id}/validate-final`, {}, { preserveScroll: true })}><FileCheck2 className="size-4" />Setujui final</Button>
-                                                    <Button size="sm" variant="ghost" onClick={() => setFinalRevisionDocument(document.id)}>Minta revisi</Button>
-                                                </div>
-                                            ) : document.validated_at ? (
-                                                <Badge variant="outline">Tervalidasi</Badge>
-                                            ) : document.document_type === 'final' ? (
-                                                <Badge variant="outline">Menunggu validasi</Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="text-muted-foreground">Tidak perlu validasi</Badge>
-                                            )}
-                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -585,15 +569,19 @@ export default function OrdersShow({
                             <SimEmptyState title="Belum ada riwayat status" description="Perubahan status order akan muncul di sini." />
                         ) : (
                             order.status_histories.map((history: any) => (
-                                <div key={history.id} className="grid gap-1 px-4 py-3 text-sm md:grid-cols-[120px_1fr_180px]">
-                                    <div className="text-muted-foreground">Track {history.track}</div>
-                                    <div>
-                                        <span className="font-medium">{history.from_status ?? '-'}</span>
-                                        <span className="text-muted-foreground"> ke </span>
-                                        <span className="font-medium">{history.to_status}</span>
-                                        {history.reason && <div className="mt-1 text-muted-foreground">{history.reason}</div>}
+                                <div key={history.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[145px_minmax(0,1fr)_180px] md:items-center">
+                                    <div className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground"><span className="size-2 shrink-0 rounded-full bg-primary" />{trackLabel(history.track)}</div>
+                                    <div className="min-w-0">
+                                        <div className="font-medium">{historyEventLabel(history.to_status)}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                                            {history.from_status && <SimStatusBadge label={statusLabel(history.from_status)} tone={toneForStatus(statusLabel(history.from_status))} />}
+                                            {history.from_status && <span className="text-muted-foreground" aria-hidden="true">→</span>}
+                                            <SimStatusBadge label={statusLabel(history.to_status)} tone={toneForStatus(statusLabel(history.to_status))} />
+                                        </div>
+                                        {history.reason && <div className="mt-1 truncate text-xs text-muted-foreground" title={history.reason}>{history.reason}</div>}
+                                        <div className="mt-1 text-xs text-muted-foreground">Oleh {actorLabel(history.actor_type)}</div>
                                     </div>
-                                    <div className="text-muted-foreground">{formatTimelineDate(history.created_at)}</div>
+                                    <div className="text-xs text-muted-foreground md:text-right">{formatTimelineDate(history.created_at)}</div>
                                 </div>
                             ))
                         )}
@@ -765,7 +753,7 @@ function OrderTrackingHero({ order }: { order: any }) {
         {blockers.length > 0 && <div className="border-t px-4 py-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">Perlu perhatian:</span> {blockers.join(' · ')}</div>}
         <div className="grid gap-0 lg:grid-cols-[1fr_280px]">
             <div className="border-b p-4 lg:border-b-0 lg:border-r"><div className="mb-3 flex items-center gap-2"><Clock3 className="size-4" /><h3 className="font-medium">Journey pengajuan</h3></div><SimTimeline items={stages.map((stage, index) => { const stageHistory = history.find((item: any) => stage.keys.includes(statusValue(item.to_status))); return { id: stage.label, title: stage.label, description: stage.active ? (stageHistory?.reason ?? 'Order sedang berada di tahap ini.') : stage.done ? (stageHistory?.reason ?? 'Tahap telah dilewati.') : 'Tahap berikutnya dalam alur pengajuan.', timestamp: stageHistory?.created_at ? formatTimelineDate(stageHistory.created_at) : (stage.active ? 'Sedang berjalan' : undefined), icon: [FilePlus2, ShieldCheck, Scale, BadgeCheck, PackageCheck, CheckCircle2][index], state: stage.state === 'blocked' ? 'danger' as const : stage.active ? 'current' as const : stage.done ? 'complete' as const : 'waiting' as const }; })} /></div>
-            <div className="grid content-start gap-3 p-4"><h3 className="font-medium">Ringkasan order</h3><Info label="Cabang" value={order.branch?.name} /><Info label="Notaris" value={order.notary?.name} /><Info label="Rekening" value={order.no_rekening} /><Info label="Update terakhir" value={formatTimelineDate(history[0]?.created_at)} /></div>
+            <div className="grid content-start gap-4 bg-zinc-950 p-4 text-white dark:bg-white dark:text-zinc-950"><div><h3 className="font-medium">Ringkasan order</h3><p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Informasi utama order.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><Info label="Nomor order" value={order.order_no} /><Info label="Nama nasabah" value={order.customer_name} /><Info label="Cabang" value={order.branch?.name} /><Info label="Notaris" value={order.notary?.name} /><Info label="Nomor rekening" value={order.no_rekening} /><Info label="Plafon" value={money(order.plafon)} /><Info label="Tanggal akad" value={formatTimelineDate(order.tgl_realisasi)} /><Info label="Update terakhir" value={formatTimelineDate(history[0]?.created_at)} /></div></div>
         </div>
     </section>;
 }
@@ -788,7 +776,7 @@ function OrderTracker({ order }: { order: any }) {
                     <h2 className="sim-panel-title">Lacak pengajuan</h2>
                     <p className="sim-panel-subtitle">Posisi order, dokumen, covernote, dan pembayaran dalam satu alur.</p>
                 </div>
-                <Badge variant={blockers.length > 0 ? 'destructive' : 'secondary'}>{blockers.length > 0 ? `${blockers.length} perhatian` : 'Berjalan normal'}</Badge>
+                <SimStatusBadge label={blockers.length > 0 ? `${blockers.length} perhatian` : 'Berjalan normal'} tone={blockers.length > 0 ? 'danger' : 'success'} />
             </div>
 
                     <div className="grid gap-4 p-4 xl:grid-cols-[320px_1fr]">
@@ -950,7 +938,22 @@ function statusLabel(status?: string | null): string {
         kedaluwarsa: 'Kedaluwarsa',
     };
 
-    return value ? labels[value] ?? value : '-';
+    return value ? labels[value] ?? humanizeStatus(value) : '-';
+}
+
+function humanizeStatus(value: string): string {
+    return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function trackLabel(track?: string | null): string {
+    const labels: Record<string, string> = {
+        A: 'Alur order',
+        B: 'Dokumen',
+        C: 'Covernote',
+        D: 'Pembayaran & fisik',
+    };
+
+    return track ? labels[track] ?? `Proses ${track}` : 'Proses order';
 }
 
 function paymentStatusLabel(status?: string | null): string {
@@ -966,6 +969,59 @@ function paymentStatusLabel(status?: string | null): string {
     };
 
     return value ? labels[value] ?? value : 'Belum diajukan';
+}
+
+function documentTypeLabel(type?: string | null): string {
+    const labels: Record<string, string> = {
+        dokumen_awal: 'Dokumen awal',
+        draft: 'Draft',
+        resi_bpn: 'Resi BPN',
+        final: 'Dokumen final',
+        bukti_bayar: 'Bukti pembayaran',
+        tanda_terima: 'Tanda terima',
+        lainnya: 'Dokumen lainnya',
+    };
+
+    return type ? labels[type] ?? type : 'Dokumen';
+}
+
+function historyEventLabel(status?: string | null): string {
+    const labels: Record<string, string> = {
+        draft: 'Order disiapkan',
+        diajukan: 'Order diajukan',
+        menunggu_approval: 'Menunggu persetujuan pimpinan cabang',
+        disetujui_kepala_cabang: 'Order disetujui pimpinan cabang',
+        menunggu_verifikasi_notaris: 'Order dikirim ke notaris',
+        menunggu_approval_covernote: 'Covernote diajukan untuk persetujuan',
+        covernote_disetujui: 'Covernote disetujui',
+        dokumen_valid: 'Dokumen agunan dinyatakan valid',
+        proses_akta: 'Proses akta dimulai',
+        proses_bpn_samsat: 'Proses BPN/Samsat dimulai',
+        draft_diunggah: 'Draft dokumen diunggah',
+        menunggu_validasi_bpr: 'Dokumen final menunggu validasi',
+        dokumen_final_diunggah: 'Dokumen final diunggah',
+        dokumen_fisik_diterima: 'Dokumen fisik diterima',
+        dibayar: 'Pembayaran dikonfirmasi',
+        selesai: 'Order diselesaikan',
+        perbaikan_dokumen: 'Dokumen dikembalikan untuk perbaikan',
+        perbaikan_covernote: 'Covernote dikembalikan untuk perbaikan',
+        dibatalkan: 'Order dibatalkan',
+    };
+
+    return status ? labels[statusValue(status)] ?? `Status diperbarui menjadi ${statusLabel(status)}` : 'Status diperbarui';
+}
+
+function actorLabel(actorType?: string | null): string {
+    const labels: Record<string, string> = { notary: 'Notaris', user: 'Petugas internal', system: 'Sistem' };
+    return actorType ? labels[actorType] ?? actorType : 'Petugas internal';
+}
+
+function checklistNameForDocument(order: any, documentId: number): string | null {
+    for (const collateral of order.collaterals ?? []) {
+        const checklist = (collateral.checklists ?? []).find((item: any) => item.order_document_id === documentId);
+        if (checklist?.document_checklist?.name) return checklist.document_checklist.name;
+    }
+    return null;
 }
 
 OrdersShow.layout = {

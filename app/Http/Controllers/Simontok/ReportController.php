@@ -73,13 +73,17 @@ class ReportController extends Controller
                 ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters))
                 ->groupBy('covernote_status')
                 ->get()
-                ->map(fn ($item) => [
-                    'status' => ($item->covernote_status instanceof TrackCCovernoteStatus
-                        ? $item->covernote_status
-                        : TrackCCovernoteStatus::from($item->covernote_status)
-                    )->value,
-                    'total' => (int) $item->total,
-                ]),
+                ->map(function ($item) {
+                    $rawStatus = $item->covernote_status;
+                    $status = $rawStatus instanceof TrackCCovernoteStatus
+                        ? $rawStatus->value
+                        : TrackCCovernoteStatus::tryFrom((string) $rawStatus)?->value;
+
+                    return [
+                        'status' => $status ?? 'belum_ada',
+                        'total' => (int) $item->total,
+                    ];
+                }),
             'outstandingOrders' => (clone $orders)
                 ->with(['branch:id,code,name', 'notary:id,name'])
                 ->whereNotIn('status', $closedStatuses)
