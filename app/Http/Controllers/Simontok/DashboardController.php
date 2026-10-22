@@ -9,20 +9,21 @@ use App\Enums\TrackDPaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderCollateral;
+use App\Models\OrderStatusHistory;
 use App\Models\PaymentRequest;
 use App\Models\User;
 use App\Support\OrderStages;
 use Carbon\CarbonInterface;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
     public function __invoke(Request $request): Response
     {
-        $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+        $closedStatuses = OrderStages::closedStatuses();
         $visibleOrders = Order::query()->visibleTo($request->user());
         $visibleCollaterals = OrderCollateral::whereHas('order', fn ($query) => $query->visibleTo($request->user()));
         $activeOrders = (clone $visibleOrders)->whereNotIn('status', $closedStatuses);
@@ -39,23 +40,38 @@ class DashboardController extends Controller
                 'completed_orders' => $completedOrders,
                 'overdue_sla' => (clone $visibleCollaterals)->whereNotNull('sla_due_at')->where('sla_due_at', '<', now())->whereHas('order', fn ($query) => $query->whereNotIn('status', $closedStatuses))->count(),
                 'due_soon_sla' => (clone $visibleCollaterals)->whereBetween('sla_due_at', [now(), now()->addDays(7)])->whereHas('order', fn ($query) => $query->whereNotIn('status', $closedStatuses))->count(),
-                'expired_covernotes' => (clone $visibleCollaterals)->where('covernote_status', TrackCCovernoteStatus::Kedaluwarsa->value)->count(),
+                'expired_covernotes' => (clone $visibleCollaterals)->where('covernote_status', TrackCCovernoteStatus::Kedaluwarsa->value)->whereHas('order', fn ($query) => $query->whereNotIn('status', $closedStatuses))->count(),
                 'pending_handovers' => (clone $visibleCollaterals)->where('doc_status', TrackBDocStatus::FinalDivalidasi->value)->whereDoesntHave('handovers')->whereHas('order', fn ($query) => $query->whereNotIn('status', $closedStatuses))->count(),
+                'pending_final_validation' => (clone $visibleCollaterals)->where('doc_status', TrackBDocStatus::FinalDiunggah->value)->count(),
                 'total_orders' => $totalOrders,
                 'completion_rate' => $totalOrders > 0 ? round(($completedOrders / $totalOrders) * 100) : 0,
                 'final_validation_rate' => $totalCollaterals > 0 ? round(($finalValidated / $totalCollaterals) * 100) : 0,
+                'total_collaterals' => $totalCollaterals,
+                'final_validated' => $finalValidated,
             ],
-            'workflow' => [
-                ['label' => 'Draft', 'value' => (clone $visibleOrders)->whereIn('status', [TrackAStatus::Draft->value, TrackAStatus::PerluPerbaikanOrder->value])->count()],
-                ['label' => 'Persetujuan order', 'value' => (clone $visibleOrders)->whereIn('status', [TrackAStatus::Diajukan->value, TrackAStatus::MenungguApproval->value, TrackAStatus::DisetujuiKepalaCabang->value])->count()],
-                ['label' => 'Verifikasi notaris', 'value' => (clone $visibleOrders)->whereIn('status', [TrackAStatus::MenungguVerifikasiNotaris->value, TrackAStatus::PerbaikanDokumen->value])->count()],
-                ['label' => 'Proses akta', 'value' => (clone $visibleOrders)->whereIn('status', [TrackAStatus::DokumenValid->value, TrackAStatus::ProsesAkta->value, TrackAStatus::ProsesBpnSamsat->value])->count()],
-                ['label' => 'Validasi BPR', 'value' => (clone $visibleOrders)->whereIn('status', [TrackAStatus::DraftDiunggah->value, TrackAStatus::MenungguValidasiBpr->value, TrackAStatus::DokumenFinalDiunggah->value])->count()],
-                ['label' => 'Fisik & bayar', 'value' => (clone $visibleOrders)->where('status', TrackAStatus::DokumenFisikDiterima->value)->count()],
-                ['label' => 'Selesai', 'value' => $completedOrders],
+            'workflow' => collect(OrderStages::groups())
+                ->map(fn (array $group, string $key) => [
+                    'key' => $key,
+                    'label' => $group['label'],
+                    'value' => (clone $visibleOrders)->whereIn('status', $group['statuses'])->count(),
+                ])
+                ->values()
+                ->all(),
+            'deltas' => [
+                'active' => $this->stockDelta(
+                    (clone $activeOrders)->count(),
+                    $this->activeOrdersAt($request->user(), now()->subDays(7), $closedStatuses),
+                ),
+                'completed' => $this->stockDelta(
+                    $completedOrders,
+                    $this->completedOrdersAt($request->user(), now()->subDays(7)),
+                ),
+                'period' => 'vs 7 hari lalu',
             ],
             'riskItems' => [
-                'expiredCovernotes' => $this->riskCollaterals(fn ($query) => $query->where('covernote_status', TrackCCovernoteStatus::Kedaluwarsa->value), $request->user()),
+                'expiredCovernotes' => $this->riskCollaterals(fn ($query) => $query
+                    ->where('covernote_status', TrackCCovernoteStatus::Kedaluwarsa->value)
+                    ->whereHas('order', fn ($orderQuery) => $orderQuery->whereNotIn('status', $closedStatuses)), $request->user()),
                 'overdueSla' => $this->riskCollaterals(fn ($query) => $query->whereNotNull('sla_due_at')->where('sla_due_at', '<', now())->whereHas('order', fn ($orderQuery) => $orderQuery->whereNotIn('status', $closedStatuses)), $request->user()),
                 'pendingHandovers' => $this->riskCollaterals(fn ($query) => $query->where('doc_status', TrackBDocStatus::FinalDivalidasi->value)->whereDoesntHave('handovers')->whereHas('order', fn ($orderQuery) => $orderQuery->whereNotIn('status', $closedStatuses)), $request->user()),
             ],
@@ -116,6 +132,7 @@ class DashboardController extends Controller
                 ->get()
                 ->map(fn ($item) => [
                     'status' => $this->trackAStatus($item->status)->label(),
+                    'value' => $item->status,
                     'total' => (int) $item->total,
                 ]),
             'analytics' => [
@@ -127,6 +144,80 @@ class DashboardController extends Controller
         ]);
     }
 
+    /**
+     * Delta stok antara posisi sekarang dan posisi $period sebelumnya.
+     * pct null ketika pembanding nol, supaya UI menampilkan perubahan absolut, bukan persentase karangan.
+     */
+    private function stockDelta(int $current, int $previous): array
+    {
+        return [
+            'now' => $current,
+            'previous' => $previous,
+            'change' => $current - $previous,
+            'pct' => $previous > 0 ? round((($current - $previous) / $previous) * 100, 1) : null,
+        ];
+    }
+
+    /**
+     * Rekonstruksi jumlah order aktif pada waktu $at dari jejak riwayat status:
+     * order dibuat <= $at dan belum tercatat masuk status tertutup pada <= $at.
+     * Order tertutup tanpa riwayat status (data impor tanpa riwayat) diasumsikan
+     * tertutup pada waktu perubahan terakhir (updated_at); nol kasus di data dev.
+     * Asumsi kedua: status tertutup bersifat terminal, tidak dibuka kembali
+     * (diverifikasi dari data: nol riwayat dari status terminal).
+     */
+    private function activeOrdersAt(User $user, CarbonInterface $at, array $closedStatuses): int
+    {
+        $visible = Order::query()->visibleTo($user);
+
+        $createdByAt = (clone $visible)
+            ->where('created_at', '<=', $at)
+            ->count();
+
+        $closedByAt = (clone $visible)
+            ->where('created_at', '<=', $at)
+            ->whereHas('statusHistories', fn ($query) => $query
+                ->where('track', 'A')
+                ->whereIn('to_status', $closedStatuses)
+                ->where('created_at', '<=', $at))
+            ->count()
+            + (clone $visible)
+                ->where('created_at', '<=', $at)
+                ->whereIn('status', $closedStatuses)
+                ->whereDoesntHave('statusHistories', fn ($query) => $query
+                    ->where('track', 'A')
+                    ->whereIn('to_status', $closedStatuses))
+                ->where('updated_at', '<=', $at)
+                ->count();
+
+        return max(0, $createdByAt - $closedByAt);
+    }
+
+    /**
+     * Jumlah order yang sudah berstatus Selesai pada waktu $at, dari riwayat
+     * penutupan; fallback updated_at untuk order selesai tanpa riwayat serupa.
+     */
+    private function completedOrdersAt(User $user, CarbonInterface $at): int
+    {
+        $visible = Order::query()->visibleTo($user);
+        $selesai = TrackAStatus::Selesai->value;
+
+        return (clone $visible)
+            ->whereHas('statusHistories', fn ($query) => $query
+                ->where('track', 'A')
+                ->where('to_status', $selesai)
+                ->where('created_at', '<=', $at))
+            ->count()
+            + (clone $visible)
+                ->where('status', $selesai)
+                ->where('created_at', '<=', $at)
+                ->where('updated_at', '<=', $at)
+                ->whereDoesntHave('statusHistories', fn ($query) => $query
+                    ->where('track', 'A')
+                    ->where('to_status', $selesai))
+                ->count();
+    }
+
     private function weeklyTrend(User $user): array
     {
         $start = now()->startOfWeek()->subWeeks(7);
@@ -134,9 +225,17 @@ class DashboardController extends Controller
         $orders = Order::query()
             ->visibleTo($user)
             ->whereBetween('created_at', [$start, $end])
-            ->get(['status', 'risk_flag', 'created_at', 'updated_at']);
+            ->get(['risk_flag', 'created_at']);
+        // Penyelesaian dihitung dari waktu riwayat penutupan, bukan updated_at,
+        // supaya order yang disentuh setelah selesai tetap masuk minggu yang benar.
+        $completions = OrderStatusHistory::query()
+            ->where('track', 'A')
+            ->where('to_status', TrackAStatus::Selesai->value)
+            ->whereHas('order', fn ($query) => $query->visibleTo($user))
+            ->whereBetween('created_at', [$start, $end])
+            ->get(['order_id', 'created_at']);
 
-        return collect(range(0, 7))->map(function (int $week) use ($orders, $start) {
+        return collect(range(0, 7))->map(function (int $week) use ($orders, $completions, $start) {
             $weekStart = $start->copy()->addWeeks($week);
             $weekEnd = $weekStart->copy()->endOfWeek();
             $weeklyOrders = $orders->filter(fn (Order $order) => $order->created_at->between($weekStart, $weekEnd, true));
@@ -144,8 +243,8 @@ class DashboardController extends Controller
             return [
                 'label' => $weekStart->format('d M'),
                 'incoming' => $weeklyOrders->count(),
-                'completed' => $orders
-                    ->filter(fn (Order $order) => $order->updated_at->between($weekStart, $weekEnd, true) && $this->trackAStatus($order->status) === TrackAStatus::Selesai)
+                'completed' => $completions
+                    ->filter(fn (OrderStatusHistory $history) => $history->created_at->between($weekStart, $weekEnd, true))
                     ->count(),
                 'risk' => $weeklyOrders->where('risk_flag', true)->count(),
             ];
@@ -154,25 +253,18 @@ class DashboardController extends Controller
 
     private function agingByStage(array $closedStatuses, User $user): array
     {
-        $stages = [
-            'Draft' => [TrackAStatus::Draft->value, TrackAStatus::PerluPerbaikanOrder->value],
-            'Persetujuan order' => [TrackAStatus::Diajukan->value, TrackAStatus::MenungguApproval->value, TrackAStatus::DisetujuiKepalaCabang->value],
-            'Verifikasi notaris' => [TrackAStatus::MenungguVerifikasiNotaris->value, TrackAStatus::PerbaikanDokumen->value],
-            'Proses akta' => [TrackAStatus::DokumenValid->value, TrackAStatus::ProsesAkta->value, TrackAStatus::ProsesBpnSamsat->value],
-            'Validasi BPR' => [TrackAStatus::DraftDiunggah->value, TrackAStatus::MenungguValidasiBpr->value, TrackAStatus::DokumenFinalDiunggah->value],
-            'Fisik & bayar' => [TrackAStatus::DokumenFisikDiterima->value],
-        ];
+        $stages = OrderStages::activeGroups();
 
         $rows = Order::query()
             ->visibleTo($user)
             ->whereNotIn('status', $closedStatuses)
             ->get(['status', 'created_at']);
 
-        return collect($stages)->map(function (array $statuses, string $label) use ($rows) {
+        return collect($stages)->map(function (array $group, string $key) use ($rows) {
             $bucket = ['0-7' => 0, '8-14' => 0, '15-30' => 0, '>30' => 0];
 
             $rows
-                ->filter(fn (Order $order) => in_array($this->trackAStatus($order->status)->value, $statuses, true))
+                ->filter(fn (Order $order) => in_array($order->status->value, $group['statuses'], true))
                 ->each(function (Order $order) use (&$bucket) {
                     $age = (int) $order->created_at->diffInDays(now());
 
@@ -188,7 +280,8 @@ class DashboardController extends Controller
                 });
 
             return [
-                'stage' => $label,
+                'key' => $key,
+                'stage' => $group['label'],
                 'total' => array_sum($bucket),
                 'buckets' => $bucket,
             ];

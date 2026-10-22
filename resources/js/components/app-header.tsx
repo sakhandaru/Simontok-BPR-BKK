@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, BookOpen, Folder, LayoutGrid, Menu, Moon, Plus, Search, Sun, FileText } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -31,6 +31,8 @@ import {
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
+import { useAppearance } from '@/hooks/use-appearance';
+import { useCanGoBack } from '@/hooks/use-can-go-back';
 import { cn, toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
@@ -45,6 +47,8 @@ const mainNavItems: NavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
     },
+    { title: 'Order', href: '/orders', icon: FileText },
+    { title: 'Laporan', href: '/reports', icon: BarChart3 },
 ];
 
 const rightNavItems: NavItem[] = [
@@ -68,6 +72,13 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const { auth } = page.props;
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
+    const { resolvedAppearance, updateAppearance } = useAppearance();
+    const permissions = auth.permissions ?? [];
+    const visibleNavItems = mainNavItems.filter((item) => item.title === 'Dashboard' ? permissions.includes('dashboard.view') : item.title === 'Order' ? permissions.includes('orders.view') : permissions.includes('reports.view'));
+    const canGoBack = useCanGoBack();
+
+    const goBack = () => window.history.back();
+    const goForward = () => window.history.forward();
 
     return (
         <>
@@ -98,7 +109,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">
                                         <div className="flex flex-col space-y-4">
-                                            {mainNavItems.map((item) => (
+                                {visibleNavItems.map((item) => (
                                                 <Link
                                                     key={item.title}
                                                     href={item.href}
@@ -146,7 +157,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     <div className="ml-6 hidden h-full items-center space-x-6 lg:flex">
                         <NavigationMenu className="flex h-full items-stretch">
                             <NavigationMenuList className="flex h-full items-stretch space-x-2">
-                                {mainNavItems.map((item, index) => (
+                                {visibleNavItems.map((item, index) => (
                                     <NavigationMenuItem
                                         key={index}
                                         className="relative flex h-full items-center"
@@ -178,12 +189,17 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
 
                     <div className="ml-auto flex items-center space-x-2">
                         <div className="relative flex items-center space-x-1">
+                            <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="hidden h-9 w-9 lg:inline-flex" onClick={goBack} disabled={!canGoBack} aria-label="Halaman sebelumnya"><ArrowLeft className="size-4" /></Button></TooltipTrigger><TooltipContent>Halaman sebelumnya</TooltipContent></Tooltip>
+                            <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="hidden h-9 w-9 lg:inline-flex" onClick={goForward} aria-label="Halaman berikutnya"><ArrowRight className="size-4" /></Button></TooltipTrigger><TooltipContent>Halaman berikutnya</TooltipContent></Tooltip>
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 className="group h-9 w-9 cursor-pointer"
                             >
                                 <Search className="!size-5 opacity-80 group-hover:opacity-100" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="hidden h-9 w-9 lg:inline-flex" onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Ganti tema">
+                                {resolvedAppearance === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
                             </Button>
                             <div className="ml-1 hidden gap-1 lg:flex">
                                 {rightNavItems.map((item) => (
@@ -243,6 +259,14 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     </div>
                 </div>
             )}
+            <nav className="fixed inset-x-4 bottom-4 z-50 flex h-14 items-center justify-around rounded-2xl border border-border/80 bg-background/95 px-2 shadow-lg backdrop-blur lg:hidden" aria-label="Navigasi cepat">
+                <Button variant="ghost" size="icon" onClick={goBack} disabled={!canGoBack} aria-label="Halaman sebelumnya"><ArrowLeft className="size-5" /></Button>
+                <Button variant="ghost" size="icon" onClick={goForward} aria-label="Halaman berikutnya"><ArrowRight className="size-5" /></Button>
+                <Button asChild size="icon" aria-label="Buat order"><Link href="/orders/create"><Plus className="size-5" /></Link></Button>
+                <Button variant="ghost" size="icon" onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Ganti tema">
+                    {resolvedAppearance === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
+                </Button>
+            </nav>
         </>
     );
 }

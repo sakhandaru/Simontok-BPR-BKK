@@ -20,7 +20,7 @@ class UserController extends Controller
     {
         return Inertia::render('simontok/administration/users', [
             'users' => User::with(['jobPosition.role', 'branch', 'notary'])
-                ->orderBy('name')->get(['id', 'name', 'email', 'branch_id', 'notary_id', 'job_position_id', 'is_active']),
+                ->orderBy('name')->paginate(15)->withQueryString(),
             'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'positions' => JobPosition::with('role:id,code,name')->orderBy('name')->get(['id', 'code', 'name', 'role_id']),
             'notaries' => Notary::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),

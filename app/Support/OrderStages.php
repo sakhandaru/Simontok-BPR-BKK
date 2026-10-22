@@ -77,6 +77,16 @@ final class OrderStages
     }
 
     /**
+     * Status terminal di luar pipeline (order sudah keluar dari seluruh tahap).
+     *
+     * @return list<string>
+     */
+    public static function closedStatuses(): array
+    {
+        return [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+    }
+
+    /**
      * Tahap yang memuat order aktif (tanpa tahap Selesai), untuk matriks aging.
      *
      * @return array<string, array{label: string, statuses: list<string>}>

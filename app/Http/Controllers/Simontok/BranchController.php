@@ -15,7 +15,7 @@ class BranchController extends Controller
     public function index(): Response
     {
         return Inertia::render('simontok/masters/branches', [
-            'branches' => Branch::query()->latest()->get(['id', 'code', 'name', 'address', 'latitude', 'longitude', 'is_active']),
+            'branches' => Branch::query()->latest()->paginate(15)->withQueryString()->through(fn (Branch $branch) => $branch->only(['id', 'code', 'name', 'address', 'latitude', 'longitude', 'is_active'])),
         ]);
     }
 

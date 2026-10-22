@@ -61,10 +61,10 @@ export default function ReportsIndex({
                         <p className="mt-1 text-sm text-muted-foreground">Jumlah pekerjaan dalam rentang dan filter yang dipilih.</p>
                     </div>
                     <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4 xl:divide-x">
-                        <Summary label="Total pekerjaan" value={summary.total_orders} />
-                        <Summary label="Masih berjalan" value={summary.active_orders} />
-                        <Summary label="Sudah selesai" value={summary.completed_orders} />
-                        <Summary label="Perlu perhatian" value={summary.risk_orders} />
+                        <Summary label="Total pekerjaan" value={summary.total_orders} tone="info" />
+                        <Summary label="Masih berjalan" value={summary.active_orders} tone="neutral" />
+                        <Summary label="Sudah selesai" value={summary.completed_orders} tone="success" />
+                        <Summary label="Perlu perhatian" value={summary.risk_orders} tone="danger" />
                     </div>
                 </section>
 
@@ -93,9 +93,9 @@ export default function ReportsIndex({
                             <h2 className="font-medium">Dokumen final</h2>
                             <p className="mt-1 text-sm text-muted-foreground">Perbandingan dokumen final yang sudah dikirim dan diperiksa.</p>
                         </div>
-                        <div className="grid gap-3 p-4 sm:grid-cols-2">
-                            <Summary label="Sudah diunggah" value={documentValidation.final_uploaded} />
-                            <Summary label="Sudah divalidasi" value={documentValidation.final_validated} />
+                        <div className="grid grid-cols-2 gap-2 p-3 sm:gap-3 sm:p-4">
+                            <Summary label="Sudah diunggah" value={documentValidation.final_uploaded} tone="info" />
+                            <Summary label="Sudah divalidasi" value={documentValidation.final_validated} tone="success" />
                         </div>
                     </section>
                 </div>
@@ -138,11 +138,11 @@ export default function ReportsIndex({
                             </tbody>
                         </table>
                     </SimTable>
-                    <div className="divide-y md:hidden">
+                    <div className="space-y-3 p-3 md:hidden">
                         {outstandingOrders.length === 0 ? (
                             <div className="px-4 py-8 text-center text-sm text-muted-foreground">Tidak ada outstanding order.</div>
                         ) : outstandingOrders.map((order) => (
-                            <article key={order.id} className="space-y-3 p-4">
+                            <article key={order.id} className="space-y-4 border border-border bg-card p-4">
                                 <div className="flex items-start justify-between gap-3">
                                     <div><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}`}>{order.order_no}</Link><div className="mt-1 text-sm text-muted-foreground">{order.customer_name}</div></div>
                                     <SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} />
@@ -184,7 +184,7 @@ function ReportTable({ title, rows, firstHeader, firstValue }: { title: string; 
     return (
         <section className="sim-panel">
             <div className="border-b px-4 py-3 font-medium">{title}</div>
-            <SimTable raw minWidth="520px">
+            <div className="hidden md:block"><SimTable raw minWidth="520px">
                 <table className="sim-table w-full min-w-[520px]">
                     <thead className="bg-muted/50 text-left text-muted-foreground">
                         <tr>
@@ -207,7 +207,17 @@ function ReportTable({ title, rows, firstHeader, firstValue }: { title: string; 
                         ))}
                     </tbody>
                 </table>
-            </SimTable>
+            </SimTable></div>
+            <div className="space-y-3 p-3 md:hidden">
+                {rows.length === 0 ? (
+                    <div className="px-1 py-6 text-sm text-muted-foreground">Tidak ada data.</div>
+                ) : rows.map((row) => (
+                    <article key={firstValue(row)} className="border border-border bg-card p-3.5">
+                        <div className="font-medium">{firstValue(row)}</div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-sm"><div><div className="text-xs text-muted-foreground">Total</div><div className="mt-1 font-medium tabular-nums">{row.total_orders}</div></div><div><div className="text-xs text-muted-foreground">Selesai</div><div className="mt-1 font-medium tabular-nums">{row.completed_orders}</div></div><div className="text-right"><div className="text-xs text-muted-foreground">Risiko</div><div className="mt-1 font-medium tabular-nums">{row.risk_orders}</div></div></div>
+                    </article>
+                ))}
+            </div>
         </section>
     );
 }

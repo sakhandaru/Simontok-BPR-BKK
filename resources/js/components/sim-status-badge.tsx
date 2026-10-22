@@ -11,7 +11,7 @@ const toneClasses: Record<StatusTone, string> = {
 };
 
 export function SimStatusBadge({ label, tone = 'neutral', className }: { label: string; tone?: StatusTone; className?: string }) {
-    return <span className={cn('inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium leading-none tracking-normal whitespace-nowrap', toneClasses[tone], className)}>{label}</span>;
+    return <span className={cn('inline-flex min-h-7 items-center rounded-full border px-2.5 py-1 text-xs font-medium leading-4 tracking-normal', toneClasses[tone], className)}>{label}</span>;
 }
 
 export function toneForStatus(status?: string | null): StatusTone {

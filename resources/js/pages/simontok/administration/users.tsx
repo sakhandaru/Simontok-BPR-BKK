@@ -10,15 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
+import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 
 type Option = { id: number; name: string; code?: string; role?: { name: string } };
 type User = { id: number; name: string; email: string; is_active: boolean; branch?: Option; notary?: Option; job_position?: Option };
 
-export default function Users({ users, branches, positions, notaries }: { users: User[]; branches: Option[]; positions: Option[]; notaries: Option[] }) {
+export default function Users({ users, branches, positions, notaries }: { users: { data: User[]; links: SimPaginationLink[] }; branches: Option[]; positions: Option[]; notaries: Option[] }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({ name: '', email: '', password: '', branch_id: '', job_position_id: '', notary_id: '', is_active: true });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
-    const { sortedRows, sort, toggleSort } = useSimTableSort(users, 'name');
+    const { sortedRows, sort, toggleSort } = useSimTableSort(users.data, 'name');
     const selectedPosition = positions.find(position => String(position.id) === data.job_position_id);
     const selectedRole = selectedPosition?.role?.name ?? '';
     const branchRequired = ['Pimpinan Cabang', 'Kadiv Operasional Cabang', 'Admin Legal'].includes(selectedRole);
@@ -29,9 +30,11 @@ export default function Users({ users, branches, positions, notaries }: { users:
     const cancelEdit = () => { reset(); setEditingId(null); setFormOpen(false); };
     return <><Head title="Manajemen Pengguna" /><div className="sim-workspace">
         <SimPageHeader title="Manajemen Pengguna" description="Atur akun internal, posisi, dan akses portal notaris." actions={<Button type="button" onClick={openCreate}><UserPlus className="size-4" />Tambah pengguna</Button>} />
-        <SimTable minWidth="800px"><SimTableHead><tr><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Pengguna</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('job_position')}>Posisi / role</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('branch')}>Unit</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead><tbody>
+        <SimPagination links={users.links} />
+        <div className="hidden md:block"><SimTable minWidth="800px"><SimTableHead><tr><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Pengguna</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('job_position')}>Posisi / role</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('branch')}>Unit</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead><tbody>
                 {sortedRows.map(user => <tr key={user.id} className="border-t"><td className="px-4 py-3"><div className="font-medium">{user.name}</div><div className="text-muted-foreground">{user.email}</div></td><td className="px-4 py-3">{user.job_position?.name ?? (user.notary ? 'Mitra Notaris' : '-')}<div className="text-xs text-muted-foreground">{user.job_position?.role?.name ?? ''}</div></td><td className="px-4 py-3">{user.branch?.name ?? user.notary?.name ?? '-'}</td><td className="px-4 py-3"><SimStatusBadge label={user.is_active ? 'Aktif' : 'Nonaktif'} tone={user.is_active ? 'success' : 'neutral'} /></td><td className="px-4 py-3"><Button type="button" variant="ghost" size="sm" onClick={() => editUser(user)}><Edit3 className="size-4" />Edit</Button></td></tr>)}
-            </tbody></SimTable>
+            </tbody></SimTable></div>
+        <div className="space-y-3 md:hidden">{sortedRows.map(user => <article key={user.id} className="space-y-4 border border-border bg-card p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-lg font-medium leading-6">{user.name}</div><div className="mt-1 truncate text-sm text-muted-foreground">{user.email}</div></div><SimStatusBadge label={user.is_active ? 'Aktif' : 'Nonaktif'} tone={user.is_active ? 'success' : 'neutral'} /></div><div className="grid grid-cols-2 gap-x-3 gap-y-4 text-sm"><div><div className="text-xs text-muted-foreground">Posisi</div><div className="mt-1 leading-5">{user.job_position?.name ?? (user.notary ? 'Mitra Notaris' : '-')}</div></div><div className="text-right"><div className="text-xs text-muted-foreground">Role</div><div className="mt-1 leading-5">{user.job_position?.role?.name ?? '-'}</div></div><div><div className="text-xs text-muted-foreground">Unit</div><div className="mt-1 leading-5">{user.branch?.name ?? user.notary?.name ?? '-'}</div></div></div><Button type="button" variant="outline" size="sm" className="w-full" onClick={() => editUser(user)}><Edit3 className="size-4" />Edit pengguna</Button></article>)}</div>
         <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader><DialogTitle>{editingId ? 'Edit pengguna' : 'Tambah pengguna'}</DialogTitle><DialogDescription>Atur identitas, posisi, unit, dan akun pengguna.</DialogDescription></DialogHeader>

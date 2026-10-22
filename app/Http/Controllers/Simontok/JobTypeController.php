@@ -18,7 +18,7 @@ class JobTypeController extends Controller
         return Inertia::render('simontok/masters/job-types', [
             'jobTypes' => JobType::with('steps:id,job_type_id,name,sort_order,is_active')
                 ->orderBy('name')
-                ->get(['id', 'code', 'name', 'is_active']),
+                ->paginate(15)->withQueryString(),
         ]);
     }
 

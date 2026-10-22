@@ -1,9 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BarChart3, Bell, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Scale, UserCheck, UserRoundCog, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Bell, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Moon, Scale, Sun, UserCheck, UserRoundCog, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
+import { useCanGoBack } from '@/hooks/use-can-go-back';
+import { useAppearance } from '@/hooks/use-appearance';
 import {
     Sidebar,
     SidebarContent,
@@ -60,6 +62,8 @@ function useVisibleItems(items: NavItem[], permission: string) {
 export function AppSidebar() {
     const { auth } = usePage<{ auth: { permissions?: string[] } }>().props;
     const can = (permission: string) => auth.permissions?.includes(permission) ?? false;
+    const canGoBack = useCanGoBack();
+    const { resolvedAppearance, updateAppearance } = useAppearance();
     const operations = [
         ...(can('dashboard.view') ? [operationsNavItems[0]] : []),
         ...(can('orders.view') ? [operationsNavItems[1]] : []),
@@ -76,6 +80,21 @@ export function AppSidebar() {
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <div className="mx-auto flex w-full items-center">
+                            <div className="flex items-center gap-0.5">
+                                <SidebarMenuButton tooltip="Halaman sebelumnya" className="size-8 flex-none justify-center group-data-[collapsible=icon]:hidden" onClick={() => window.history.back()} disabled={!canGoBack} aria-label="Halaman sebelumnya">
+                                    <ArrowLeft />
+                                </SidebarMenuButton>
+                                <SidebarMenuButton tooltip="Halaman berikutnya" className="size-8 flex-none justify-center group-data-[collapsible=icon]:hidden" onClick={() => window.history.forward()} aria-label="Halaman berikutnya">
+                                    <ArrowRight />
+                                </SidebarMenuButton>
+                            </div>
+                            <SidebarMenuButton tooltip="Ganti tema" className="size-8 flex-none justify-center" onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Ganti tema">
+                                {resolvedAppearance === 'dark' ? <Sun /> : <Moon />}
+                            </SidebarMenuButton>
+                        </div>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>

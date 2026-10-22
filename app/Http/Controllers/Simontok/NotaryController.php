@@ -21,7 +21,7 @@ class NotaryController extends Controller
             'notaries' => Notary::query()
                 ->with(['branches:id,code,name', 'users:id,notary_id,name,email,is_active'])
                 ->latest()
-                ->get(['id', 'name', 'email', 'phone', 'address', 'is_active']),
+                ->paginate(15)->withQueryString(),
         ]);
     }
 

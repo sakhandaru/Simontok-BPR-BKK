@@ -16,7 +16,7 @@ class RoleController extends Controller
     public function index(): Response
     {
         return Inertia::render('simontok/administration/roles', [
-            'roles' => Role::with('permissions:id,code,name,module')->orderBy('name')->get(['id', 'code', 'name', 'description']),
+            'roles' => Role::with('permissions:id,code,name,module')->orderBy('name')->paginate(15)->withQueryString(),
             'permissions' => Permission::query()->orderBy('module')->orderBy('name')->get(['id', 'code', 'name', 'module']),
         ]);
     }

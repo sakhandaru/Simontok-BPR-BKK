@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\SlaPolicy;
 use App\Support\Audit;
 use App\Support\InAppNotification;
+use App\Support\OrderStages;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -34,7 +35,14 @@ class OrderController extends Controller
             'risk' => ['nullable', Rule::in(['1'])],
             'sla' => ['nullable', Rule::in(['due_soon', 'overdue'])],
             'payment' => ['nullable', Rule::in(['none', 'requested', 'verified', 'approved', 'paid'])],
+            'active' => ['nullable', Rule::in(['1'])],
+            'stage' => ['nullable', 'string', Rule::in(OrderStages::keys())],
+            'age' => ['nullable', Rule::in(['0-7', '8-14', '15-30', 'gt-30'])],
+            'covernote' => ['nullable', Rule::in(['expired', 'due7', 'due14', 'due30'])],
+            'handover' => ['nullable', Rule::in(['pending'])],
+            'doc' => ['nullable', 'string', Rule::in(array_map(fn (TrackBDocStatus $status) => $status->value, TrackBDocStatus::cases()))],
         ]);
+        $closedStatuses = OrderStages::closedStatuses();
 
         $visibleOrders = Order::query()->visibleTo($request->user());
 
@@ -59,6 +67,20 @@ class OrderController extends Controller
                 ->when(($filters['payment'] ?? null) === 'verified', fn ($query) => $query->whereHas('paymentRequest', fn ($query) => $query->where('status', 'diverifikasi_admin')))
                 ->when(($filters['payment'] ?? null) === 'approved', fn ($query) => $query->whereHas('paymentRequest', fn ($query) => $query->where('status', 'disetujui')))
                 ->when(($filters['payment'] ?? null) === 'paid', fn ($query) => $query->whereHas('paymentRequest', fn ($query) => $query->where('status', 'dibayar')))
+                ->when($filters['active'] ?? null, fn ($query) => $query->whereNotIn('status', $closedStatuses))
+                ->when($filters['stage'] ?? null, fn ($query, string $stage) => $query->whereIn('status', OrderStages::statuses($stage)))
+                // Rentang umur mengikuti matriks aging dashboard: umur = hari penuh sejak order dibuat.
+                ->when(($filters['age'] ?? null) === '0-7', fn ($query) => $query->where('created_at', '>', now()->subDays(8)))
+                ->when(($filters['age'] ?? null) === '8-14', fn ($query) => $query->where('created_at', '<=', now()->subDays(8))->where('created_at', '>', now()->subDays(15)))
+                ->when(($filters['age'] ?? null) === '15-30', fn ($query) => $query->where('created_at', '<=', now()->subDays(15))->where('created_at', '>', now()->subDays(31)))
+                ->when(($filters['age'] ?? null) === 'gt-30', fn ($query) => $query->where('created_at', '<=', now()->subDays(31)))
+                // Filter covernote/handover dibatasi order aktif agar jumlah daftar sama dengan angka panel dashboard.
+                ->when(($filters['covernote'] ?? null) === 'expired', fn ($query) => $query->whereHas('collaterals', fn ($query) => $query->where('covernote_status', TrackCCovernoteStatus::Kedaluwarsa->value))->whereNotIn('status', $closedStatuses))
+                ->when(($filters['covernote'] ?? null) === 'due7', fn ($query) => $query->whereHas('collaterals', fn ($query) => $query->whereBetween('covernote_end', [now(), now()->addDays(7)]))->whereNotIn('status', $closedStatuses))
+                ->when(($filters['covernote'] ?? null) === 'due14', fn ($query) => $query->whereHas('collaterals', fn ($query) => $query->whereBetween('covernote_end', [now()->addDays(8), now()->addDays(14)]))->whereNotIn('status', $closedStatuses))
+                ->when(($filters['covernote'] ?? null) === 'due30', fn ($query) => $query->whereHas('collaterals', fn ($query) => $query->whereBetween('covernote_end', [now()->addDays(15), now()->addDays(30)]))->whereNotIn('status', $closedStatuses))
+                ->when(($filters['handover'] ?? null) === 'pending', fn ($query) => $query->whereHas('collaterals', fn ($query) => $query->where('doc_status', TrackBDocStatus::FinalDivalidasi->value)->whereDoesntHave('handovers'))->whereNotIn('status', $closedStatuses))
+                ->when($filters['doc'] ?? null, fn ($query, string $docStatus) => $query->whereHas('collaterals', fn ($query) => $query->where('doc_status', $docStatus)))
                 ->latest()
                 ->paginate(15)
                 ->withQueryString()
@@ -84,14 +106,24 @@ class OrderController extends Controller
                 'risk' => $filters['risk'] ?? '',
                 'sla' => $filters['sla'] ?? '',
                 'payment' => $filters['payment'] ?? '',
+                'active' => $filters['active'] ?? '',
+                'stage' => $filters['stage'] ?? '',
+                'age' => $filters['age'] ?? '',
+                'covernote' => $filters['covernote'] ?? '',
+                'handover' => $filters['handover'] ?? '',
+                'doc' => $filters['doc'] ?? '',
             ],
             'statuses' => collect(TrackAStatus::cases())->map(fn (TrackAStatus $status) => [
                 'value' => $status->value,
                 'label' => $status->label(),
             ]),
+            'stages' => collect(OrderStages::groups())
+                ->map(fn (array $group, string $key) => ['value' => $key, 'label' => $group['label']])
+                ->values()
+                ->all(),
             'orderSummary' => [
                 'total' => (clone $visibleOrders)->count(),
-                'active' => (clone $visibleOrders)->whereNotIn('status', [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value])->count(),
+                'active' => (clone $visibleOrders)->whereNotIn('status', $closedStatuses)->count(),
                 'risk' => (clone $visibleOrders)->where('risk_flag', true)->count(),
                 'invoice_queue' => (clone $visibleOrders)->whereHas('paymentRequest', fn ($query) => $query->whereIn('status', ['diajukan', 'diverifikasi_admin', 'disetujui']))->count(),
             ],

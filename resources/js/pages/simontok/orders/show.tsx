@@ -467,7 +467,7 @@ export default function OrdersShow({
                         </div>
                         <Button type="button" variant="outline" onClick={() => router.post(`/orders/${order.id}/covernotes/refresh-risk`, {}, { preserveScroll: true })}><RefreshCw className="size-4" />Refresh risiko covernote</Button>
                     </div>
-                    <SimTable raw className="!rounded-none !border-0 !bg-transparent !shadow-none" minWidth="860px">
+                    <div className="hidden md:block"><SimTable raw className="!rounded-none !border-0 !bg-transparent !shadow-none" minWidth="860px">
                         <table className="sim-table min-w-[860px]">
                             <thead className="bg-muted/30 text-left text-xs text-muted-foreground">
                                 <tr>
@@ -493,7 +493,19 @@ export default function OrdersShow({
                                 ))}
                             </tbody>
                         </table>
-                    </SimTable>
+                    </SimTable></div>
+                    <div className="space-y-3 p-3 md:hidden">
+                        {order.documents.length === 0 ? (
+                            <div className="px-1 py-6 text-sm text-muted-foreground">Belum ada dokumen.</div>
+                        ) : order.documents.map((document: any) => (
+                            <article key={document.id} className="space-y-3 border border-border bg-card p-3.5">
+                                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="font-medium leading-5">{document.display_name || checklistNameForDocument(order, document.id) || documentTypeLabel(document.document_type)}</div><div className="mt-0.5 text-xs text-muted-foreground">{document.document_type === 'lainnya' ? 'Dokumen susulan' : documentTypeLabel(document.document_type)}</div></div>{document.document_type === 'final' && <SimStatusBadge label={document.validated_at ? 'Tervalidasi' : 'Menunggu validasi'} tone={document.validated_at ? 'success' : 'warning'} />}</div>
+                                <a className="block truncate text-sm font-medium underline-offset-4 hover:underline" title={document.original_name} href={`/orders/${order.id}/documents/${document.id}/download`}>{document.original_name}</a>
+                                <div className="grid grid-cols-2 gap-3 text-xs"><div><div className="text-muted-foreground">Agunan</div><div className="mt-1 text-sm">{document.collateral?.job_type?.name ?? '-'}</div></div><div className="text-right"><div className="text-muted-foreground">Versi / ukuran</div><div className="mt-1 text-sm">v{document.version} · {formatBytes(document.file_size)}</div></div></div>
+                                <div className="border-t border-border pt-2 text-xs text-muted-foreground">Diunggah oleh {document.uploader?.name ?? '-'} · {formatTimelineDate(document.created_at)}</div>
+                            </article>
+                        ))}
+                    </div>
                     {canValidateDocuments && finalRevisionDocument && <form onSubmit={submitFinalRevision} className="border-t p-4">
                         <div className="font-medium">Kembalikan dokumen final</div>
                         <textarea className="mt-3 min-h-20 sim-input py-2" value={finalRevision.data.reason} onChange={(event) => finalRevision.setData('reason', event.target.value)} placeholder="Alasan perbaikan wajib diisi" />

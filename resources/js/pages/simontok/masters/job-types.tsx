@@ -9,14 +9,15 @@ import { SimPageHeader } from '@/components/sim-page-header';
 import { SimStatusBadge } from '@/components/sim-status-badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
+import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 
 type JobType = { id: number; code: string; name: string; is_active: boolean; steps: { id: number; name: string; sort_order: number }[] };
 
-export default function JobTypes({ jobTypes }: { jobTypes: JobType[] }) {
+export default function JobTypes({ jobTypes }: { jobTypes: { data: JobType[]; links: SimPaginationLink[] } }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({ code: '', name: '', steps: '', is_active: true });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
-    const { sortedRows, sort, toggleSort } = useSimTableSort(jobTypes, 'name');
+    const { sortedRows, sort, toggleSort } = useSimTableSort(jobTypes.data, 'name');
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -32,7 +33,8 @@ export default function JobTypes({ jobTypes }: { jobTypes: JobType[] }) {
             <Head title="Jenis Pekerjaan" />
             <div className="sim-workspace">
                 <SimPageHeader title="Jenis pekerjaan" description="Kelola jenis pengikatan dan alur proses per jenis." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah jenis</Button>} />
-                <SimTable minWidth="760px">
+                <SimPagination links={jobTypes.links} />
+                <div className="hidden md:block"><SimTable minWidth="760px">
                             <SimTableHead><tr><SimTableSortHeader active={sort.key === 'code'} direction={sort.direction} onClick={() => toggleSort('code')}>Kode</SimTableSortHeader><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('steps')}>Langkah</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>
                             <tbody>
                                 {sortedRows.map((jobType) => (
@@ -41,7 +43,14 @@ export default function JobTypes({ jobTypes }: { jobTypes: JobType[] }) {
                                     </tr>
                                 ))}
                             </tbody>
-                </SimTable>
+                </SimTable></div>
+                <div className="space-y-3 md:hidden">
+                    {sortedRows.map((jobType) => <article key={jobType.id} className="space-y-4 border border-border bg-card p-4">
+                        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-lg font-medium leading-6">{jobType.name}</div><div className="mt-1 text-sm text-muted-foreground">{jobType.code}</div></div><SimStatusBadge label={jobType.is_active ? 'Aktif' : 'Nonaktif'} tone={jobType.is_active ? 'success' : 'neutral'} /></div>
+                        <div className="text-sm"><div className="text-xs text-muted-foreground">Langkah proses</div><div className="mt-1 leading-5 text-muted-foreground">{jobType.steps.map((step) => step.name).join(' -> ') || 'Belum ada langkah'}</div></div>
+                        <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => editJobType(jobType)}><Edit3 className="size-4" />Edit jenis pekerjaan</Button>
+                    </article>)}
+                </div>
                 <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{editingId ? 'Edit jenis pekerjaan' : 'Tambah jenis pekerjaan'}</DialogTitle><DialogDescription>Atur kode, nama, dan langkah proses untuk jenis pekerjaan ini.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-4">
                         <Field label="Kode" error={errors.code}><Input value={data.code} onChange={(e) => setData('code', e.target.value)} /></Field>
                         <Field label="Nama" error={errors.name}><Input value={data.name} onChange={(e) => setData('name', e.target.value)} /></Field>
