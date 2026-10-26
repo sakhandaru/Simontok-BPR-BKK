@@ -101,7 +101,13 @@
     --track-success: oklch(0.58 0.23 155);
     --track-success-soft: oklch(0.99 0.01 155);
     --focus-ring: oklch(0.45 0 0 / 0.35);
-    --sidebar: oklch(0.985 0 0);
+    --brand-blue: #1459ad;
+    --brand-blue-start: #114e97;
+    --brand-blue-end: #1d82fd;
+    --brand-yellow-start: #fdb31d;
+    --brand-yellow-middle: #fdb714;
+    --brand-yellow-end: #f8b21b;
+    --sidebar: oklch(0.96 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
     --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -155,6 +161,12 @@
     --track-success: oklch(0.78 0.19 155);
     --track-success-soft: oklch(0.25 0.08 155);
     --focus-ring: oklch(0.85 0 0 / 0.45);
+    --brand-blue: #1459ad;
+    --brand-blue-start: #114e97;
+    --brand-blue-end: #1d82fd;
+    --brand-yellow-start: #fdb31d;
+    --brand-yellow-middle: #fdb714;
+    --brand-yellow-end: #f8b21b;
 }
 
 @layer base {
@@ -173,6 +185,27 @@
 }
 
 @layer components {
+    .sim-nav-item[data-active='true'] {
+        background: linear-gradient(
+            90deg,
+            var(--brand-yellow-start),
+            var(--brand-yellow-middle),
+            var(--brand-yellow-end)
+        );
+        color: var(--brand-blue) !important;
+        font-weight: 700 !important;
+    }
+
+    .sim-nav-item[data-active='true']:hover {
+        background: linear-gradient(
+            90deg,
+            var(--brand-yellow-start),
+            var(--brand-yellow-middle),
+            var(--brand-yellow-end)
+        );
+        color: var(--brand-blue) !important;
+    }
+
     .sim-workspace {
         @apply flex h-full min-w-0 flex-1 flex-col gap-5 bg-background p-4 md:p-6;
     }

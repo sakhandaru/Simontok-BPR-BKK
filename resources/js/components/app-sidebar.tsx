@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, BarChart3, Bell, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Moon, Scale, Sun, UserCheck, UserRoundCog, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Bell, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Monitor, Moon, Scale, Sun, UserCheck, UserRoundCog, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -42,8 +42,8 @@ const administrationNavItems: NavItem[] = [
     },
     { title: 'Notifikasi', href: '/notifications', icon: Bell },
     { title: 'Audit Log', href: '/audit-logs', icon: ClipboardList },
-    { title: 'Manajemen Pengguna', href: '/users', icon: Users },
-    { title: 'Manajemen Role', href: '/roles', icon: KeyRound },
+    { title: 'Pengguna', href: '/users', icon: Users },
+    { title: 'Role', href: '/roles', icon: KeyRound },
 ];
 
 const footerNavItems: NavItem[] = [
@@ -63,7 +63,7 @@ export function AppSidebar() {
     const { auth } = usePage<{ auth: { permissions?: string[] } }>().props;
     const can = (permission: string) => auth.permissions?.includes(permission) ?? false;
     const canGoBack = useCanGoBack();
-    const { resolvedAppearance, updateAppearance } = useAppearance();
+    const { appearance, resolvedAppearance, updateAppearance } = useAppearance();
     const operations = [
         ...(can('dashboard.view') ? [operationsNavItems[0]] : []),
         ...(can('orders.view') ? [operationsNavItems[1]] : []),
@@ -71,7 +71,7 @@ export function AppSidebar() {
     ];
 
     return (
-        <Sidebar collapsible="icon" variant="inset">
+        <Sidebar collapsible="icon" variant="sidebar">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
@@ -91,7 +91,26 @@ export function AppSidebar() {
                                     <ArrowRight />
                                 </SidebarMenuButton>
                             </div>
-                            <SidebarMenuButton tooltip="Ganti tema" className="size-8 flex-none justify-center" onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Ganti tema">
+                            <div className="flex h-8 items-center gap-0.5 rounded-full bg-sidebar-accent p-0.5 group-data-[collapsible=icon]:hidden" role="group" aria-label="Pilihan tema">
+                                {[
+                                    { value: 'system' as const, label: 'Ikuti sistem', icon: Monitor },
+                                    { value: 'light' as const, label: 'Mode terang', icon: Sun },
+                                    { value: 'dark' as const, label: 'Mode gelap', icon: Moon },
+                                ].map(({ value, label, icon: Icon }) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        title={label}
+                                        aria-label={label}
+                                        aria-pressed={appearance === value}
+                                        onClick={() => updateAppearance(value)}
+                                        className="flex size-7 items-center justify-center rounded-full text-sidebar-foreground/60 transition-colors hover:bg-sidebar hover:text-sidebar-foreground aria-pressed:bg-sidebar aria-pressed:text-sidebar-foreground"
+                                    >
+                                        <Icon className="size-4" />
+                                    </button>
+                                ))}
+                            </div>
+                            <SidebarMenuButton tooltip="Ganti tema" className="hidden size-8 flex-none justify-center group-data-[collapsible=icon]:flex" onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Ganti tema">
                                 {resolvedAppearance === 'dark' ? <Sun /> : <Moon />}
                             </SidebarMenuButton>
                         </div>

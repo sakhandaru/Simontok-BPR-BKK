@@ -23,6 +23,7 @@ export function NavMain({ items, label = 'Navigasi' }: { items: NavItem[]; label
                         <SidebarMenuButton
                             asChild
                             isActive={isCurrentOrParentUrl(item.href)}
+                            className="sim-nav-item font-semibold"
                             tooltip={{ children: item.title }}
                         >
                             <Link href={item.href} prefetch>
