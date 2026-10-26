@@ -93,6 +93,67 @@ class SsoAuthenticationTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
+    public function test_emergency_it_admin_can_login_locally_while_sso_is_enabled(): void
+    {
+        $role = Role::create(['code' => 'it_admin', 'name' => 'IT Administrator']);
+        $position = JobPosition::create([
+            'code' => 'IT_ADMIN',
+            'name' => 'IT Administrator',
+            'role_id' => $role->id,
+        ]);
+        $user = User::factory()->create([
+            'email' => 'admin',
+            'password' => 'emergency-password',
+            'job_position_id' => $position->id,
+            'sso_employee_id' => null,
+        ]);
+
+        config([
+            'services.sso.enabled' => true,
+            'services.sso.emergency_login' => 'admin',
+        ]);
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'emergency-password',
+        ]);
+
+        $this->assertAuthenticatedAs($user);
+        Http::assertNothingSent();
+    }
+
+    public function test_regular_internal_local_account_cannot_bypass_sso(): void
+    {
+        $role = Role::create(['code' => 'legal_admin', 'name' => 'Admin Legal']);
+        $position = JobPosition::create([
+            'code' => 'LEGAL',
+            'name' => 'Admin Legal',
+            'role_id' => $role->id,
+        ]);
+        $user = User::factory()->create([
+            'email' => 'legal',
+            'password' => 'local-password',
+            'job_position_id' => $position->id,
+            'sso_employee_id' => null,
+        ]);
+
+        config([
+            'services.sso.enabled' => true,
+            'services.sso.emergency_login' => 'admin',
+        ]);
+        Http::fake([
+            '*/api/auth/login' => Http::response(['status' => 401], 401),
+        ]);
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'local-password',
+        ]);
+
+        $this->assertGuest();
+        Http::assertSent(fn ($request) => $request['id_peg'] === 'legal');
+    }
+
     public function test_local_mode_keeps_existing_login_flow(): void
     {
         config(['services.sso.enabled' => false]);

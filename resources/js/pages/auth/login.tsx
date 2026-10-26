@@ -17,7 +17,11 @@ type Props = {
     demoCredentials?: { username: string; password: string } | null;
 };
 
-export default function Login({ status, canResetPassword, demoCredentials }: Props) {
+export default function Login({
+    status,
+    canResetPassword,
+    demoCredentials,
+}: Props) {
     return (
         <>
             <Head title="Log in" />
@@ -33,7 +37,9 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                     <>
                         <div className="grid gap-6">
                             <div className="grid gap-2">
-                                <Label htmlFor="email">ID pegawai atau nama pengguna</Label>
+                                <Label htmlFor="email">
+                                    ID pegawai atau nama pengguna
+                                </Label>
                                 <Input
                                     id="email"
                                     type="text"
@@ -45,7 +51,9 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                                     placeholder="102-119 atau admin"
                                     defaultValue={demoCredentials?.username}
                                 />
-                                <InputError message={loginError(errors.email)} />
+                                <InputError
+                                    message={loginError(errors.email)}
+                                />
                             </div>
 
                             <div className="grid gap-2">
@@ -56,7 +64,7 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                                             href={request()}
                                             className="ml-auto text-sm"
                                             tabIndex={5}
-                                            >
+                                        >
                                             Lupa kata sandi?
                                         </TextLink>
                                     )}
@@ -70,7 +78,9 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                                     placeholder="Masukkan kata sandi"
                                     defaultValue={demoCredentials?.password}
                                 />
-                                <InputError message={loginError(errors.password)} />
+                                <InputError
+                                    message={loginError(errors.password)}
+                                />
                             </div>
 
                             <div className="flex items-center space-x-3">
@@ -79,7 +89,7 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                                     name="remember"
                                     tabIndex={3}
                                 />
-                            <Label htmlFor="remember">Ingat saya</Label>
+                                <Label htmlFor="remember">Ingat saya</Label>
                             </div>
 
                             <Button
@@ -93,7 +103,6 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                                 Masuk
                             </Button>
                         </div>
-
                     </>
                 )}
             </Form>
@@ -108,9 +117,12 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
 }
 
 function loginError(message?: string) {
-    if (message === 'These credentials do not match our records.') return 'Nama pengguna atau kata sandi salah.';
-    if (message === 'The email field is required.') return 'Nama pengguna wajib diisi.';
-    if (message === 'The password field is required.') return 'Kata sandi wajib diisi.';
+    if (message === 'These credentials do not match our records.')
+        return 'Nama pengguna atau kata sandi salah.';
+    if (message === 'The email field is required.')
+        return 'Nama pengguna wajib diisi.';
+    if (message === 'The password field is required.')
+        return 'Kata sandi wajib diisi.';
     return message;
 }
 

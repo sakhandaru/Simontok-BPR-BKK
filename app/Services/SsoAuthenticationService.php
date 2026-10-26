@@ -21,11 +21,10 @@ class SsoAuthenticationService
 
         $localUser = User::query()
             ->where('email', $identifier)
-            ->whereNotNull('notary_id')
             ->first();
 
-        if ($localUser && Hash::check($password, $localUser->password)) {
-            return $localUser->is_active ? $localUser : null;
+        if ($localUser && $this->canAuthenticateLocally($localUser) && Hash::check($password, $localUser->password)) {
+            return $localUser;
         }
 
         try {
@@ -96,6 +95,20 @@ class SsoAuthenticationService
         return $user && $user->is_active && Hash::check($password, $user->password)
             ? $user
             : null;
+    }
+
+    private function canAuthenticateLocally(User $user): bool
+    {
+        if (! $user->is_active || $user->sso_employee_id) {
+            return false;
+        }
+
+        if ($user->notary_id) {
+            return true;
+        }
+
+        return $user->roleCode() === 'it_admin'
+            && $user->email === config('services.sso.emergency_login');
     }
 
     /** @param array<string, mixed> $profile */

@@ -7,6 +7,7 @@ return [
         'url' => env('SSO_URL', 'https://apisso.bkkjateng.co.id'),
         'app' => env('SSO_APP', 'monbis'),
         'timeout' => env('SSO_TIMEOUT', 10),
+        'emergency_login' => env('SSO_EMERGENCY_LOGIN', 'admin'),
     ],
 
     /*
