@@ -1,7 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Activity, AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, FileCheck2, Minus, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, FileCheck2, Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
@@ -112,14 +110,6 @@ export default function Dashboard({
     const canOrders = auth.permissions?.includes('orders.view') ?? false;
     const canReports = auth.permissions?.includes('reports.view') ?? false;
     const canCreate = auth.permissions?.includes('orders.create') ?? false;
-    const [refreshing, setRefreshing] = useState(false);
-
-    const refresh = () =>
-        router.reload({
-            onStart: () => setRefreshing(true),
-            onFinish: () => setRefreshing(false),
-            onError: () => toast.error('Gagal memuat ulang dashboard. Periksa koneksi lalu coba lagi.'),
-        });
 
     const workflowTotal = workflow.reduce((sum, row) => sum + row.value, 0);
     const statusTotal = statusDistribution.reduce((sum, row) => sum + row.total, 0);
@@ -140,19 +130,12 @@ export default function Dashboard({
     return (
         <>
             <Head title="Overview" />
-            <div className="sim-workspace" aria-busy={refreshing}>
-                <span className="sr-only" role="status">
-                    {refreshing ? 'Memuat ulang data dashboard' : ''}
-                </span>
+            <div className="sim-workspace">
                 <SimPageHeader
                     title="Overview"
                     description="Posisi terkini order, dokumen, covernote, dan pembayaran yang perlu ditindaklanjuti."
                     actions={
                         <>
-                            <Button type="button" variant="outline" onClick={refresh} disabled={refreshing} aria-label="Muat ulang data dashboard" title="Muat ulang data dashboard">
-                                <RefreshCw className={cn('size-4', refreshing && 'animate-spin')} />
-                                Muat ulang
-                            </Button>
                             {canReports && (
                                 <Button type="button" variant="outline" asChild>
                                     <Link href="/reports">
