@@ -60,6 +60,7 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permission:orders.view')->group(function () {
         Route::resource('orders', OrderController::class)->only(['index', 'show']);
         Route::get('orders/{order}/documents/{document}/download', [OrderDocumentController::class, 'download'])->name('orders.documents.download');
+        Route::get('orders/{order}/documents/{document}/preview', [OrderDocumentController::class, 'preview'])->name('orders.documents.preview');
         Route::get('orders/{order}/collaterals/{collateral}/covernote/preview', [CovernoteController::class, 'preview'])->name('orders.collaterals.covernote.preview');
         Route::get('orders/{order}/collaterals/{collateral}/covernote-extensions/{extension}/preview', [CovernoteController::class, 'previewExtension'])->name('orders.collaterals.covernote-extensions.preview');
         Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('orders.payment-requests.payments.download');
@@ -89,6 +90,7 @@ Route::middleware(['auth'])->group(function () {
             Route::post('notary/orders/{order}/collaterals/{collateral}/covernote-extensions', [CovernoteController::class, 'extend'])->name('notary.orders.collaterals.covernote-extensions.store');
         });
         Route::get('notary/orders/{order}/documents/{document}/download', [OrderDocumentController::class, 'download'])->name('notary.orders.documents.download');
+        Route::get('notary/orders/{order}/documents/{document}/preview', [OrderDocumentController::class, 'preview'])->name('notary.orders.documents.preview');
         Route::get('notary/orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('notary.orders.payment-requests.payments.download');
     });
     Route::middleware('permission:covernotes.approve')->group(function () {

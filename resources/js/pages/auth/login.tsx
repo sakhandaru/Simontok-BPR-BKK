@@ -33,7 +33,7 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                     <>
                         <div className="grid gap-6">
                             <div className="grid gap-2">
-                                <Label htmlFor="email">Nama pengguna</Label>
+                                <Label htmlFor="email">ID pegawai atau nama pengguna</Label>
                                 <Input
                                     id="email"
                                     type="text"
@@ -42,7 +42,7 @@ export default function Login({ status, canResetPassword, demoCredentials }: Pro
                                     autoFocus
                                     tabIndex={1}
                                     autoComplete="username"
-                                    placeholder="admin"
+                                    placeholder="102-119 atau admin"
                                     defaultValue={demoCredentials?.username}
                                 />
                                 <InputError message={loginError(errors.email)} />

@@ -1,5 +1,16 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, FileCheck2, FileUp, Save, Send, X } from 'lucide-react';
+import {
+    ArrowLeft,
+    Check,
+    ChevronDown,
+    Download,
+    Eye,
+    FileText,
+    FileUp,
+    Save,
+    Send,
+    X,
+} from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
 import InputError from '@/components/input-error';
 import { RupiahInput } from '@/components/rupiah-input';
@@ -8,7 +19,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SimSelect } from '@/components/sim-select';
 import { SimFileUpload } from '@/components/sim-file-upload';
-import { SimTable } from '@/components/sim-table';
 import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 
 type Option = { value: string; label: string };
@@ -63,7 +73,11 @@ export default function NotaryOrdersShow({
         evidence: null as File | null,
         final_document: null as File | null,
     });
-    const upload = useForm<{ order_collateral_id: string; document_type: string; file: File | null }>({
+    const upload = useForm<{
+        order_collateral_id: string;
+        document_type: string;
+        file: File | null;
+    }>({
         order_collateral_id: String(order.collaterals[0]?.id ?? ''),
         document_type: 'draft',
         file: null,
@@ -80,13 +94,32 @@ export default function NotaryOrdersShow({
         catatan: '',
         file: null as File | null,
     });
-    const covernoteSubmission = useForm({ order_collateral_id: '', covernote_no: '', covernote_start: '', covernote_end: '', komitmen_penyelesaian: '', file: null as File | null });
-    const documentRequest = useForm({ order_collateral_id: '', name: '', reason: '' });
-    const selectedProgressSteps = progressOptions[progress.data.order_collateral_id] ?? [];
-    const isFinalProgressStep = selectedProgressSteps.length > 0 && progress.data.status === selectedProgressSteps[selectedProgressSteps.length - 1];
+    const covernoteSubmission = useForm({
+        order_collateral_id: '',
+        covernote_no: '',
+        covernote_start: '',
+        covernote_end: '',
+        komitmen_penyelesaian: '',
+        file: null as File | null,
+    });
+    const documentRequest = useForm({
+        order_collateral_id: '',
+        name: '',
+        reason: '',
+    });
+    const selectedProgressSteps =
+        progressOptions[progress.data.order_collateral_id] ?? [];
+    const isFinalProgressStep =
+        selectedProgressSteps.length > 0 &&
+        progress.data.status ===
+            selectedProgressSteps[selectedProgressSteps.length - 1];
 
     const acceptDocuments = () => {
-        router.post(`/notary/orders/${order.id}/accept-documents`, {}, { preserveScroll: true });
+        router.post(
+            `/notary/orders/${order.id}/accept-documents`,
+            {},
+            { preserveScroll: true },
+        );
     };
 
     const submitRevision = (event: FormEvent) => {
@@ -110,34 +143,61 @@ export default function NotaryOrdersShow({
         progress.post(`/notary/orders/${order.id}/progress`, {
             forceFormData: true,
             preserveScroll: true,
-            onSuccess: () => progress.reset('status', 'catatan', 'komitmen_penyelesaian', 'evidence', 'final_document'),
+            onSuccess: () =>
+                progress.reset(
+                    'status',
+                    'catatan',
+                    'komitmen_penyelesaian',
+                    'evidence',
+                    'final_document',
+                ),
         });
     };
 
     const submitUpload = (event: FormEvent) => {
         event.preventDefault();
-        upload.post(`/notary/orders/${order.id}/documents`, { forceFormData: true, preserveScroll: true });
+        upload.post(`/notary/orders/${order.id}/documents`, {
+            forceFormData: true,
+            preserveScroll: true,
+        });
     };
-    const submitFinal = () => router.post(`/notary/orders/${order.id}/documents/submit-final`, {}, { preserveScroll: true });
+    const submitFinal = () =>
+        router.post(
+            `/notary/orders/${order.id}/documents/submit-final`,
+            {},
+            { preserveScroll: true },
+        );
     const submitInvoice = (event: FormEvent) => {
         event.preventDefault();
-        invoice.post(`/notary/orders/${order.id}/payment-requests`, { preserveScroll: true });
+        invoice.post(`/notary/orders/${order.id}/payment-requests`, {
+            preserveScroll: true,
+        });
     };
     const submitCovernote = (event: FormEvent) => {
         event.preventDefault();
-        covernote.post(`/notary/orders/${order.id}/collaterals/${covernote.data.order_collateral_id}/covernote-extensions`, {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => covernote.reset('new_end', 'catatan', 'file'),
-        });
+        covernote.post(
+            `/notary/orders/${order.id}/collaterals/${covernote.data.order_collateral_id}/covernote-extensions`,
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onSuccess: () => covernote.reset('new_end', 'catatan', 'file'),
+            },
+        );
     };
     const submitInitialCovernote = (event: FormEvent) => {
         event.preventDefault();
-        covernoteSubmission.post(`/notary/orders/${order.id}/covernote`, { forceFormData: true, preserveScroll: true, onSuccess: () => covernoteSubmission.reset() });
+        covernoteSubmission.post(`/notary/orders/${order.id}/covernote`, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => covernoteSubmission.reset(),
+        });
     };
     const submitDocumentRequest = (event: FormEvent) => {
         event.preventDefault();
-        documentRequest.post(`/notary/orders/${order.id}/document-requests`, { preserveScroll: true, onSuccess: () => documentRequest.reset() });
+        documentRequest.post(`/notary/orders/${order.id}/document-requests`, {
+            preserveScroll: true,
+            onSuccess: () => documentRequest.reset(),
+        });
     };
 
     return (
@@ -147,300 +207,912 @@ export default function NotaryOrdersShow({
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <h1 className="text-2xl font-semibold">{order.order_no}</h1>
-                            <SimStatusBadge label={order.status} tone={toneForStatus(order.status)} />
+                            <h1 className="text-2xl font-semibold">
+                                {order.order_no}
+                            </h1>
+                            <SimStatusBadge
+                                label={order.status}
+                                tone={toneForStatus(order.status)}
+                            />
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">{order.customer_name} - {order.no_rekening}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            {order.customer_name} - {order.no_rekening}
+                        </p>
                     </div>
-                    <Button variant="outline" asChild><Link href="/notary/orders"><ArrowLeft className="size-4" />Kembali</Link></Button>
+                    <Button variant="outline" asChild>
+                        <Link href="/notary/orders">
+                            <ArrowLeft className="size-4" />
+                            Kembali
+                        </Link>
+                    </Button>
                 </div>
 
                 <section className="sim-panel grid gap-4 p-4 md:grid-cols-3">
-                    <Info label="Cabang" value={`${order.branch?.code ?? ''} ${order.branch?.name ?? ''}`} />
+                    <Info
+                        label="Cabang"
+                        value={`${order.branch?.code ?? ''} ${order.branch?.name ?? ''}`}
+                    />
                     <Info label="Plafon" value={money(order.plafon)} />
-                    <Info label="Tanggal masuk notaris" value={dateOnly(order.tgl_masuk_notaris ?? order.sent_to_notary_at)} />
+                    <Info
+                        label="Tanggal masuk notaris"
+                        value={dateOnly(
+                            order.tgl_masuk_notaris ?? order.sent_to_notary_at,
+                        )}
+                    />
                 </section>
 
-                {canViewDocuments && <section className="sim-panel overflow-hidden">
+                {canViewDocuments && (
+                    <section className="sim-panel overflow-hidden">
                         <div className="sim-panel-header">
-                        <h2 className="font-medium">Invoice</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Invoice diajukan setelah seluruh dokumen final divalidasi BPR dan covernote aman.</p>
-                    </div>
-                    <div className="grid gap-4 p-4 lg:grid-cols-[1fr_1fr]">
-                        <div className="grid gap-3 text-sm">
-                            <Info label="Status pembayaran" value={order.payment_request?.status ?? 'Belum diajukan'} />
-                            <Info label="Nomor invoice" value={order.payment_request?.invoice_no} />
-                            <Info label="Nominal invoice" value={money(order.payment_request?.nominal)} />
-                            <Info label="Catatan admin" value={order.payment_request?.catatan_verifikasi} />
-                            {paymentBlockers.length > 0 && !order.payment_request && (
-                                <div className="rounded-md border bg-muted/30 p-3">
-                                    <div className="font-medium">Belum bisa diajukan</div>
-                                    <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                                        {paymentBlockers.map((item) => <li key={item}>{item}</li>)}
-                                    </ul>
-                                </div>
+                            <h2 className="font-medium">Invoice</h2>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Invoice diajukan setelah seluruh dokumen final
+                                divalidasi BPR dan covernote aman.
+                            </p>
+                        </div>
+                        <div className="grid gap-4 p-4 lg:grid-cols-[1fr_1fr]">
+                            <div className="grid gap-3 text-sm">
+                                <Info
+                                    label="Status pembayaran"
+                                    value={
+                                        order.payment_request?.status ??
+                                        'Belum diajukan'
+                                    }
+                                />
+                                <Info
+                                    label="Nomor invoice"
+                                    value={order.payment_request?.invoice_no}
+                                />
+                                <Info
+                                    label="Nominal invoice"
+                                    value={money(
+                                        order.payment_request?.nominal,
+                                    )}
+                                />
+                                <Info
+                                    label="Catatan admin"
+                                    value={
+                                        order.payment_request
+                                            ?.catatan_verifikasi
+                                    }
+                                />
+                                {paymentBlockers.length > 0 &&
+                                    !order.payment_request && (
+                                        <div className="rounded-md border bg-muted/30 p-3">
+                                            <div className="font-medium">
+                                                Belum bisa diajukan
+                                            </div>
+                                            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                                                {paymentBlockers.map((item) => (
+                                                    <li key={item}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                            </div>
+
+                            {canRequestInvoice && (
+                                <form
+                                    onSubmit={submitInvoice}
+                                    className="grid gap-3 rounded-md border p-3"
+                                >
+                                    <div className="font-medium">
+                                        Ajukan invoice
+                                    </div>
+                                    <Input
+                                        placeholder="Nomor invoice"
+                                        value={invoice.data.invoice_no}
+                                        onChange={(e) =>
+                                            invoice.setData(
+                                                'invoice_no',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <RupiahInput
+                                        min="1"
+                                        placeholder="Nominal"
+                                        value={invoice.data.nominal}
+                                        onChange={(value) =>
+                                            invoice.setData('nominal', value)
+                                        }
+                                    />
+                                    <Input
+                                        placeholder="Skema pembayaran"
+                                        value={invoice.data.skema_pembayaran}
+                                        onChange={(e) =>
+                                            invoice.setData(
+                                                'skema_pembayaran',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <textarea
+                                        className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm"
+                                        value={invoice.data.catatan_notaris}
+                                        onChange={(e) =>
+                                            invoice.setData(
+                                                'catatan_notaris',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Catatan notaris"
+                                    />
+                                    <InputError
+                                        message={
+                                            (invoice.errors as any).invoice ||
+                                            invoice.errors.nominal
+                                        }
+                                    />
+                                    <Button
+                                        className="w-fit"
+                                        disabled={invoice.processing}
+                                    >
+                                        <Send className="size-4" />
+                                        Ajukan invoice
+                                    </Button>
+                                </form>
                             )}
                         </div>
-
-                        {canRequestInvoice && (
-                            <form onSubmit={submitInvoice} className="grid gap-3 rounded-md border p-3">
-                                <div className="font-medium">Ajukan invoice</div>
-                                <Input placeholder="Nomor invoice" value={invoice.data.invoice_no} onChange={(e) => invoice.setData('invoice_no', e.target.value)} />
-                                <RupiahInput min="1" placeholder="Nominal" value={invoice.data.nominal} onChange={(value) => invoice.setData('nominal', value)} />
-                                <Input placeholder="Skema pembayaran" value={invoice.data.skema_pembayaran} onChange={(e) => invoice.setData('skema_pembayaran', e.target.value)} />
-                                <textarea className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm" value={invoice.data.catatan_notaris} onChange={(e) => invoice.setData('catatan_notaris', e.target.value)} placeholder="Catatan notaris" />
-                                <InputError message={(invoice.errors as any).invoice || invoice.errors.nominal} />
-                                <Button className="w-fit" disabled={invoice.processing}><Send className="size-4" />Ajukan invoice</Button>
-                            </form>
-                        )}
-                    </div>
-                    {order.payment_request?.payments?.length > 0 && (
-                        <div className="border-t px-4 py-3">
-                            <div className="font-medium">Bukti pembayaran</div>
-                            <div className="mt-3 divide-y rounded-md border">
-                                {order.payment_request.payments.map((payment: any) => (
-                                    <div key={payment.id} className="flex flex-col gap-2 p-3 text-sm md:flex-row md:items-center md:justify-between">
-                                        <div>
-                                            <div>{dateOnly(payment.paid_at)} - {money(payment.nominal)}</div>
-                                            <div className="text-muted-foreground">{payment.catatan ?? '-'}</div>
-                                        </div>
-                                        {payment.bukti_path && <a className="font-medium underline-offset-4 hover:underline" href={`/notary/orders/${order.id}/payment-requests/${order.payment_request.id}/payments/${payment.id}/download`}>Unduh bukti</a>}
-                                    </div>
-                                ))}
+                        {order.payment_request?.payments?.length > 0 && (
+                            <div className="border-t px-4 py-3">
+                                <div className="font-medium">
+                                    Bukti pembayaran
+                                </div>
+                                <div className="mt-3 divide-y rounded-md border">
+                                    {order.payment_request.payments.map(
+                                        (payment: any) => (
+                                            <div
+                                                key={payment.id}
+                                                className="flex flex-col gap-2 p-3 text-sm md:flex-row md:items-center md:justify-between"
+                                            >
+                                                <div>
+                                                    <div>
+                                                        {dateOnly(
+                                                            payment.paid_at,
+                                                        )}{' '}
+                                                        -{' '}
+                                                        {money(payment.nominal)}
+                                                    </div>
+                                                    <div className="text-muted-foreground">
+                                                        {payment.catatan ?? '-'}
+                                                    </div>
+                                                </div>
+                                                {payment.bukti_path && (
+                                                    <a
+                                                        className="font-medium underline-offset-4 hover:underline"
+                                                        href={`/notary/orders/${order.id}/payment-requests/${order.payment_request.id}/payments/${payment.id}/download`}
+                                                    >
+                                                        Unduh bukti
+                                                    </a>
+                                                )}
+                                            </div>
+                                        ),
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </section>}
+                        )}
+                    </section>
+                )}
 
                 {canReview && (
                     <section className="sim-panel p-4">
                         <h2 className="font-medium">Verifikasi dokumen awal</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Pilih keputusan setelah memeriksa data nasabah, agunan, dan checklist dokumen.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Pilih keputusan setelah memeriksa data nasabah,
+                            agunan, dan checklist dokumen.
+                        </p>
                         <div className="mt-4 flex flex-wrap gap-2">
-                            <Button type="button" onClick={acceptDocuments}><Check className="size-4" />Terima dokumen</Button>
-                            <Button type="button" variant="destructive" onClick={() => setRejectOpen(!rejectOpen)}><X className="size-4" />Tolak order</Button>
+                            <Button type="button" onClick={acceptDocuments}>
+                                <Check className="size-4" />
+                                Terima dokumen
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={() => setRejectOpen(!rejectOpen)}
+                            >
+                                <X className="size-4" />
+                                Tolak order
+                            </Button>
                         </div>
 
                         {rejectOpen && (
-                            <form onSubmit={submitReject} className="mt-4 grid gap-3 border-t pt-4">
+                            <form
+                                onSubmit={submitReject}
+                                className="mt-4 grid gap-3 border-t pt-4"
+                            >
                                 <div className="grid gap-2">
                                     <Label>Alasan penolakan</Label>
-                                    <textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={reject.data.reason} onChange={(e) => reject.setData('reason', e.target.value)} />
-                                    <InputError message={reject.errors.reason} />
+                                    <textarea
+                                        className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm"
+                                        value={reject.data.reason}
+                                        onChange={(e) =>
+                                            reject.setData(
+                                                'reason',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={reject.errors.reason}
+                                    />
                                 </div>
-                                <Button className="w-fit" variant="destructive" disabled={reject.processing}>Tolak order</Button>
+                                <Button
+                                    className="w-fit"
+                                    variant="destructive"
+                                    disabled={reject.processing}
+                                >
+                                    Tolak order
+                                </Button>
                             </form>
                         )}
                     </section>
                 )}
 
-                {canViewDocuments && (needsCovernote || ['menunggu_approval_covernote', 'perbaikan_covernote', 'Menunggu approval covernote', 'Perbaikan covernote'].includes(String(order.status?.value ?? order.status))) ? (
-                    <form onSubmit={submitInitialCovernote} className="sim-panel p-4">
-                        <h2 className="font-medium">Covernote dan komitmen penyelesaian</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Unggah covernote setelah order diterima. Progres baru terbuka setelah Admin Legal menyetujui.</p>
+                {canViewDocuments &&
+                (needsCovernote ||
+                    [
+                        'menunggu_approval_covernote',
+                        'perbaikan_covernote',
+                        'Menunggu approval covernote',
+                        'Perbaikan covernote',
+                    ].includes(String(order.status?.value ?? order.status))) ? (
+                    <form
+                        onSubmit={submitInitialCovernote}
+                        className="sim-panel p-4"
+                    >
+                        <h2 className="font-medium">
+                            Covernote dan komitmen penyelesaian
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Unggah covernote setelah order diterima. Progres
+                            baru terbuka setelah Admin Legal menyetujui.
+                        </p>
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
-                            <SimSelect value={covernoteSubmission.data.order_collateral_id} onChange={(value) => covernoteSubmission.setData('order_collateral_id', value)} options={order.collaterals.map((item: any) => ({ value: String(item.id), label: `${item.job_type?.name ?? 'Agunan'} - ${item.agunan_id || `AGN-${item.id}`} - ${item.deskripsi_agunan || 'Tanpa deskripsi'}` }))} placeholder="Pilih agunan" />
-                            <Input value={covernoteSubmission.data.covernote_no} onChange={(event) => covernoteSubmission.setData('covernote_no', event.target.value)} placeholder="Nomor covernote" />
+                            <SimSelect
+                                value={
+                                    covernoteSubmission.data.order_collateral_id
+                                }
+                                onChange={(value) =>
+                                    covernoteSubmission.setData(
+                                        'order_collateral_id',
+                                        value,
+                                    )
+                                }
+                                options={order.collaterals.map((item: any) => ({
+                                    value: String(item.id),
+                                    label: `${item.job_type?.name ?? 'Agunan'} - ${item.agunan_id || `AGN-${item.id}`} - ${item.deskripsi_agunan || 'Tanpa deskripsi'}`,
+                                }))}
+                                placeholder="Pilih agunan"
+                            />
+                            <Input
+                                value={covernoteSubmission.data.covernote_no}
+                                onChange={(event) =>
+                                    covernoteSubmission.setData(
+                                        'covernote_no',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="Nomor covernote"
+                            />
                             <div className="grid gap-2">
                                 <Label>Tanggal mulai covernote</Label>
-                                <Input type="date" value={covernoteSubmission.data.covernote_start} onChange={(event) => covernoteSubmission.setData('covernote_start', event.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={
+                                        covernoteSubmission.data.covernote_start
+                                    }
+                                    onChange={(event) =>
+                                        covernoteSubmission.setData(
+                                            'covernote_start',
+                                            event.target.value,
+                                        )
+                                    }
+                                />
                             </div>
                             <div className="grid gap-2">
                                 <Label>Tanggal berakhir covernote</Label>
-                                <Input type="date" value={covernoteSubmission.data.covernote_end} onChange={(event) => covernoteSubmission.setData('covernote_end', event.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={
+                                        covernoteSubmission.data.covernote_end
+                                    }
+                                    onChange={(event) =>
+                                        covernoteSubmission.setData(
+                                            'covernote_end',
+                                            event.target.value,
+                                        )
+                                    }
+                                />
                             </div>
                             <div className="grid gap-2">
                                 <Label>Tanggal komitmen penyelesaian</Label>
-                                <Input type="date" value={covernoteSubmission.data.komitmen_penyelesaian} onChange={(event) => covernoteSubmission.setData('komitmen_penyelesaian', event.target.value)} />
+                                <Input
+                                    type="date"
+                                    value={
+                                        covernoteSubmission.data
+                                            .komitmen_penyelesaian
+                                    }
+                                    onChange={(event) =>
+                                        covernoteSubmission.setData(
+                                            'komitmen_penyelesaian',
+                                            event.target.value,
+                                        )
+                                    }
+                                />
                             </div>
-                            <SimFileUpload value={covernoteSubmission.data.file} onChange={(file) => covernoteSubmission.setData('file', file)} label="Pilih covernote" />
+                            <SimFileUpload
+                                value={covernoteSubmission.data.file}
+                                onChange={(file) =>
+                                    covernoteSubmission.setData('file', file)
+                                }
+                                label="Pilih covernote"
+                            />
                         </div>
-                        <InputError message={(covernoteSubmission.errors as any).file || (covernoteSubmission.errors as any).komitmen_penyelesaian} />
-                        <Button className="mt-4" disabled={covernoteSubmission.processing}><FileUp className="size-4" />Ajukan covernote</Button>
+                        <InputError
+                            message={
+                                (covernoteSubmission.errors as any).file ||
+                                (covernoteSubmission.errors as any)
+                                    .komitmen_penyelesaian
+                            }
+                        />
+                        <Button
+                            className="mt-4"
+                            disabled={covernoteSubmission.processing}
+                        >
+                            <FileUp className="size-4" />
+                            Ajukan covernote
+                        </Button>
                     </form>
                 ) : null}
 
-                {canViewDocuments && canRequestAdditionalDocuments && <section className="sim-panel p-4">
-                    <h2 className="font-medium">Minta dokumen tambahan</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Ajukan dokumen yang perlu dilengkapi Admin Legal. Dokumen akan muncul setelah diunggah.</p>
-                    <form onSubmit={submitDocumentRequest} className="mt-4 grid gap-4 md:grid-cols-3">
-                        <SimSelect value={documentRequest.data.order_collateral_id} onChange={(value) => documentRequest.setData('order_collateral_id', value)} options={order.collaterals.map((item: any) => ({ value: String(item.id), label: `${item.job_type?.name ?? 'Agunan'} - ${item.agunan_id || `AGN-${item.id}`} - ${item.deskripsi_agunan || 'Tanpa deskripsi'}` }))} placeholder="Agunan (opsional)" />
-                        <Input value={documentRequest.data.name} onChange={(event) => documentRequest.setData('name', event.target.value)} placeholder="Nama dokumen yang diminta" />
-                        <Input value={documentRequest.data.reason} onChange={(event) => documentRequest.setData('reason', event.target.value)} placeholder="Alasan/keterangan" />
-                        <Button className="w-fit" disabled={documentRequest.processing}><Send className="size-4" />Kirim permintaan</Button>
-                    </form>
-                    <div className="mt-4 divide-y rounded-md border">
-                        {order.document_requests?.map((item: any) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span>{item.name} - {item.reason}</span><SimStatusBadge label={item.status === 'diunggah' ? 'Dokumen tersedia' : 'Menunggu Admin Legal'} tone={item.status === 'diunggah' ? 'success' : 'warning'} /></div>)}
-                    </div>
-                </section>}
-
-                <section className="sim-panel">
-                    <div className="sim-panel-header font-medium">Agunan dan checklist</div>
-                    <div className="divide-y">
-                        {order.collaterals.map((collateral: any) => (
-                            <div key={collateral.id} className="p-4">
-                                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                    <div>
-                                        <div className="font-medium">{collateral.job_type?.name}</div>
-                                        <p className="mt-1 text-sm text-muted-foreground">{collateral.deskripsi_agunan}</p>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        <SimStatusBadge label={`Dokumen: ${collateral.doc_status}`} tone={toneForStatus(collateral.doc_status)} />
-                                        <SimStatusBadge label={`Covernote: ${collateral.covernote_status}`} tone={toneForStatus(collateral.covernote_status)} />
-                                    </div>
+                {canViewDocuments && canRequestAdditionalDocuments && (
+                    <section className="sim-panel p-4">
+                        <h2 className="font-medium">Minta dokumen tambahan</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Ajukan dokumen yang perlu dilengkapi Admin Legal.
+                            Dokumen akan muncul setelah diunggah.
+                        </p>
+                        <form
+                            onSubmit={submitDocumentRequest}
+                            className="mt-4 grid gap-4 md:grid-cols-3"
+                        >
+                            <SimSelect
+                                value={documentRequest.data.order_collateral_id}
+                                onChange={(value) =>
+                                    documentRequest.setData(
+                                        'order_collateral_id',
+                                        value,
+                                    )
+                                }
+                                options={order.collaterals.map((item: any) => ({
+                                    value: String(item.id),
+                                    label: `${item.job_type?.name ?? 'Agunan'} - ${item.agunan_id || `AGN-${item.id}`} - ${item.deskripsi_agunan || 'Tanpa deskripsi'}`,
+                                }))}
+                                placeholder="Agunan (opsional)"
+                            />
+                            <Input
+                                value={documentRequest.data.name}
+                                onChange={(event) =>
+                                    documentRequest.setData(
+                                        'name',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="Nama dokumen yang diminta"
+                            />
+                            <Input
+                                value={documentRequest.data.reason}
+                                onChange={(event) =>
+                                    documentRequest.setData(
+                                        'reason',
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="Alasan/keterangan"
+                            />
+                            <Button
+                                className="w-fit"
+                                disabled={documentRequest.processing}
+                            >
+                                <Send className="size-4" />
+                                Kirim permintaan
+                            </Button>
+                        </form>
+                        <div className="mt-4 divide-y rounded-md border">
+                            {order.document_requests?.map((item: any) => (
+                                <div
+                                    key={item.id}
+                                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                                >
+                                    <span>
+                                        {item.name} - {item.reason}
+                                    </span>
+                                    <SimStatusBadge
+                                        label={
+                                            item.status === 'diunggah'
+                                                ? 'Dokumen tersedia'
+                                                : 'Menunggu Admin Legal'
+                                        }
+                                        tone={
+                                            item.status === 'diunggah'
+                                                ? 'success'
+                                                : 'warning'
+                                        }
+                                    />
                                 </div>
-                                <div className="mt-4 grid gap-2 md:grid-cols-2">
-                                    {collateral.checklists.map((item: any) => (
-                                        <div key={item.id} className="rounded-md border px-3 py-2 text-sm">
-                                            <span className={item.is_checked ? 'font-medium' : 'text-muted-foreground'}>{item.is_checked ? 'Sudah' : 'Belum'}</span>
-                                            <span className="text-muted-foreground"> - </span>
-                                            {item.document_checklist?.name}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {canExtendCovernote && (
-                    <form onSubmit={submitCovernote} className="sim-panel p-4">
-                        <h2 className="font-medium">Perpanjang covernote</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Gunakan bagian ini saat masa berlaku covernote perlu diperpanjang.</p>
+                    <details className="sim-panel group">
+                        <summary className="flex cursor-pointer list-none items-start justify-between gap-4 p-4 [&::-webkit-details-marker]:hidden">
+                            <div>
+                                <h2 className="font-medium">
+                                    Perpanjang covernote
+                                </h2>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Gunakan bagian ini saat masa berlaku
+                                    covernote perlu diperpanjang.
+                                </p>
+                            </div>
+                            <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                        </summary>
+                        <form
+                            onSubmit={submitCovernote}
+                            className="border-t p-4"
+                        >
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label>Agunan</Label>
+                                    <SimSelect
+                                        value={
+                                            covernote.data.order_collateral_id
+                                        }
+                                        onChange={(value) =>
+                                            covernote.setData(
+                                                'order_collateral_id',
+                                                value,
+                                            )
+                                        }
+                                        options={order.collaterals
+                                            .filter(
+                                                (item: any) =>
+                                                    item.covernote_end,
+                                            )
+                                            .map((item: any) => ({
+                                                value: String(item.id),
+                                                label: `${item.job_type?.name} - jatuh tempo ${dateOnly(item.covernote_end)}`,
+                                            }))}
+                                        placeholder="Pilih agunan"
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Tanggal jatuh tempo baru</Label>
+                                    <Input
+                                        type="date"
+                                        value={covernote.data.new_end}
+                                        onChange={(event) =>
+                                            covernote.setData(
+                                                'new_end',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={covernote.errors.new_end}
+                                    />
+                                </div>
+                                <div className="grid gap-2 md:col-span-2">
+                                    <Label>Catatan</Label>
+                                    <textarea
+                                        className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm"
+                                        value={covernote.data.catatan}
+                                        onChange={(event) =>
+                                            covernote.setData(
+                                                'catatan',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Catatan perpanjangan"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <SimFileUpload
+                                        value={covernote.data.file}
+                                        onChange={(file) =>
+                                            covernote.setData('file', file)
+                                        }
+                                        label="Pilih surat perpanjangan"
+                                    />
+                                </div>
+                            </div>
+                            <Button
+                                className="mt-4"
+                                disabled={
+                                    covernote.processing ||
+                                    !covernote.data.new_end
+                                }
+                            >
+                                <Save className="size-4" />
+                                Simpan perpanjangan
+                            </Button>
+                        </form>
+                    </details>
+                )}
+
+                {canViewDocuments && canAddProgress && (
+                    <form onSubmit={submitProgress} className="sim-panel p-4">
+                        <h2 className="font-medium">Tambah progres</h2>
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
                             <div className="grid gap-2">
                                 <Label>Agunan</Label>
-                                <SimSelect value={covernote.data.order_collateral_id} onChange={(value) => covernote.setData('order_collateral_id', value)} options={order.collaterals.filter((item: any) => item.covernote_end).map((item: any) => ({ value: String(item.id), label: `${item.job_type?.name} - jatuh tempo ${dateOnly(item.covernote_end)}` }))} placeholder="Pilih agunan" />
+                                <SimSelect
+                                    value={progress.data.order_collateral_id}
+                                    onChange={(value) =>
+                                        progress.setData(
+                                            'order_collateral_id',
+                                            value,
+                                        )
+                                    }
+                                    options={order.collaterals.map(
+                                        (collateral: any) => ({
+                                            value: String(collateral.id),
+                                            label: `${collateral.job_type?.name} - ${collateral.agunan_id || collateral.id}`,
+                                        }),
+                                    )}
+                                    placeholder="Pilih agunan"
+                                />
                             </div>
                             <div className="grid gap-2">
-                                <Label>Tanggal jatuh tempo baru</Label>
-                                <Input type="date" value={covernote.data.new_end} onChange={(event) => covernote.setData('new_end', event.target.value)} />
-                                <InputError message={covernote.errors.new_end} />
+                                <Label>Langkah</Label>
+                                <SimSelect
+                                    value={progress.data.status}
+                                    onChange={(value) =>
+                                        progress.setData('status', value)
+                                    }
+                                    options={(
+                                        progressOptions[
+                                            progress.data.order_collateral_id
+                                        ] ?? []
+                                    ).map((step: string) => ({
+                                        value: step,
+                                        label: step,
+                                    }))}
+                                    placeholder="Pilih langkah"
+                                />
+                                <InputError message={progress.errors.status} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Komitmen penyelesaian</Label>
+                                <Input
+                                    type="date"
+                                    value={progress.data.komitmen_penyelesaian}
+                                    onChange={(e) =>
+                                        progress.setData(
+                                            'komitmen_penyelesaian',
+                                            e.target.value,
+                                        )
+                                    }
+                                />
                             </div>
                             <div className="grid gap-2 md:col-span-2">
-                                <Label>Catatan</Label>
-                                <textarea className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm" value={covernote.data.catatan} onChange={(event) => covernote.setData('catatan', event.target.value)} placeholder="Catatan perpanjangan" />
+                                <Label>Catatan progres</Label>
+                                <textarea
+                                    className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm"
+                                    value={progress.data.catatan}
+                                    onChange={(e) =>
+                                        progress.setData(
+                                            'catatan',
+                                            e.target.value,
+                                        )
+                                    }
+                                />
+                                <InputError message={progress.errors.catatan} />
                             </div>
-                            <div className="md:col-span-2">
-                                <SimFileUpload value={covernote.data.file} onChange={(file) => covernote.setData('file', file)} label="Pilih surat perpanjangan" />
+                            <div className="grid gap-2 md:col-span-2">
+                                <Label>Bukti pendukung (opsional)</Label>
+                                <SimFileUpload
+                                    value={progress.data.evidence}
+                                    accept="application/pdf,image/*"
+                                    onChange={(file) =>
+                                        progress.setData('evidence', file)
+                                    }
+                                    label="Pilih bukti progres"
+                                />
                             </div>
+                            {isFinalProgressStep && (
+                                <div className="grid gap-2 md:col-span-2">
+                                    <Label>Dokumen final wajib</Label>
+                                    <SimFileUpload
+                                        value={progress.data.final_document}
+                                        accept="application/pdf"
+                                        onChange={(file) =>
+                                            progress.setData(
+                                                'final_document',
+                                                file,
+                                            )
+                                        }
+                                        label="Pilih dokumen final"
+                                    />
+                                    <InputError
+                                        message={progress.errors.final_document}
+                                    />
+                                </div>
+                            )}
                         </div>
-                        <Button className="mt-4" disabled={covernote.processing || !covernote.data.new_end}><Save className="size-4" />Simpan perpanjangan</Button>
+                        <Button className="mt-4" disabled={progress.processing}>
+                            <Save className="size-4" />
+                            Simpan progres
+                        </Button>
                     </form>
                 )}
 
-                {canViewDocuments && canAddProgress && <form onSubmit={submitProgress} className="sim-panel p-4">
-                    <h2 className="font-medium">Tambah progres</h2>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <div className="grid gap-2">
-                            <Label>Agunan</Label>
-                            <SimSelect value={progress.data.order_collateral_id} onChange={(value) => progress.setData('order_collateral_id', value)} options={order.collaterals.map((collateral: any) => ({ value: String(collateral.id), label: `${collateral.job_type?.name} - ${collateral.agunan_id || collateral.id}` }))} placeholder="Pilih agunan" />
+                {canViewDocuments && (canUploadWork || canUploadFinal) && (
+                    <form onSubmit={submitUpload} className="sim-panel p-4">
+                        <h2 className="font-medium">
+                            Upload dokumen pekerjaan
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Gunakan PDF untuk draft, resi BPN, dan dokumen
+                            final.
+                        </p>
+                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                            <SimSelect
+                                value={upload.data.order_collateral_id}
+                                onChange={(value) =>
+                                    upload.setData('order_collateral_id', value)
+                                }
+                                options={order.collaterals.map(
+                                    (collateral: any) => ({
+                                        value: String(collateral.id),
+                                        label: `${collateral.job_type?.name} - ${collateral.agunan_id || collateral.id}`,
+                                    }),
+                                )}
+                                placeholder="Pilih agunan"
+                            />
+                            <SimSelect
+                                value={upload.data.document_type}
+                                onChange={(value) =>
+                                    upload.setData('document_type', value)
+                                }
+                                options={documentTypes}
+                                placeholder="Pilih jenis dokumen"
+                            />
+                            <SimFileUpload
+                                value={upload.data.file}
+                                onChange={(file) =>
+                                    upload.setData('file', file)
+                                }
+                                label="Pilih dokumen pekerjaan"
+                            />
                         </div>
-                        <div className="grid gap-2">
-                            <Label>Langkah</Label>
-                            <SimSelect value={progress.data.status} onChange={(value) => progress.setData('status', value)} options={(progressOptions[progress.data.order_collateral_id] ?? []).map((step: string) => ({ value: step, label: step }))} placeholder="Pilih langkah" />
-                            <InputError message={progress.errors.status} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label>Komitmen penyelesaian</Label>
-                            <Input type="date" value={progress.data.komitmen_penyelesaian} onChange={(e) => progress.setData('komitmen_penyelesaian', e.target.value)} />
-                        </div>
-                        <div className="grid gap-2 md:col-span-2">
-                            <Label>Catatan progres</Label>
-                            <textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={progress.data.catatan} onChange={(e) => progress.setData('catatan', e.target.value)} />
-                            <InputError message={progress.errors.catatan} />
-                        </div>
-                        <div className="grid gap-2 md:col-span-2">
-                            <Label>Bukti pendukung (opsional)</Label>
-                            <SimFileUpload value={progress.data.evidence} accept="application/pdf,image/*" onChange={(file) => progress.setData('evidence', file)} label="Pilih bukti progres" />
-                        </div>
-                        {isFinalProgressStep && <div className="grid gap-2 md:col-span-2">
-                            <Label>Dokumen final wajib</Label>
-                            <SimFileUpload value={progress.data.final_document} accept="application/pdf" onChange={(file) => progress.setData('final_document', file)} label="Pilih dokumen final" />
-                            <InputError message={progress.errors.final_document} />
-                        </div>}
-                    </div>
-                    <Button className="mt-4" disabled={progress.processing}><Save className="size-4" />Simpan progres</Button>
-                </form>}
+                        <Button className="mt-4" disabled={upload.processing}>
+                            <FileUp className="size-4" />
+                            Upload dokumen
+                        </Button>
+                    </form>
+                )}
 
-                {canViewDocuments && (canUploadWork || canUploadFinal) && <form onSubmit={submitUpload} className="sim-panel p-4">
-                    <h2 className="font-medium">Upload dokumen pekerjaan</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Gunakan PDF untuk draft, resi BPN, dan dokumen final.</p>
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
-                        <SimSelect value={upload.data.order_collateral_id} onChange={(value) => upload.setData('order_collateral_id', value)} options={order.collaterals.map((collateral: any) => ({ value: String(collateral.id), label: `${collateral.job_type?.name} - ${collateral.agunan_id || collateral.id}` }))} placeholder="Pilih agunan" />
-                        <SimSelect value={upload.data.document_type} onChange={(value) => upload.setData('document_type', value)} options={documentTypes} placeholder="Pilih jenis dokumen" />
-                        <SimFileUpload value={upload.data.file} onChange={(file) => upload.setData('file', file)} label="Pilih dokumen pekerjaan" />
-                    </div>
-                    <Button className="mt-4" disabled={upload.processing}><FileUp className="size-4" />Upload dokumen</Button>
-                </form>}
-
-                {canViewDocuments && <section className="sim-panel overflow-hidden">
-                    <div className="sim-panel-header">
-                        <h2 className="font-medium">Dokumen digital</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Daftar dokumen pekerjaan dan dokumen final pada order ini.</p>
-                    </div>
-                    <div className="hidden md:block"><SimTable raw className="!rounded-none !border-0 !bg-transparent !shadow-none">
-                        <table className="sim-table w-full min-w-[760px] text-sm">
-                            <thead className="bg-muted/50 text-left text-muted-foreground">
-                                <tr>
-                                    <th className="px-4 py-3 font-medium">Dokumen</th>
-                                    <th className="px-4 py-3 font-medium">File</th>
-                                    <th className="px-4 py-3 font-medium">Agunan</th>
-                                    <th className="px-4 py-3 font-medium">Upload</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {order.documents.length === 0 ? (
-                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Belum ada dokumen.</td></tr>
-                                ) : order.documents.map((document: any) => (
-                                    <tr key={document.id} className="border-t">
-                                        <td className="px-4 py-3"><div className="flex flex-wrap items-center gap-3"><div><div className="font-medium leading-5">{document.display_name || checklistNameForDocument(order, document.id) || documentTypeLabel(document.document_type)}</div><div className="mt-0.5 text-xs text-muted-foreground">{document.document_type === 'lainnya' ? 'Dokumen susulan' : documentTypeLabel(document.document_type)}</div></div>{document.document_type === 'final' && <SimStatusBadge label={document.validated_at ? 'Tervalidasi' : 'Menunggu validasi'} tone={document.validated_at ? 'success' : 'warning'} />}</div></td>
-                                        <td className="px-4 py-3">
-                                            <a className="block max-w-[260px] truncate font-medium underline-offset-4 hover:underline" title={document.original_name} href={`/notary/orders/${order.id}/documents/${document.id}/download`}>{document.original_name}</a>
-                                            <div className="text-muted-foreground">Versi {document.version} · {formatBytes(document.file_size)}</div>
-                                        </td>
-                                        <td className="px-4 py-3">{document.collateral?.job_type?.name ?? '-'}</td>
-                                        <td className="px-4 py-3">{document.uploader?.name ?? '-'}<br /><span className="text-muted-foreground">{formatTimelineDate(document.created_at)}</span></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </SimTable></div>
-                    <div className="space-y-3 p-3 md:hidden">
-                        {order.documents.length === 0 ? (
-                            <div className="px-1 py-6 text-sm text-muted-foreground">Belum ada dokumen.</div>
-                        ) : order.documents.map((document: any) => (
-                            <article key={document.id} className="space-y-3 border border-border bg-card p-3.5">
-                                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="font-medium leading-5">{document.display_name || checklistNameForDocument(order, document.id) || documentTypeLabel(document.document_type)}</div><div className="mt-0.5 text-xs text-muted-foreground">{document.document_type === 'lainnya' ? 'Dokumen susulan' : documentTypeLabel(document.document_type)}</div></div>{document.document_type === 'final' && <SimStatusBadge label={document.validated_at ? 'Tervalidasi' : 'Menunggu validasi'} tone={document.validated_at ? 'success' : 'warning'} />}</div>
-                                <a className="block truncate text-sm font-medium underline-offset-4 hover:underline" title={document.original_name} href={`/notary/orders/${order.id}/documents/${document.id}/download`}>{document.original_name}</a>
-                                <div className="grid grid-cols-2 gap-3 text-xs"><div><div className="text-muted-foreground">Agunan</div><div className="mt-1 text-sm">{document.collateral?.job_type?.name ?? '-'}</div></div><div className="text-right"><div className="text-muted-foreground">Versi / ukuran</div><div className="mt-1 text-sm">v{document.version} · {formatBytes(document.file_size)}</div></div></div>
-                                <div className="border-t border-border pt-2 text-xs text-muted-foreground">Diunggah oleh {document.uploader?.name ?? '-'} · {formatTimelineDate(document.created_at)}</div>
-                            </article>
-                        ))}
-                    </div>
-                </section>}
-
-                {canViewDocuments && <section className="sim-panel">
-                    <div className="sim-panel-header font-medium">Riwayat progres</div>
-                    <div className="divide-y">
-                        {order.progress.length === 0 ? (
-                            <div className="px-4 py-6 text-sm text-muted-foreground">Belum ada progres.</div>
-                        ) : (
-                            order.progress.map((item: any) => (
-                                <div key={item.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[145px_minmax(0,1fr)_180px] md:items-center">
-                                    <div className="flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground"><span className="size-2 shrink-0 rounded-full bg-primary" />Proses notaris</div>
-                                    <div className="min-w-0">
-                                        <div className="font-medium">{progressLabel(item.status)}</div>
-                                        <div className="mt-1 text-xs text-muted-foreground">{item.collateral?.job_type?.name ?? 'Agunan'} · Komitmen {dateOnly(item.komitmen_penyelesaian) || '-'}</div>
-                                        {item.catatan && <div className="mt-1 truncate text-xs text-muted-foreground" title={item.catatan}>{item.catatan}</div>}
-                                        <div className="mt-1 text-xs text-muted-foreground">Oleh {item.user?.name ?? 'Notaris'}</div>
-                                    </div>
-                                    <div className="text-xs text-muted-foreground md:text-right">{formatTimelineDate(item.created_at)}</div>
+                {canViewDocuments && (
+                    <details className="sim-panel group overflow-hidden">
+                        <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
+                            <div>
+                                <h2 className="font-medium">Dokumen digital</h2>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Preview dokumen pekerjaan dan dokumen final
+                                    pada order ini.
+                                </p>
+                            </div>
+                            <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="p-3 md:p-4">
+                            {order.documents.length === 0 ? (
+                                <div className="px-1 py-8 text-center text-sm text-muted-foreground">
+                                    Belum ada dokumen.
                                 </div>
-                            ))
-                        )}
-                    </div>
-                </section>}
+                            ) : (
+                                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                                    {order.documents.map((document: any) => {
+                                        const documentName =
+                                            document.display_name ||
+                                            checklistNameForDocument(
+                                                order,
+                                                document.id,
+                                            ) ||
+                                            documentTypeLabel(
+                                                document.document_type,
+                                            );
+                                        const previewUrl = `/notary/orders/${order.id}/documents/${document.id}/preview`;
+                                        const downloadUrl = `/notary/orders/${order.id}/documents/${document.id}/download`;
+
+                                        return (
+                                            <article
+                                                key={document.id}
+                                                className="group overflow-hidden rounded-md border border-border bg-card"
+                                            >
+                                                <a
+                                                    href={previewUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="relative block h-44 overflow-hidden border-b border-border bg-muted/20"
+                                                    aria-label={`Preview ${documentName}`}
+                                                >
+                                                    <iframe
+                                                        src={previewUrl}
+                                                        title={`Preview ${documentName}`}
+                                                        className="pointer-events-none h-full w-full bg-white"
+                                                    />
+                                                    <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-background/90 px-3 py-2 text-xs font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                                                        <span className="inline-flex items-center gap-1.5">
+                                                            <Eye className="size-3.5" />
+                                                            Buka preview
+                                                        </span>
+                                                        <span>
+                                                            {
+                                                                document.original_name
+                                                            }
+                                                        </span>
+                                                    </span>
+                                                </a>
+                                                <div className="space-y-3 p-3.5">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex min-w-0 items-start gap-2.5">
+                                                            <FileText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                                                            <div className="min-w-0">
+                                                                <h3
+                                                                    className="truncate font-medium"
+                                                                    title={
+                                                                        documentName
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        documentName
+                                                                    }
+                                                                </h3>
+                                                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                                                    {document.document_type ===
+                                                                    'lainnya'
+                                                                        ? 'Dokumen susulan'
+                                                                        : documentTypeLabel(
+                                                                              document.document_type,
+                                                                          )}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        {document.document_type ===
+                                                            'final' && (
+                                                            <SimStatusBadge
+                                                                label={
+                                                                    document.validated_at
+                                                                        ? 'Tervalidasi'
+                                                                        : 'Menunggu validasi'
+                                                                }
+                                                                tone={
+                                                                    document.validated_at
+                                                                        ? 'success'
+                                                                        : 'warning'
+                                                                }
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3 text-xs">
+                                                        <div>
+                                                            <div className="text-muted-foreground">
+                                                                Agunan
+                                                            </div>
+                                                            <div className="mt-1 text-sm">
+                                                                {document
+                                                                    .collateral
+                                                                    ?.job_type
+                                                                    ?.name ??
+                                                                    '-'}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-muted-foreground">
+                                                                Versi / ukuran
+                                                            </div>
+                                                            <div className="mt-1 text-sm">
+                                                                v
+                                                                {
+                                                                    document.version
+                                                                }{' '}
+                                                                ·{' '}
+                                                                {formatBytes(
+                                                                    document.file_size,
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-3 border-t border-border pt-3 text-xs text-muted-foreground">
+                                                        <span className="truncate">
+                                                            {document.uploader
+                                                                ?.name ??
+                                                                '-'}{' '}
+                                                            ·{' '}
+                                                            {formatTimelineDate(
+                                                                document.created_at,
+                                                            )}
+                                                        </span>
+                                                        <a
+                                                            href={downloadUrl}
+                                                            title={`Unduh ${documentName}`}
+                                                            aria-label={`Unduh ${documentName}`}
+                                                            className="sim-icon-button"
+                                                        >
+                                                            <Download className="size-4" />
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </article>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </details>
+                )}
+
+                {canViewDocuments && (
+                    <section className="sim-panel">
+                        <div className="sim-panel-header font-medium">
+                            Riwayat progres
+                        </div>
+                        <div className="divide-y">
+                            {order.progress.length === 0 ? (
+                                <div className="px-4 py-6 text-sm text-muted-foreground">
+                                    Belum ada progres.
+                                </div>
+                            ) : (
+                                order.progress.map((item: any) => (
+                                    <div
+                                        key={item.id}
+                                        className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[145px_minmax(0,1fr)_180px] md:items-center"
+                                    >
+                                        <div className="flex items-center gap-2 text-xs whitespace-nowrap text-muted-foreground">
+                                            <span className="size-2 shrink-0 rounded-full bg-primary" />
+                                            Proses notaris
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="font-medium">
+                                                {progressLabel(item.status)}
+                                            </div>
+                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                {item.collateral?.job_type
+                                                    ?.name ?? 'Agunan'}{' '}
+                                                · Komitmen{' '}
+                                                {dateOnly(
+                                                    item.komitmen_penyelesaian,
+                                                ) || '-'}
+                                            </div>
+                                            {item.catatan && (
+                                                <div
+                                                    className="mt-1 truncate text-xs text-muted-foreground"
+                                                    title={item.catatan}
+                                                >
+                                                    {item.catatan}
+                                                </div>
+                                            )}
+                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                Oleh{' '}
+                                                {item.user?.name ?? 'Notaris'}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground md:text-right">
+                                            {formatTimelineDate(
+                                                item.created_at,
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </section>
+                )}
             </div>
         </>
     );
@@ -463,12 +1135,17 @@ function formatTimelineDate(value?: string | null): string {
     if (!value) return '-';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    return new Intl.DateTimeFormat('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(date);
 }
 
 function progressLabel(value?: string | null): string {
     if (!value) return 'Progres diperbarui';
-    return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+    return value
+        .replaceAll('_', ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function formatBytes(bytes?: number | null): string {
@@ -489,20 +1166,30 @@ function documentTypeLabel(type?: string | null): string {
         lainnya: 'Dokumen lainnya',
     };
 
-    return type ? labels[type] ?? type : 'Dokumen';
+    return type ? (labels[type] ?? type) : 'Dokumen';
 }
 
-function checklistNameForDocument(order: any, documentId: number): string | null {
+function checklistNameForDocument(
+    order: any,
+    documentId: number,
+): string | null {
     for (const collateral of order.collaterals ?? []) {
-        const checklist = (collateral.checklists ?? []).find((item: any) => item.order_document_id === documentId);
-        if (checklist?.document_checklist?.name) return checklist.document_checklist.name;
+        const checklist = (collateral.checklists ?? []).find(
+            (item: any) => item.order_document_id === documentId,
+        );
+        if (checklist?.document_checklist?.name)
+            return checklist.document_checklist.name;
     }
     return null;
 }
 
 function money(value?: string | number | null) {
     if (!value) return '-';
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value));
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(Number(value));
 }
 
 NotaryOrdersShow.layout = {

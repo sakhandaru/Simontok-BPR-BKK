@@ -2,6 +2,13 @@
 
 return [
 
+    'sso' => [
+        'enabled' => (bool) env('SSO_ENABLED', false),
+        'url' => env('SSO_URL', 'https://apisso.bkkjateng.co.id'),
+        'app' => env('SSO_APP', 'monbis'),
+        'timeout' => env('SSO_TIMEOUT', 10),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

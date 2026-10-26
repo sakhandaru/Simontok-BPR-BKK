@@ -206,6 +206,20 @@
         color: var(--brand-blue) !important;
     }
 
+    .sim-mobile-nav-active {
+        background: transparent;
+        color: var(--brand-blue) !important;
+    }
+
+    .sim-mobile-nav-active:hover {
+        background: transparent;
+        color: var(--brand-blue) !important;
+    }
+
+    .sim-brand-blue-gradient {
+        background: linear-gradient(180deg, #114e97, #1d82fd);
+    }
+
     [data-mobile='true'] .sim-nav-item {
         min-height: 2.25rem;
         font-size: 0.95rem !important;

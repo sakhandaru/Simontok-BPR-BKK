@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class OrderDocumentController extends Controller
 {
@@ -255,6 +256,16 @@ class OrderDocumentController extends Controller
         ]);
 
         return Storage::disk('local')->download($document->stored_path, $document->original_name);
+    }
+
+    public function preview(Request $request, Order $order, OrderDocument $document): BinaryFileResponse
+    {
+        $this->authorizeDocumentAccess($request, $order);
+        abort_unless($document->order_id === $order->id, 404);
+
+        return response()->file(Storage::disk('local')->path($document->stored_path), [
+            'Content-Disposition' => 'inline; filename="'.addslashes($document->original_name).'"',
+        ]);
     }
 
     public function returnFinalRevision(Request $request, Order $order, OrderDocument $document): RedirectResponse
