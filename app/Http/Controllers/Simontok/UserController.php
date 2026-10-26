@@ -11,6 +11,7 @@ use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,7 +33,8 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
+            'sso_employee_id' => ['nullable', 'string', 'max:50', 'unique:users,sso_employee_id'],
+            'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'job_position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
@@ -41,9 +43,13 @@ class UserController extends Controller
 
         $this->validateOrganizationalAssignment($data);
 
+        if (filled($data['sso_employee_id'] ?? null)) {
+            $data['password'] ??= Str::random(64);
+        }
+
         $user = User::create($data);
         Audit::record($request, 'users', $user, 'create_user', 'Pengguna ditambahkan.', [
-            'after' => $user->only(['name', 'email', 'branch_id', 'job_position_id', 'notary_id', 'is_active']),
+            'after' => $user->only(['name', 'email', 'sso_employee_id', 'branch_id', 'job_position_id', 'notary_id', 'is_active']),
         ]);
 
         return back()->with('success', 'Pengguna ditambahkan.');
@@ -54,7 +60,8 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => ['nullable', 'string', 'min:8'],
+            'sso_employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users', 'sso_employee_id')->ignore($user->id)],
+            'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id')) && ! $user->sso_employee_id), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'job_position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
@@ -74,7 +81,7 @@ class UserController extends Controller
 
         $user->update($data);
         Audit::record($request, 'users', $user, 'update_user', 'Pengguna diperbarui.', [
-            'after' => $user->fresh()->only(['name', 'email', 'branch_id', 'job_position_id', 'notary_id', 'is_active']),
+            'after' => $user->fresh()->only(['name', 'email', 'sso_employee_id', 'branch_id', 'job_position_id', 'notary_id', 'is_active']),
         ]);
 
         return back()->with('success', 'Pengguna diperbarui.');

@@ -2,13 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\Branch;
-use App\Models\JobPosition;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class SsoAuthenticationService
@@ -116,10 +113,6 @@ class SsoAuthenticationService
     {
         $employeeId = $profile['employee_id'] ?? null;
         $name = $profile['full_name'] ?? null;
-        $jobPositionCode = $profile['job_position_code'] ?? null;
-        $jobPositionName = $profile['job_position'] ?? null;
-        $branchCode = $profile['branch_code'] ?? null;
-        $branchName = $profile['branch_name'] ?? null;
 
         if (! is_string($employeeId) || $employeeId === '' || ! is_string($name) || $name === '') {
             throw ValidationException::withMessages([
@@ -127,66 +120,46 @@ class SsoAuthenticationService
             ]);
         }
 
-        $jobPosition = JobPosition::query()
-            ->when($jobPositionCode, fn ($query) => $query->where('code', $jobPositionCode))
-            ->when(! $jobPositionCode && $jobPositionName, fn ($query) => $query->where('name', $jobPositionName))
+        $user = User::query()
+            ->with('jobPosition.role')
+            ->where('sso_employee_id', $employeeId)
             ->first();
-
-        if (! $jobPosition || ! $jobPosition->role_id) {
-            throw ValidationException::withMessages([
-                'email' => 'Jabatan akun Anda belum dipetakan ke role SIMONTOK. Hubungi administrator.',
-            ]);
-        }
-
-        $branch = Branch::query()
-            ->when($branchCode, fn ($query) => $query->where('code', $branchCode))
-            ->when(! $branchCode && $branchName, fn ($query) => $query->where('name', $branchName))
-            ->first();
-
-        if (! $branch) {
-            throw ValidationException::withMessages([
-                'email' => 'Cabang akun Anda belum dipetakan di SIMONTOK. Hubungi administrator.',
-            ]);
-        }
-
-        $email = is_string($profile['email'] ?? null) && $profile['email'] !== ''
-            ? $profile['email']
-            : $employeeId.'@sso.local';
-
-        $user = User::query()->where('sso_employee_id', $employeeId)->first();
 
         if (! $user) {
-            $user = User::query()->where('email', $email)->first();
-        }
-
-        if ($user && $user->sso_employee_id && $user->sso_employee_id !== $employeeId) {
             throw ValidationException::withMessages([
-                'email' => 'Email akun SSO sudah terhubung ke pegawai lain. Hubungi administrator.',
+                'email' => 'Akun SSO Anda belum diaktifkan di SIMONTOK. Hubungi administrator.',
             ]);
         }
 
-        if ($user?->notary_id) {
+        if (! $user->is_active) {
             throw ValidationException::withMessages([
-                'email' => 'Email akun SSO bertabrakan dengan akun notaris. Hubungi administrator.',
+                'email' => 'Akun SIMONTOK Anda sedang nonaktif. Hubungi administrator.',
             ]);
         }
 
-        $user ??= new User;
-        $user->fill([
-            'sso_employee_id' => $employeeId,
+        if ($user->notary_id) {
+            throw ValidationException::withMessages([
+                'email' => 'Akun SSO tidak dapat digunakan untuk akun notaris lokal.',
+            ]);
+        }
+
+        if (! $user->jobPosition?->role_id) {
+            throw ValidationException::withMessages([
+                'email' => 'Role akun SSO belum diatur di SIMONTOK. Hubungi administrator.',
+            ]);
+        }
+
+        if ($user->roleCode() !== 'it_admin' && ! $user->branch_id) {
+            throw ValidationException::withMessages([
+                'email' => 'Cabang akun SSO belum diatur di SIMONTOK. Hubungi administrator.',
+            ]);
+        }
+
+        $user->update([
             'name' => $name,
-            'email' => $email,
-            'branch_id' => $branch->id,
-            'job_position_id' => $jobPosition->id,
-            'is_active' => true,
         ]);
 
-        if (! $user->exists) {
-            $user->password = Str::random(64);
-        }
+        return $user->fresh();
 
-        $user->save();
-
-        return $user;
     }
 }
