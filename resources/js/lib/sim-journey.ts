@@ -2,7 +2,7 @@ export type JourneyStage = { label: string; keys: string[] };
 
 export const orderJourneyStages: JourneyStage[] = [
     { label: 'Persiapan order', keys: ['draft', 'perlu_perbaikan_order'] },
-    { label: 'Persetujuan pimpinan cabang', keys: ['diajukan', 'menunggu_approval', 'disetujui_kepala_cabang'] },
+    { label: 'Persetujuan cabang', keys: ['diajukan', 'menunggu_approval', 'disetujui_kepala_cabang'] },
     { label: 'Verifikasi notaris', keys: ['menunggu_verifikasi_notaris', 'perbaikan_dokumen', 'perlu_pengalihan_notaris'] },
     { label: 'Covernote & proses pekerjaan', keys: ['menunggu_approval_covernote', 'menunggu_approval_covernote_kepala_cabang', 'perbaikan_covernote', 'covernote_disetujui', 'dokumen_valid', 'proses_akta', 'proses_bpn_samsat'] },
     { label: 'Dokumen final', keys: ['draft_diunggah', 'menunggu_validasi_bpr', 'dokumen_final_diunggah'] },

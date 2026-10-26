@@ -34,7 +34,7 @@ enum TrackAStatus: string
             self::Diajukan => 'Diajukan',
             self::MenungguApproval => 'Menunggu approval',
             self::PerluPerbaikanOrder => 'Perlu perbaikan order',
-            self::DisetujuiKepalaCabang => 'Disetujui Kepala Cabang',
+            self::DisetujuiKepalaCabang => 'Disetujui approver cabang',
             self::MenungguVerifikasiNotaris => 'Menunggu verifikasi notaris',
             self::PerbaikanDokumen => 'Perbaikan dokumen',
             self::PerluPengalihanNotaris => 'Perlu pengalihan notaris',

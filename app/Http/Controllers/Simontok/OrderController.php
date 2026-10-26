@@ -211,6 +211,8 @@ class OrderController extends Controller
             'paymentRequest.approver:id,name',
             'paymentRequest.rejecter:id,name',
             'paymentRequest.payments.uploader:id,name',
+            'statusHistories.actor.jobPosition.role',
+            'statusHistories.actor.notary:id,name',
             'statusHistories' => fn ($query) => $query->latest('created_at'),
         ]);
 
@@ -373,43 +375,64 @@ class OrderController extends Controller
             'to_status' => TrackAStatus::MenungguApproval->value,
             'actor_type' => 'user',
             'actor_id' => $request->user()->id,
-            'reason' => 'Order diajukan untuk approval Kepala Cabang.',
+            'reason' => 'Order diajukan untuk approval cabang.',
         ]);
         Audit::record($request, 'orders', $order, 'submit_approval', 'Order diajukan untuk approval.', []);
-        InAppNotification::forBranchApprovers($order, 'Order menunggu approval', "Order {$order->order_no} menunggu review Kepala Cabang.");
+        InAppNotification::forBranchApprovers($order, 'Order menunggu approval', "Order {$order->order_no} menunggu review approver cabang.");
 
-        return back()->with('success', 'Order diajukan untuk approval Kepala Cabang.');
+        return back()->with('success', 'Order diajukan untuk approval cabang.');
     }
 
     public function approve(Request $request, Order $order): RedirectResponse
     {
         $this->authorizeVisibleOrder($request, $order);
         abort_unless($request->user()?->hasPermission('orders.approve'), 403);
-        abort_unless($order->status === TrackAStatus::MenungguApproval, 403);
-        $this->ensureReadyToSend($order);
 
-        DB::transaction(function () use ($request, $order) {
-            $before = $order->only(['status', 'sent_to_notary_at']);
-            $order->update([
+        $approvedOrder = DB::transaction(function () use ($request, $order) {
+            // Lock the row and re-check the stage inside the transaction so that
+            // simultaneous approvals resolve to exactly one successful action.
+            $lockedOrder = Order::query()
+                ->whereKey($order->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedOrder->status !== TrackAStatus::MenungguApproval) {
+                return null;
+            }
+
+            $this->ensureReadyToSend($lockedOrder);
+            $before = $lockedOrder->only(['status', 'sent_to_notary_at']);
+            $approvedAt = now();
+            $roleName = $request->user()->role()?->name ?? 'Approver cabang';
+            $reason = "Order disetujui oleh {$request->user()->name} ({$roleName}) dan dikirim ke notaris.";
+
+            $lockedOrder->update([
                 'status' => TrackAStatus::MenungguVerifikasiNotaris,
-                'sent_to_notary_at' => now(),
+                'sent_to_notary_at' => $approvedAt,
                 'checked_by' => $request->user()->id,
-                'checked_at' => now(),
+                'checked_at' => $approvedAt,
             ]);
-            $order->statusHistories()->create([
+            $lockedOrder->statusHistories()->create([
                 'track' => 'A',
                 'from_status' => TrackAStatus::MenungguApproval->value,
                 'to_status' => TrackAStatus::MenungguVerifikasiNotaris->value,
                 'actor_type' => 'user',
                 'actor_id' => $request->user()->id,
-                'reason' => 'Order disetujui Kepala Cabang dan dikirim ke notaris.',
+                'reason' => $reason,
             ]);
-            Audit::record($request, 'orders', $order, 'approve_and_send', 'Order disetujui Kepala Cabang dan dikirim ke notaris.', [
+            Audit::record($request, 'orders', $lockedOrder, 'approve_and_send', $reason, [
                 'before' => $before,
-                'after' => $order->only(['status', 'sent_to_notary_at']),
+                'after' => $lockedOrder->only(['status', 'sent_to_notary_at', 'checked_by', 'checked_at']),
             ]);
-            InAppNotification::forNotary($order, 'Order baru diterima', "Order {$order->order_no} untuk {$order->customer_name} menunggu verifikasi dokumen.");
+
+            return $lockedOrder->fresh();
         });
+
+        if ($approvedOrder === null) {
+            return back()->with('error', 'Order sudah diproses oleh approver lain. Approval hanya dapat dilakukan satu kali.');
+        }
+
+        InAppNotification::forNotary($approvedOrder, 'Order baru diterima', "Order {$approvedOrder->order_no} untuk {$approvedOrder->customer_name} menunggu verifikasi dokumen.");
 
         return back()->with('success', 'Order disetujui dan dikirim ke notaris.');
     }

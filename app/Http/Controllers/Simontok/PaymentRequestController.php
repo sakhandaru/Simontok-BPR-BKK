@@ -71,7 +71,7 @@ class PaymentRequestController extends Controller
 
     public function verify(Request $request, Order $order, PaymentRequest $paymentRequest): RedirectResponse
     {
-        $this->authorizeInternal($request, $order);
+        $this->authorizeInternal($request, $order, 'payments.verify');
         $this->ensureBelongsToOrder($order, $paymentRequest);
         $this->ensurePaymentPrerequisites($order);
         abort_unless($paymentRequest->status === TrackDPaymentStatus::Diajukan, 422);
@@ -115,7 +115,7 @@ class PaymentRequestController extends Controller
 
     public function approve(Request $request, Order $order, PaymentRequest $paymentRequest): RedirectResponse
     {
-        $this->authorizeInternal($request, $order);
+        $this->authorizeInternal($request, $order, 'payments.approve');
         $this->ensureBelongsToOrder($order, $paymentRequest);
         abort_unless($paymentRequest->status === TrackDPaymentStatus::DiverifikasiAdmin, 422);
 
@@ -158,10 +158,10 @@ class PaymentRequestController extends Controller
 
     public function pay(Request $request, Order $order, PaymentRequest $paymentRequest): RedirectResponse
     {
-        $this->authorizeInternal($request, $order);
+        $this->authorizeInternal($request, $order, 'payments.pay');
         $this->ensureBelongsToOrder($order, $paymentRequest);
         abort_unless($order->status === TrackAStatus::DokumenFisikDiterima, 422, 'Pembayaran hanya dapat dicatat setelah handover dokumen fisik selesai.');
-        abort_unless($paymentRequest->status === TrackDPaymentStatus::DiverifikasiAdmin, 422);
+        abort_unless($paymentRequest->status === TrackDPaymentStatus::Disetujui, 422);
 
         $data = $request->validate([
             'paid_at' => ['required', 'date'],
@@ -219,10 +219,11 @@ class PaymentRequestController extends Controller
         abort_unless($order->sent_to_notary_at !== null, 404);
     }
 
-    private function authorizeInternal(Request $request, Order $order): void
+    private function authorizeInternal(Request $request, Order $order, string $permission): void
     {
         abort_if($request->user()?->notary_id, 403);
         abort_unless($request->user() && $order->isVisibleTo($request->user()), 404);
+        abort_unless($request->user()->hasPermission($permission), 403);
     }
 
     private function authorizePaymentAccess(Request $request, Order $order): void

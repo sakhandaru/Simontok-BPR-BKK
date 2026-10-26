@@ -70,8 +70,8 @@ class DatabaseSeeder extends Seeder
         $roles = collect([
             ['code' => 'legal_admin', 'name' => 'Admin Legal', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.pay', 'tracking.view', 'reports.view']],
             ['code' => 'notaris', 'name' => 'Notaris', 'permissions' => ['dashboard.view', 'tracking.view', 'notary.portal', 'notary.actions']],
-            ['code' => 'kepala_cabang', 'name' => 'Pimpinan Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'orders.cancel', 'covernotes.approve', 'tracking.view', 'reports.view']],
-            ['code' => 'kadiv_operasional', 'name' => 'Kadiv Operasional Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'orders.cancel', 'covernotes.approve', 'tracking.view', 'reports.view']],
+            ['code' => 'kepala_cabang', 'name' => 'Pimpinan Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'orders.cancel', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view']],
+            ['code' => 'kadiv_operasional', 'name' => 'Kadiv Operasional Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'orders.cancel', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view']],
             ['code' => 'it_admin', 'name' => 'IT Administrator', 'permissions' => []],
             ['code' => 'auditor', 'name' => 'SKAI/Auditor', 'permissions' => ['dashboard.view', 'orders.view', 'tracking.view', 'reports.view', 'audit.view']],
         ])->mapWithKeys(function (array $role) use ($permissions) {

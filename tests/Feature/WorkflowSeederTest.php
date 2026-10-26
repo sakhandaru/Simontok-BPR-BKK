@@ -53,6 +53,30 @@ class WorkflowSeederTest extends TestCase
         $this->assertNotNull($order->fresh()->sent_to_notary_at);
     }
 
+    public function test_only_one_branch_approver_can_approve_an_order(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $manager = User::where('email', 'pimpinan')->firstOrFail();
+        $operational = User::where('email', 'kadiv')->firstOrFail();
+        $order = Order::where('order_no', 'DEMO-0003')->firstOrFail();
+
+        $this->actingAs($manager)
+            ->post(route('orders.approve', $order))
+            ->assertRedirect();
+
+        $this->actingAs($operational)
+            ->from(route('orders.show', $order))
+            ->post(route('orders.approve', $order->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('error', 'Order sudah diproses oleh approver lain. Approval hanya dapat dilakukan satu kali.');
+
+        $freshOrder = $order->fresh();
+        $this->assertSame('menunggu_verifikasi_notaris', $freshOrder->status->value);
+        $this->assertSame($manager->id, $freshOrder->checked_by);
+        $this->assertSame(1, $freshOrder->statusHistories()->where('to_status', 'menunggu_verifikasi_notaris')->count());
+    }
+
     public function test_handover_is_rejected_before_final_documents_are_validated(): void
     {
         $this->seed(DatabaseSeeder::class);
@@ -184,10 +208,14 @@ class WorkflowSeederTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertSame($newEnd, $collateral->fresh()->covernote_end->toDateString());
         $this->assertDatabaseHas('covernote_extensions', [
             'order_collateral_id' => $collateral->id,
             'new_end' => $newEnd.' 00:00:00',
+            'status' => 'menunggu_approval',
         ]);
+        $this->assertSame(
+            $collateral->covernote_end->toDateString(),
+            $collateral->fresh()->covernote_end->toDateString(),
+        );
     }
 }

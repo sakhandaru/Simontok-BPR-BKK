@@ -2195,7 +2195,10 @@ export default function OrdersShow({
                                         )}
                                         <div className="mt-1 text-xs text-muted-foreground">
                                             Oleh{' '}
-                                            {actorLabel(history.actor_type)}
+                                            {actorLabel(
+                                                history.actor_type,
+                                                history.actor,
+                                            )}
                                         </div>
                                     </div>
                                     <div className="text-xs text-muted-foreground md:text-right">
@@ -3066,7 +3069,7 @@ function statusLabel(status?: string | null): string {
         diajukan: 'Diajukan',
         menunggu_approval: 'Menunggu approval',
         perlu_perbaikan_order: 'Perlu perbaikan order',
-        disetujui_kepala_cabang: 'Disetujui Kepala Cabang',
+        disetujui_kepala_cabang: 'Disetujui approver cabang',
         menunggu_verifikasi_notaris: 'Menunggu verifikasi notaris',
         perlu_pengalihan_notaris: 'Perlu pengalihan notaris',
         menunggu_approval_covernote: 'Menunggu approval covernote',
@@ -3149,8 +3152,8 @@ function historyEventLabel(status?: string | null): string {
     const labels: Record<string, string> = {
         draft: 'Order disiapkan',
         diajukan: 'Order diajukan',
-        menunggu_approval: 'Menunggu persetujuan pimpinan cabang',
-        disetujui_kepala_cabang: 'Order disetujui pimpinan cabang',
+        menunggu_approval: 'Menunggu persetujuan cabang',
+        disetujui_kepala_cabang: 'Order disetujui approver cabang',
         menunggu_verifikasi_notaris: 'Order dikirim ke notaris',
         menunggu_approval_covernote: 'Covernote diajukan untuk persetujuan',
         covernote_disetujui: 'Covernote disetujui',
@@ -3174,7 +3177,14 @@ function historyEventLabel(status?: string | null): string {
         : 'Status diperbarui';
 }
 
-function actorLabel(actorType?: string | null): string {
+function actorLabel(actorType?: string | null, actor?: any): string {
+    if (actor?.name) {
+        const role = actor.notary_id
+            ? 'Notaris'
+            : actor.job_position?.role?.name ?? actor.job_position?.name;
+        return role ? `${actor.name} · ${role}` : actor.name;
+    }
+
     const labels: Record<string, string> = {
         notary: 'Notaris',
         user: 'Petugas internal',

@@ -334,7 +334,17 @@ class NotaryPortalController extends Controller
     public function storeProgress(Request $request, Order $order): RedirectResponse
     {
         $this->authorizeOrder($request, $order);
-        abort_unless($order->collaterals()->where(fn ($query) => $query->whereNull('covernote_no')->orWhereNull('covernote_end')->orWhereNull('covernote_file_path'))->doesntExist() && in_array($order->status, [TrackAStatus::CovernoteDisetujui, TrackAStatus::DokumenValid, TrackAStatus::ProsesAkta, TrackAStatus::ProsesBpnSamsat, TrackAStatus::DraftDiunggah], true), 422, 'Progres pekerjaan belum tersedia sebelum covernote disetujui.');
+        $covernoteApprovedStage = in_array($order->status, [
+            TrackAStatus::CovernoteDisetujui,
+            TrackAStatus::DokumenValid,
+            TrackAStatus::ProsesAkta,
+            TrackAStatus::ProsesBpnSamsat,
+            TrackAStatus::DraftDiunggah,
+        ], true);
+        abort_unless($covernoteApprovedStage && $order->collaterals()->where(fn ($query) => $query
+            ->whereNull('covernote_no')
+            ->orWhereNull('covernote_end'))
+            ->doesntExist(), 422, 'Progres pekerjaan belum tersedia sebelum covernote disetujui.');
 
         $data = $request->validate([
             'order_collateral_id' => ['required', 'integer', 'exists:order_collaterals,id'],
