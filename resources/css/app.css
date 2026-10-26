@@ -206,6 +206,24 @@
         color: var(--brand-blue) !important;
     }
 
+    [data-mobile='true'] .sim-nav-item {
+        min-height: 2.25rem;
+        font-size: 0.95rem !important;
+    }
+
+    [data-mobile='true'] .sim-nav-item > svg {
+        width: 1.125rem;
+        height: 1.125rem;
+    }
+
+    [data-mobile='true'] [data-sidebar='group'] {
+        gap: 0;
+    }
+
+    [data-mobile='true'] [data-sidebar='group-label'] {
+        height: 1.5rem;
+    }
+
     .sim-workspace {
         @apply flex h-full min-w-0 flex-1 flex-col gap-5 bg-background p-4 md:p-6;
     }

@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, BarChart3, Bell, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Monitor, Moon, Scale, Sun, UserCheck, UserRoundCog, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart3, Bell, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Moon, RefreshCw, Scale, Sun, UserCheck, UserRoundCog, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -63,7 +63,7 @@ export function AppSidebar() {
     const { auth } = usePage<{ auth: { permissions?: string[] } }>().props;
     const can = (permission: string) => auth.permissions?.includes(permission) ?? false;
     const canGoBack = useCanGoBack();
-    const { appearance, resolvedAppearance, updateAppearance } = useAppearance();
+    const { resolvedAppearance, updateAppearance } = useAppearance();
     const operations = [
         ...(can('dashboard.view') ? [operationsNavItems[0]] : []),
         ...(can('orders.view') ? [operationsNavItems[1]] : []),
@@ -82,33 +82,20 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <div className="mx-auto flex w-full items-center">
-                            <div className="flex items-center gap-0.5">
-                                <SidebarMenuButton tooltip="Halaman sebelumnya" className="size-8 flex-none justify-center group-data-[collapsible=icon]:hidden" onClick={() => window.history.back()} disabled={!canGoBack} aria-label="Halaman sebelumnya">
+                        <div className="mx-auto flex w-full items-center px-2">
+                            <div className="flex items-center gap-0.5 rounded-full border border-sidebar-border bg-sidebar-accent p-0.5 group-data-[collapsible=icon]:hidden">
+                                <SidebarMenuButton tooltip="Halaman sebelumnya" className="size-7 flex-none justify-center group-data-[collapsible=icon]:hidden" onClick={() => window.history.back()} disabled={!canGoBack} aria-label="Halaman sebelumnya">
                                     <ArrowLeft />
                                 </SidebarMenuButton>
-                                <SidebarMenuButton tooltip="Halaman berikutnya" className="size-8 flex-none justify-center group-data-[collapsible=icon]:hidden" onClick={() => window.history.forward()} aria-label="Halaman berikutnya">
+                                <SidebarMenuButton tooltip="Halaman berikutnya" className="size-7 flex-none justify-center group-data-[collapsible=icon]:hidden" onClick={() => window.history.forward()} aria-label="Halaman berikutnya">
                                     <ArrowRight />
                                 </SidebarMenuButton>
-                            </div>
-                            <div className="flex h-8 items-center gap-0.5 rounded-full bg-sidebar-accent p-0.5 group-data-[collapsible=icon]:hidden" role="group" aria-label="Pilihan tema">
-                                {[
-                                    { value: 'system' as const, label: 'Ikuti sistem', icon: Monitor },
-                                    { value: 'light' as const, label: 'Mode terang', icon: Sun },
-                                    { value: 'dark' as const, label: 'Mode gelap', icon: Moon },
-                                ].map(({ value, label, icon: Icon }) => (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        title={label}
-                                        aria-label={label}
-                                        aria-pressed={appearance === value}
-                                        onClick={() => updateAppearance(value)}
-                                        className="flex size-7 items-center justify-center rounded-full text-sidebar-foreground/60 transition-colors hover:bg-sidebar hover:text-sidebar-foreground aria-pressed:bg-sidebar aria-pressed:text-sidebar-foreground"
-                                    >
-                                        <Icon className="size-4" />
-                                    </button>
-                                ))}
+                                <SidebarMenuButton tooltip="Muat ulang halaman" className="size-7 flex-none justify-center" onClick={() => window.location.reload()} aria-label="Muat ulang halaman">
+                                    <RefreshCw />
+                                </SidebarMenuButton>
+                                <SidebarMenuButton tooltip="Ganti tema" className="size-7 flex-none justify-center" onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Ganti tema">
+                                    {resolvedAppearance === 'dark' ? <Sun /> : <Moon />}
+                                </SidebarMenuButton>
                             </div>
                             <SidebarMenuButton tooltip="Ganti tema" className="hidden size-8 flex-none justify-center group-data-[collapsible=icon]:flex" onClick={() => updateAppearance(resolvedAppearance === 'dark' ? 'light' : 'dark')} aria-label="Ganti tema">
                                 {resolvedAppearance === 'dark' ? <Sun /> : <Moon />}
@@ -130,7 +117,7 @@ export function AppSidebar() {
                 })} label="Administrasi" />
             </SidebarContent>
 
-            <SidebarFooter>
+            <SidebarFooter className="shrink-0 gap-3 border-t border-sidebar-border/70 pt-3 pb-28 md:pb-2">
                 <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>
