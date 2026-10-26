@@ -155,9 +155,28 @@ class SsoAuthenticationService
             ]);
         }
 
-        $user->update([
-            'name' => $name,
-        ]);
+        $updates = ['name' => $name];
+        $ssoEmail = $profile['email'] ?? null;
+
+        if (is_string($ssoEmail) && filter_var($ssoEmail, FILTER_VALIDATE_EMAIL)) {
+            $pendingEmail = $employeeId.'@pending.sso.local';
+            $existingEmail = User::query()
+                ->where('email', $ssoEmail)
+                ->where('id', '!=', $user->id)
+                ->exists();
+
+            if ($existingEmail) {
+                throw ValidationException::withMessages([
+                    'email' => 'Email SSO sudah digunakan akun lain di SIMONTOK. Hubungi administrator.',
+                ]);
+            }
+
+            if ($user->email === $pendingEmail || blank($user->email)) {
+                $updates['email'] = $ssoEmail;
+            }
+        }
+
+        $user->update($updates);
 
         return $user->fresh();
 

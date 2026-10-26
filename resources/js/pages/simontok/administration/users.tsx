@@ -44,6 +44,7 @@ type User = {
     notary?: Option;
     job_position?: Option;
 };
+type AccountType = 'sso' | 'local';
 
 export default function Users({
     users,
@@ -68,6 +69,7 @@ export default function Users({
     });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
+    const [accountType, setAccountType] = useState<AccountType>('sso');
     const { sortedRows, sort, toggleSort } = useSimTableSort(
         users.data,
         'name',
@@ -109,16 +111,19 @@ export default function Users({
             notary_id: user.notary?.id ? String(user.notary.id) : '',
             is_active: user.is_active,
         });
+        setAccountType(user.sso_employee_id ? 'sso' : 'local');
         setFormOpen(true);
     };
     const openCreate = () => {
         reset();
         setEditingId(null);
+        setAccountType('sso');
         setFormOpen(true);
     };
     const cancelEdit = () => {
         reset();
         setEditingId(null);
+        setAccountType('sso');
         setFormOpen(false);
     };
     return (
@@ -319,6 +324,35 @@ export default function Users({
                             </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={submit} className="grid gap-4">
+                            <div className="grid grid-cols-2 rounded-md border bg-muted/20 p-1">
+                                <button
+                                    type="button"
+                                    className={`rounded-sm px-3 py-2 text-sm font-medium transition-colors ${accountType === 'sso' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                    onClick={() => {
+                                        setAccountType('sso');
+                                        setData('email', '');
+                                        setData('password', '');
+                                        setData('notary_id', '');
+                                    }}
+                                >
+                                    Pegawai internal (SSO)
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`rounded-sm px-3 py-2 text-sm font-medium transition-colors ${accountType === 'local' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                    onClick={() => {
+                                        setAccountType('local');
+                                        setData('sso_employee_id', '');
+                                    }}
+                                >
+                                    Akun lokal
+                                </button>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                {accountType === 'sso'
+                                    ? 'Pegawai login dengan ID dan password SSO. Role, cabang, dan status akses tetap diatur di SIMONTOK.'
+                                    : 'Akun lokal memakai username dan password yang dikelola SIMONTOK.'}
+                            </p>
                             <Field label="Nama" error={errors.name}>
                                 <Input
                                     value={data.name}
@@ -327,49 +361,58 @@ export default function Users({
                                     }
                                 />
                             </Field>
-                            <Field
-                                label="Email / username"
-                                error={errors.email}
-                            >
-                                <Input
-                                    type="email"
-                                    value={data.email}
-                                    onChange={(e) =>
-                                        setData('email', e.target.value)
-                                    }
-                                />
-                            </Field>
-                            <Field
-                                label="ID pegawai SSO (opsional)"
-                                error={errors.sso_employee_id}
-                            >
-                                <Input
-                                    value={data.sso_employee_id}
-                                    onChange={(e) =>
-                                        setData(
-                                            'sso_employee_id',
-                                            e.target.value,
-                                        )
-                                    }
-                                    placeholder="Contoh: 102-119"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Isi untuk mengaktifkan akses SSO. Kosongkan
-                                    untuk akun lokal.
-                                </p>
-                            </Field>
-                            <Field
-                                label="Password awal"
-                                error={errors.password}
-                            >
-                                <Input
-                                    type="password"
-                                    value={data.password}
-                                    onChange={(e) =>
-                                        setData('password', e.target.value)
-                                    }
-                                />
-                            </Field>
+                            {accountType === 'sso' ? (
+                                <Field
+                                    label="ID pegawai SSO"
+                                    error={errors.sso_employee_id}
+                                >
+                                    <Input
+                                        value={data.sso_employee_id}
+                                        onChange={(e) =>
+                                            setData(
+                                                'sso_employee_id',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Contoh: 102-119"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        ID ini menjadi kunci akun SSO. Nama dan
+                                        email akan disegarkan saat login
+                                        pertama.
+                                    </p>
+                                </Field>
+                            ) : (
+                                <>
+                                    <Field
+                                        label="Email / username"
+                                        error={errors.email}
+                                    >
+                                        <Input
+                                            type="email"
+                                            value={data.email}
+                                            onChange={(e) =>
+                                                setData('email', e.target.value)
+                                            }
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="Password awal"
+                                        error={errors.password}
+                                    >
+                                        <Input
+                                            type="password"
+                                            value={data.password}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'password',
+                                                    e.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                </>
+                            )}
                             <SelectField
                                 label="Posisi"
                                 value={data.job_position_id}
@@ -386,13 +429,15 @@ export default function Users({
                                     error={errors.branch_id}
                                 />
                             )}
-                            <SelectField
-                                label="Mitra notaris (opsional)"
-                                value={data.notary_id}
-                                onChange={(v) => setData('notary_id', v)}
-                                options={notaries}
-                                error={errors.notary_id}
-                            />
+                            {accountType === 'local' && (
+                                <SelectField
+                                    label="Mitra notaris (opsional)"
+                                    value={data.notary_id}
+                                    onChange={(v) => setData('notary_id', v)}
+                                    options={notaries}
+                                    error={errors.notary_id}
+                                />
+                            )}
                             <DialogFooter>
                                 <Button
                                     type="button"
