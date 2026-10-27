@@ -225,8 +225,8 @@ export default function NotaryOrdersShow({
                                 {order.order_no}
                             </h1>
                             <SimStatusBadge
-                                label={order.status}
-                                tone={toneForStatus(order.status)}
+                                label={orderStatusLabel(order.status)}
+                                tone={toneForStatus(orderStatusLabel(order.status))}
                             />
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -1262,6 +1262,37 @@ function progressLabel(value?: string | null): string {
     return value
         .replaceAll('_', ' ')
         .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function orderStatusLabel(value?: string | { value?: string } | null): string {
+    const key = typeof value === 'object' ? value?.value : value;
+    const labels: Record<string, string> = {
+        draft: 'Draft',
+        diajukan: 'Diajukan',
+        menunggu_approval: 'Menunggu approval',
+        perlu_perbaikan_order: 'Perlu perbaikan order',
+        disetujui_kepala_cabang: 'Disetujui approver cabang',
+        menunggu_verifikasi_notaris: 'Menunggu verifikasi notaris',
+        perlu_pengalihan_notaris: 'Perlu pengalihan notaris',
+        menunggu_approval_covernote: 'Menunggu approval covernote',
+        menunggu_approval_covernote_kepala_cabang:
+            'Menunggu approval covernote Kepala Cabang',
+        perbaikan_covernote: 'Perbaikan covernote',
+        covernote_disetujui: 'Covernote disetujui',
+        perbaikan_dokumen: 'Perbaikan dokumen',
+        dokumen_valid: 'Dokumen valid',
+        proses_akta: 'Proses akta',
+        proses_bpn_samsat: 'Proses BPN/Samsat',
+        draft_diunggah: 'Draft diunggah',
+        menunggu_validasi_bpr: 'Menunggu validasi BPR',
+        dokumen_final_diunggah: 'Dokumen final diunggah',
+        dokumen_fisik_diterima: 'Dokumen fisik diterima',
+        selesai: 'Selesai',
+        ditolak_notaris: 'Ditolak notaris',
+        dibatalkan: 'Dibatalkan',
+    };
+
+    return key ? (labels[key] ?? progressLabel(key)) : 'Status order';
 }
 
 function formatBytes(bytes?: number | null): string {
