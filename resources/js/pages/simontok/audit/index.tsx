@@ -26,24 +26,22 @@ type AuditItem = {
     payload?: unknown;
 };
 
-type Option = { id: number; name: string; code?: string; role?: { name: string } };
-
 export default function AuditIndex({
     filters,
-    branches,
-    positions,
+    modules,
+    actions,
     logs,
 }: {
-    filters: { search: string; type: string; branch_id: string; position_id: string; status: string };
-    branches: Option[];
-    positions: Option[];
+    filters: { search: string; module: string; action: string; date_from: string; date_to: string };
+    modules: string[];
+    actions: string[];
     logs: Paginated<AuditItem>;
 }) {
     const { data, setData } = useForm(filters);
     const filterInitialized = useRef(false);
     const skipNextFilterRequest = useRef(false);
     const resetFilters = () => {
-        const emptyFilters = { search: '', type: '', branch_id: '', position_id: '', status: '' };
+        const emptyFilters = { search: '', module: '', action: '', date_from: '', date_to: '' };
         skipNextFilterRequest.current = true;
         setData(emptyFilters);
         router.get('/audit-logs', emptyFilters, { preserveState: true, preserveScroll: true, replace: true });
@@ -61,7 +59,7 @@ export default function AuditIndex({
             router.get('/audit-logs', data, { preserveState: true, preserveScroll: true, replace: true });
         }, 300);
         return () => window.clearTimeout(timeout);
-    }, [data.search, data.type, data.branch_id, data.position_id, data.status]);
+    }, [data.search, data.module, data.action, data.date_from, data.date_to]);
 
     return (
         <>
@@ -69,11 +67,11 @@ export default function AuditIndex({
             <div className="sim-workspace">
                 <SimPageHeader title="Audit Log" description="Jejak aktivitas append-only untuk pemeriksaan internal." />
                 <div className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto] md:items-end">
-                    <div className="grid gap-2"><Label htmlFor="audit-search">Cari pengguna</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="audit-search" className="pl-9" value={data.search} onChange={(event) => setData('search', event.target.value)} placeholder="Nama, ID SSO, email" /></div></div>
-                    <FilterSelect label="Tipe akun" value={data.type} onChange={(value) => setData('type', value)} options={[{ value: '', label: 'Semua tipe' }, { value: 'internal', label: 'Pegawai internal' }, { value: 'notary', label: 'Portal notaris' }]} />
-                    <FilterSelect label="Cabang" value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={[{ value: '', label: 'Semua cabang' }, ...branches.map((branch) => ({ value: String(branch.id), label: `${branch.code ? `${branch.code} · ` : ''}${branch.name}` }))]} />
-                    <FilterSelect label="Posisi" value={data.position_id} onChange={(value) => setData('position_id', value)} options={[{ value: '', label: 'Semua posisi' }, ...positions.map((position) => ({ value: String(position.id), label: position.name }))]} />
-                    <FilterSelect label="Status" value={data.status} onChange={(value) => setData('status', value)} options={[{ value: '', label: 'Semua status' }, { value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
+                    <div className="grid gap-2"><Label htmlFor="audit-search">Cari aktivitas</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="audit-search" className="pl-9" value={data.search} onChange={(event) => setData('search', event.target.value)} placeholder="Pelaku, deskripsi, entitas" /></div></div>
+                    <FilterSelect label="Modul" value={data.module} onChange={(value) => setData('module', value)} options={modules.map((module) => ({ value: module, label: module }))} placeholder="Semua modul" />
+                    <FilterSelect label="Aksi" value={data.action} onChange={(value) => setData('action', value)} options={actions.map((action) => ({ value: action, label: action }))} placeholder="Semua aksi" />
+                    <DateFilter label="Dari tanggal" value={data.date_from} onChange={(value) => setData('date_from', value)} />
+                    <DateFilter label="Sampai tanggal" value={data.date_to} onChange={(value) => setData('date_to', value)} />
                     <Button type="button" variant="outline" onClick={resetFilters}><RotateCcw className="size-4" />Reset</Button>
                 </div>
 
@@ -131,8 +129,12 @@ export default function AuditIndex({
     );
 }
 
-function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
-    return <div className="min-w-0 grid gap-2"><Label>{label}</Label><SimSelect value={value} onChange={onChange} placeholder="Pilih..." options={options} /></div>;
+function FilterSelect({ label, value, onChange, options, placeholder = 'Pilih...' }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; placeholder?: string }) {
+    return <div className="min-w-0 grid gap-2"><Label>{label}</Label><SimSelect value={value} onChange={onChange} placeholder={placeholder} options={options} /></div>;
+}
+
+function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+    return <div className="grid gap-2"><Label>{label}</Label><Input type="date" value={value} onChange={(event) => onChange(event.target.value)} /></div>;
 }
 
 function actionLabel(action: string): string {

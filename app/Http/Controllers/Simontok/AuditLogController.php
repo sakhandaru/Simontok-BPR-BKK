@@ -4,11 +4,7 @@ namespace App\Http\Controllers\Simontok;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
-use App\Models\Branch;
-use App\Models\JobPosition;
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,50 +16,37 @@ class AuditLogController extends Controller
 
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'type' => ['nullable', Rule::in(['internal', 'notary'])],
-            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
-            'position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
-            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'module' => ['nullable', 'string', 'max:30'],
+            'action' => ['nullable', 'string', 'max:50'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
 
-        $actorFiltersApplied = filled($filters['search'] ?? null)
-            || filled($filters['type'] ?? null)
-            || filled($filters['branch_id'] ?? null)
-            || filled($filters['position_id'] ?? null)
-            || filled($filters['status'] ?? null);
-
-        $actorIds = User::query()
-            ->when(($filters['type'] ?? null) === 'internal', fn ($query) => $query->whereNull('notary_id'))
-            ->when(($filters['type'] ?? null) === 'notary', fn ($query) => $query->whereNotNull('notary_id'))
-            ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->where('branch_id', $branchId))
-            ->when($filters['position_id'] ?? null, fn ($query, $positionId) => $query->where('job_position_id', $positionId))
-            ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
-            ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
+        $logs = AuditLog::query()
             ->when($filters['search'] ?? null, function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
-                    $query->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('sso_employee_id', 'like', "%{$search}%");
+                    $query->where('actor_name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('entity_type', 'like', "%{$search}%")
+                        ->orWhere('entity_id', $search);
                 });
             })
-            ->select('id');
-
-        $logs = AuditLog::query()
-            ->when($actorFiltersApplied, fn ($query) => $query->whereIn('actor_id', $actorIds))
+            ->when($filters['module'] ?? null, fn ($query, string $module) => $query->where('module', $module))
+            ->when($filters['action'] ?? null, fn ($query, string $action) => $query->where('action', $action))
+            ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
             ->latest('created_at');
 
         return Inertia::render('simontok/audit/index', [
             'filters' => [
                 'search' => $filters['search'] ?? '',
-                'type' => $filters['type'] ?? '',
-                'branch_id' => (string) ($filters['branch_id'] ?? ''),
-                'position_id' => (string) ($filters['position_id'] ?? ''),
-                'status' => $filters['status'] ?? '',
+                'module' => $filters['module'] ?? '',
+                'action' => $filters['action'] ?? '',
+                'date_from' => $filters['date_from'] ?? '',
+                'date_to' => $filters['date_to'] ?? '',
             ],
-            'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-            'positions' => JobPosition::with('role:id,code,name')
-                ->whereHas('role', fn ($query) => $query->where('code', '!=', 'notaris'))
-                ->orderBy('name')->get(['id', 'code', 'name', 'role_id']),
+            'modules' => AuditLog::query()->whereNotNull('module')->distinct()->orderBy('module')->pluck('module'),
+            'actions' => AuditLog::query()->distinct()->orderBy('action')->pluck('action'),
             'logs' => $logs->paginate(20)->withQueryString()->through(fn (AuditLog $log) => [
                 'id' => $log->id,
                 'actor_name' => $log->actor_name,
