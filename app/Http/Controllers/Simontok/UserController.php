@@ -31,7 +31,7 @@ class UserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'sso_employee_id' => ['nullable', 'string', 'max:50', 'unique:users,sso_employee_id'],
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'min:8'],
@@ -44,6 +44,7 @@ class UserController extends Controller
         $this->validateOrganizationalAssignment($data);
 
         if (filled($data['sso_employee_id'] ?? null)) {
+            $data['name'] = filled($data['name'] ?? null) ? $data['name'] : 'Pegawai SSO '.$data['sso_employee_id'];
             $data['email'] ??= $data['sso_employee_id'].'@pending.sso.local';
             $data['password'] ??= Str::random(64);
         }
@@ -59,7 +60,7 @@ class UserController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'sso_employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users', 'sso_employee_id')->ignore($user->id)],
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id')) && ! $user->sso_employee_id), 'nullable', 'string', 'min:8'],
@@ -78,6 +79,10 @@ class UserController extends Controller
 
         if (blank($data['password'] ?? null)) {
             unset($data['password']);
+        }
+
+        if (filled($data['sso_employee_id'] ?? null) && blank($data['name'] ?? null)) {
+            $data['name'] = $user->name ?: 'Pegawai SSO '.$data['sso_employee_id'];
         }
 
         $user->update($data);

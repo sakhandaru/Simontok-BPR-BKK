@@ -353,37 +353,38 @@ export default function Users({
                                     ? 'Pegawai login dengan ID dan password SSO. Role, cabang, dan status akses tetap diatur di SIMONTOK.'
                                     : 'Akun lokal memakai username dan password yang dikelola SIMONTOK.'}
                             </p>
-                            <Field label="Nama" error={errors.name}>
-                                <Input
-                                    value={data.name}
-                                    onChange={(e) =>
-                                        setData('name', e.target.value)
-                                    }
-                                />
-                            </Field>
                             {accountType === 'sso' ? (
-                                <Field
-                                    label="ID pegawai SSO"
-                                    error={errors.sso_employee_id}
-                                >
-                                    <Input
-                                        value={data.sso_employee_id}
-                                        onChange={(e) =>
-                                            setData(
-                                                'sso_employee_id',
-                                                e.target.value,
-                                            )
-                                        }
-                                        placeholder="Contoh: 102-119"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        ID ini menjadi kunci akun SSO. Nama dan
-                                        email akan disegarkan saat login
-                                        pertama.
-                                    </p>
-                                </Field>
+                                <>
+                                    <Field
+                                        label="ID pegawai SSO"
+                                        error={errors.sso_employee_id}
+                                    >
+                                        <Input
+                                            value={data.sso_employee_id}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'sso_employee_id',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder="Contoh: 102-119"
+                                        />
+                                    </Field>
+                                    <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                                        Nama dan email akan diambil dari SSO
+                                        saat pegawai login pertama kali.
+                                    </div>
+                                </>
                             ) : (
                                 <>
+                                    <Field label="Nama" error={errors.name}>
+                                        <Input
+                                            value={data.name}
+                                            onChange={(e) =>
+                                                setData('name', e.target.value)
+                                            }
+                                        />
+                                    </Field>
                                     <Field
                                         label="Email / username"
                                         error={errors.email}
