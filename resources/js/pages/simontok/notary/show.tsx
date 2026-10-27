@@ -158,6 +158,31 @@ export default function NotaryOrdersShow({
                 ),
         });
     };
+
+    const addFinalDocuments = (files: FileList | null) => {
+        const selectedFiles = Array.from(files ?? []);
+        const existingFiles = progress.data.final_documents;
+        const newFiles = selectedFiles.filter(
+            (file) =>
+                !existingFiles.some(
+                    (existingFile) =>
+                        existingFile.name === file.name &&
+                        existingFile.size === file.size &&
+                        existingFile.lastModified === file.lastModified,
+                ),
+        );
+        progress.setData('final_documents', [
+            ...existingFiles,
+            ...newFiles,
+        ]);
+    };
+
+    const removeFinalDocument = (index: number) => {
+        progress.setData(
+            'final_documents',
+            progress.data.final_documents.filter((_, fileIndex) => fileIndex !== index),
+        );
+    };
     const submitFinal = () =>
         router.post(
             `/notary/orders/${order.id}/documents/submit-final`,
@@ -928,20 +953,36 @@ export default function NotaryOrdersShow({
                                     <Label htmlFor="final-documents">
                                         Dokumen final wajib
                                     </Label>
-                                    <Input
-                                        id="final-documents"
-                                        type="file"
-                                        accept="application/pdf"
-                                        multiple
-                                        onChange={(event) =>
-                                            progress.setData(
-                                                'final_documents',
-                                                Array.from(
-                                                    event.target.files ?? [],
-                                                ),
-                                            )
-                                        }
-                                    />
+                                    <label
+                                        htmlFor="final-documents"
+                                        className="flex min-h-16 cursor-pointer items-center gap-3 rounded-md border border-dashed border-input bg-muted/20 px-3 py-2.5 transition-colors hover:border-ring hover:bg-accent/40"
+                                    >
+                                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                                            <FileUp className="size-4" />
+                                        </span>
+                                        <span className="min-w-0 flex-1 text-sm">
+                                            <span className="block font-medium">
+                                                Tambah dokumen final
+                                            </span>
+                                            <span className="block text-xs text-muted-foreground">
+                                                PDF, maksimal 10 MB per file ·
+                                                bisa ditambahkan bertahap
+                                            </span>
+                                        </span>
+                                        <Input
+                                            id="final-documents"
+                                            type="file"
+                                            accept="application/pdf"
+                                            multiple
+                                            className="sr-only"
+                                            onChange={(event) => {
+                                                addFinalDocuments(
+                                                    event.target.files,
+                                                );
+                                                event.currentTarget.value = '';
+                                            }}
+                                        />
+                                    </label>
                                     <p className="text-xs text-muted-foreground">
                                         Pilih satu atau beberapa PDF. Minimal
                                         satu dokumen wajib diunggah untuk
@@ -956,12 +997,26 @@ export default function NotaryOrdersShow({
                                             </div>
                                             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                                                 {progress.data.final_documents.map(
-                                                    (file) => (
+                                                    (file, index) => (
                                                         <li
                                                             key={`${file.name}-${file.size}`}
-                                                            className="truncate"
+                                                            className="flex items-center gap-2"
                                                         >
-                                                            {file.name}
+                                                            <span className="min-w-0 flex-1 truncate">
+                                                                {file.name}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                aria-label={`Hapus ${file.name}`}
+                                                                onClick={() =>
+                                                                    removeFinalDocument(
+                                                                        index,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <X className="size-3.5" />
+                                                            </button>
                                                         </li>
                                                     ),
                                                 )}
