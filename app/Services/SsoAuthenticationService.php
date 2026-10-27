@@ -89,14 +89,14 @@ class SsoAuthenticationService
     {
         $user = User::query()->where('email', $identifier)->first();
 
-        return $user && $user->is_active && Hash::check($password, $user->password)
+        return $user && $user->isOperationallyActive() && Hash::check($password, $user->password)
             ? $user
             : null;
     }
 
     private function canAuthenticateLocally(User $user): bool
     {
-        if (! $user->is_active || $user->sso_employee_id) {
+        if (! $user->isOperationallyActive() || $user->sso_employee_id) {
             return false;
         }
 
@@ -134,6 +134,12 @@ class SsoAuthenticationService
         if (! $user->is_active) {
             throw ValidationException::withMessages([
                 'email' => 'Akun SIMONTOK Anda sedang nonaktif. Hubungi administrator.',
+            ]);
+        }
+
+        if (! $user->isOperationallyActive()) {
+            throw ValidationException::withMessages([
+                'email' => 'Akun Anda terhubung ke kantor yang sedang nonaktif. Hubungi administrator.',
             ]);
         }
 

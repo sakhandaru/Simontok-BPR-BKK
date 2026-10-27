@@ -64,9 +64,31 @@ class User extends Authenticatable implements PasskeyUser
         return $this->role()?->code;
     }
 
-    public function hasPermission(string $permission): bool
+    public function isOperationallyActive(): bool
     {
         if (! $this->is_active) {
+            return false;
+        }
+
+        // Emergency IT access remains available even if its assigned branch is inactive.
+        if ($this->roleCode() === 'it_admin') {
+            return true;
+        }
+
+        if ($this->notary_id) {
+            return (bool) $this->notary?->is_active;
+        }
+
+        if ($this->branch_id) {
+            return (bool) $this->branch?->is_active;
+        }
+
+        return true;
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if (! $this->isOperationallyActive()) {
             return false;
         }
 

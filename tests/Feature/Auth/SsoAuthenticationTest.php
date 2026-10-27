@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\Branch;
 use App\Models\JobPosition;
+use App\Models\Notary;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -211,5 +212,46 @@ class SsoAuthenticationTest extends TestCase
 
         $this->assertAuthenticatedAs($user);
         Http::assertNothingSent();
+    }
+
+    public function test_sso_employee_cannot_login_when_its_branch_is_inactive(): void
+    {
+        $role = Role::create(['code' => 'legal_admin', 'name' => 'Admin Legal']);
+        $position = JobPosition::create(['code' => 'LEGAL', 'name' => 'Admin Legal', 'role_id' => $role->id]);
+        $branch = Branch::create(['code' => '000', 'name' => 'Kantor Tutup', 'is_active' => false]);
+        User::factory()->create([
+            'email' => 'pegawai@example.com',
+            'sso_employee_id' => '102-121',
+            'job_position_id' => $position->id,
+            'branch_id' => $branch->id,
+            'is_active' => true,
+        ]);
+
+        config(['services.sso.enabled' => true, 'services.sso.url' => 'https://apisso.test']);
+        Http::fake([
+            'https://apisso.test/api/auth/login' => Http::response(['data' => ['token' => 'sso-token']]),
+            'https://apisso.test/api/auth/whoami' => Http::response(['data' => ['employee_id' => '102-121', 'full_name' => 'Pegawai Cabang']]),
+        ]);
+
+        $this->from(route('login'))->post(route('login.store'), ['email' => '102-121', 'password' => 'password-sso'])
+            ->assertRedirect(route('login'))->assertSessionHasErrors('email');
+        $this->assertGuest();
+    }
+
+    public function test_local_notary_cannot_login_when_its_notary_office_is_inactive(): void
+    {
+        $notary = Notary::create(['name' => 'Kantor Notaris Tutup', 'is_active' => false]);
+        $user = User::factory()->create([
+            'email' => 'notary@example.com',
+            'notary_id' => $notary->id,
+            'password' => 'notary-password',
+            'is_active' => true,
+        ]);
+
+        config(['services.sso.enabled' => false]);
+
+        $this->from(route('login'))->post(route('login.store'), ['email' => $user->email, 'password' => 'notary-password'])
+            ->assertRedirect(route('login'))->assertSessionHasErrors('email');
+        $this->assertGuest();
     }
 }
