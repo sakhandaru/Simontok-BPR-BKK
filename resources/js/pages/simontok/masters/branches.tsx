@@ -32,9 +32,9 @@ export default function Branches({ branches }: { branches: { data: Branch[]; lin
 
     return (
         <>
-            <Head title="Cabang" />
+            <Head title="Kantor Cabang" />
             <div className="sim-workspace">
-                <SimPageHeader title="Cabang" description="Kelola kantor, alamat, dan lokasi layanan." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah cabang</Button>} />
+                <SimPageHeader title="Kantor Cabang" description="Kelola kantor, alamat, dan lokasi layanan." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah kantor cabang</Button>} />
                 <SimPagination links={branches.links} />
                 <div className="hidden md:block"><SimTable minWidth="560px">
                 <SimTableHead><tr><SimTableSortHeader active={sort.key === 'code'} direction={sort.direction} onClick={() => toggleSort('code')}>Kode</SimTableSortHeader><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead><tbody>
@@ -48,10 +48,10 @@ export default function Branches({ branches }: { branches: { data: Branch[]; lin
                     {sortedRows.map((branch) => <article key={branch.id} className="space-y-4 border border-border bg-card p-4">
                         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-lg font-medium leading-6">{branch.name}</div><div className="mt-1 text-sm text-muted-foreground">{branch.code}</div></div><SimStatusBadge label={branch.is_active ? 'Aktif' : 'Nonaktif'} tone={branch.is_active ? 'success' : 'neutral'} /></div>
                         <div className="text-sm"><div className="text-xs text-muted-foreground">Alamat</div><div className="mt-1 leading-5">{branch.address ?? 'Alamat belum diisi'}</div></div>
-                        <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => editBranch(branch)}><Edit3 className="size-4" />Edit cabang</Button>
+                        <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => editBranch(branch)}><Edit3 className="size-4" />Edit kantor cabang</Button>
                     </article>)}
                 </div>
-                <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{editingId ? 'Edit cabang' : 'Tambah cabang'}</DialogTitle><DialogDescription>Atur identitas dan alamat kantor cabang.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-4">
+                <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{editingId ? 'Edit kantor cabang' : 'Tambah kantor cabang'}</DialogTitle><DialogDescription>Atur identitas dan alamat kantor cabang.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-4">
                         <div className="grid gap-2">
                             <Label>Kode</Label>
                             <Input value={data.code} onChange={(e) => setData('code', e.target.value)} />
@@ -70,4 +70,4 @@ export default function Branches({ branches }: { branches: { data: Branch[]; lin
     );
 }
 
-Branches.layout = { breadcrumbs: [{ title: 'Cabang', href: '/branches' }] };
+Branches.layout = { breadcrumbs: [{ title: 'Kantor Cabang', href: '/branches' }] };

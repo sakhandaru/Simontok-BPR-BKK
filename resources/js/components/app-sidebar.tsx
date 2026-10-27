@@ -29,8 +29,8 @@ const operationsNavItems: NavItem[] = [
 ];
 
 const referenceNavItems: NavItem[] = [
-    { title: 'Cabang', href: '/branches', icon: Building2 },
-    { title: 'Notaris', href: '/notaries', icon: Scale },
+    { title: 'Kantor Cabang', href: '/branches', icon: Building2 },
+    { title: 'Kantor Notaris', href: '/notaries', icon: Scale },
     { title: 'Jenis Pekerjaan', href: '/job-types', icon: BriefcaseBusiness },
 ];
 

@@ -43,9 +43,9 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
 
     return (
         <>
-            <Head title="Notaris" />
+            <Head title="Kantor Notaris" />
             <div className="sim-workspace">
-                <SimPageHeader title="Notaris" description="Kelola mitra notaris, kontak, dan cabang rekanan." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah notaris</Button>} />
+                <SimPageHeader title="Kantor Notaris" description="Kelola kantor notaris, kontak, dan cabang rekanan." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah kantor notaris</Button>} />
                 <SimPagination links={notaries.links} />
                 <div className="hidden md:block"><SimTable minWidth="720px">
                             <SimTableHead><tr><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('email')}>Kontak</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('branches')}>Cabang</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>
@@ -73,7 +73,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                         </article>
                     ))}
                 </div>
-                <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>{editingId ? 'Edit notaris' : 'Tambah notaris'}</DialogTitle><DialogDescription>Atur identitas, kontak, alamat, dan cabang rekanan notaris.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-4">
+                <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>{editingId ? 'Edit kantor notaris' : 'Tambah kantor notaris'}</DialogTitle><DialogDescription>Atur identitas, kontak, alamat, dan cabang rekanan kantor notaris.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-4">
                         <Field label="Nama" error={errors.name}><Input value={data.name} onChange={(e) => setData('name', e.target.value)} /></Field>
                         <Field label="Email" error={errors.email}><Input value={data.email} onChange={(e) => setData('email', e.target.value)} /></Field>
                         <Field label="Telepon" error={errors.phone}><Input value={data.phone} onChange={(e) => setData('phone', e.target.value)} /></Field>
@@ -96,4 +96,4 @@ function Field({ label, error, children }: { label: string; error?: string; chil
     return <div className="grid gap-2"><Label>{label}</Label>{children}<InputError message={error} /></div>;
 }
 
-Notaries.layout = { breadcrumbs: [{ title: 'Notaris', href: '/notaries' }] };
+Notaries.layout = { breadcrumbs: [{ title: 'Kantor Notaris', href: '/notaries' }] };
