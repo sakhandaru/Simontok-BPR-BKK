@@ -1871,6 +1871,102 @@ export default function OrdersShow({
                                             },
                                         )}
                                     </div>
+                                    {(
+                                        collateral.documents ?? []
+                                    ).filter(
+                                        (document: any) =>
+                                            (document.document_type?.value ??
+                                                document.document_type) ===
+                                            'lainnya',
+                                    ).length > 0 && (
+                                        <div className="mt-4 rounded-md border border-dashed p-3">
+                                            <div className="mb-2 text-sm font-medium">
+                                                Dokumen pendukung
+                                            </div>
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                                {(
+                                                    collateral.documents ?? []
+                                                )
+                                                    .filter(
+                                                        (document: any) =>
+                                                            (document.document_type?.value ??
+                                                                document.document_type) ===
+                                                            'lainnya',
+                                                    )
+                                                    .map((document: any) => (
+                                                        <div
+                                                            key={document.id}
+                                                            className="flex min-w-0 items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                                                        >
+                                                            <div className="min-w-0">
+                                                                <a
+                                                                    className="block truncate text-primary underline-offset-4 hover:underline"
+                                                                    href={`/orders/${order.id}/documents/${document.id}/download`}
+                                                                >
+                                                                    {document.display_name ||
+                                                                        document.original_name}
+                                                                </a>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {formatBytes(
+                                                                        document.file_size,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <span className="flex shrink-0 items-center gap-1">
+                                                                <Button
+                                                                    type="button"
+                                                                    size="icon"
+                                                                    className="size-8 bg-foreground text-background hover:bg-foreground/90"
+                                                                    title="Edit dokumen pendukung"
+                                                                    aria-label="Edit dokumen pendukung"
+                                                                    onClick={() =>
+                                                                        setDocumentEditor(
+                                                                            {
+                                                                                collateralId:
+                                                                                    String(
+                                                                                        collateral.id,
+                                                                                    ),
+                                                                                documentId:
+                                                                                    document.id,
+                                                                                existingName:
+                                                                                    document.display_name ??
+                                                                                    document.original_name,
+                                                                                checklistId:
+                                                                                    '',
+                                                                                displayName:
+                                                                                    document.display_name ??
+                                                                                    '',
+                                                                                file: null,
+                                                                                kind: 'pendukung',
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Pencil className="size-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="icon"
+                                                                    className="size-8 bg-foreground text-background hover:bg-foreground/90"
+                                                                    title="Hapus dokumen pendukung"
+                                                                    aria-label="Hapus dokumen pendukung"
+                                                                    onClick={() =>
+                                                                        router.delete(
+                                                                            `/orders/${order.id}/documents/${document.id}`,
+                                                                            {
+                                                                                preserveScroll: true,
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Trash2 className="size-4" />
+                                                                </Button>
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
