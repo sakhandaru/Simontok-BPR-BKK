@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Simontok;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\JobPosition;
-use App\Models\Notary;
 use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
@@ -24,8 +23,9 @@ class UserController extends Controller
             'users' => User::with(['jobPosition.role', 'branch', 'notary'])
                 ->orderBy('name')->paginate(15)->withQueryString(),
             'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'positions' => JobPosition::with('role:id,code,name')->orderBy('name')->get(['id', 'code', 'name', 'role_id']),
-            'notaries' => Notary::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'positions' => JobPosition::with('role:id,code,name')
+                ->whereHas('role', fn ($query) => $query->where('code', '!=', 'notaris'))
+                ->orderBy('name')->get(['id', 'code', 'name', 'role_id']),
         ]);
     }
 
@@ -38,7 +38,7 @@ class UserController extends Controller
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'job_position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
-            'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
+            'notary_id' => ['prohibited'],
             'is_active' => ['boolean'],
         ]);
 
@@ -67,15 +67,11 @@ class UserController extends Controller
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id')) && ! $user->sso_employee_id), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'job_position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
-            'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
+            'notary_id' => ['prohibited'],
             'is_active' => ['boolean'],
         ]);
 
         $this->validateOrganizationalAssignment($data);
-
-        if ($data['notary_id'] ?? null) {
-            abort_if(User::where('notary_id', $data['notary_id'])->where('id', '!=', $user->id)->exists(), 422, 'Notaris tersebut sudah memiliki akun.');
-        }
 
         if (blank($data['password'] ?? null)) {
             unset($data['password']);
@@ -115,18 +111,8 @@ class UserController extends Controller
         }
 
         if ($roleCode === 'notaris') {
-            validator($data, [
-                'notary_id' => ['required', 'integer', 'exists:notaries,id'],
-                'sso_employee_id' => ['prohibited'],
-            ], [
-                'notary_id.required' => 'Mitra notaris wajib dipilih untuk posisi Notaris.',
-                'sso_employee_id.prohibited' => 'Akun Notaris menggunakan akun lokal.',
-            ])->validate();
-        }
-
-        if (! empty($data['notary_id']) && $roleCode !== 'notaris') {
             throw ValidationException::withMessages([
-                'job_position_id' => 'Mitra notaris hanya dapat dipasangkan dengan posisi Notaris.',
+                'job_position_id' => 'Akun portal notaris dibuat dari menu Kantor Notaris.',
             ]);
         }
     }

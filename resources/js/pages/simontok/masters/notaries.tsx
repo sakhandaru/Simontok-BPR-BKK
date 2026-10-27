@@ -1,5 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
-import { Edit3, FileText, KeyRound, Mail, Phone, Plus, X } from 'lucide-react';
+import { Edit3, KeyRound, Mail, Phone, Plus, UserPlus, UsersRound, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,9 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const { sortedRows, sort, toggleSort } = useSimTableSort(notaries.data, 'name');
+    const [managedNotary, setManagedNotary] = useState<Notary | null>(null);
     const [accountNotary, setAccountNotary] = useState<Notary | null>(null);
+    const [accountFormOpen, setAccountFormOpen] = useState(false);
     const accountForm = useForm({ name: '', email: '', password: '' });
 
     const submit = (event: FormEvent) => {
@@ -45,8 +47,9 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
     const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', address: notary.address ?? '', agreement_type: notary.agreement_type ?? 'PKS', pks_no: notary.pks_no ?? '', pks_start: notary.pks_start?.slice(0, 10) ?? '', pks_end: notary.pks_end?.slice(0, 10) ?? '', agreement_file: null, branch_ids: notary.branches.map((branch) => branch.id) }); setFormOpen(true); };
     const openCreate = () => { reset(); setEditingId(null); setFormOpen(true); };
     const cancelEdit = () => { reset(); setEditingId(null); setFormOpen(false); };
-    const openAccount = (notary: Notary) => { setAccountNotary(notary); accountForm.setData({ name: notary.name, email: notary.email ?? '', password: '' }); };
-    const submitAccount = (event: FormEvent) => { event.preventDefault(); if (!accountNotary) return; accountForm.post(`/notaries/${accountNotary.id}/portal-account`, { onSuccess: () => { setAccountNotary(null); accountForm.reset(); } }); };
+    const openManageAccounts = (notary: Notary) => setManagedNotary(notary);
+    const openAddAccount = (notary: Notary) => { setManagedNotary(null); setAccountNotary(notary); accountForm.setData({ name: '', email: '', password: '' }); setAccountFormOpen(true); };
+    const submitAccount = (event: FormEvent) => { event.preventDefault(); if (!accountNotary) return; accountForm.post(`/notaries/${accountNotary.id}/portal-account`, { onSuccess: () => { setAccountFormOpen(false); setAccountNotary(null); setManagedNotary(null); accountForm.reset(); } }); };
 
     return (
         <>
@@ -57,7 +60,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                 <div className="hidden md:block"><SimTable minWidth="720px">
                             <SimTableHead><tr><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('email')}>Kontak</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('branches')}>Cabang</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>
                             <tbody>{sortedRows.map((notary) => (
-                                <tr key={notary.id} className="border-t"><td className="px-4 py-3"><div className="font-medium">{notary.name}</div><div className="mt-1 text-xs text-muted-foreground">{notary.address || 'Alamat belum diisi'}</div></td><td className="px-4 py-3 text-muted-foreground"><div className="inline-flex items-center gap-1"><Mail className="size-3.5" />{notary.email || '-'}</div><br /><div className="inline-flex items-center gap-1"><Phone className="size-3.5" />{notary.phone || '-'}</div></td><td className="px-4 py-3">{notary.branches.map((branch) => branch.code).join(', ') || '-'}</td><td className="px-4 py-3"><div className="flex flex-wrap items-center gap-2"><SimStatusBadge label={notary.partnership_status ?? 'Belum lengkap'} tone={notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir' ? 'success' : notary.partnership_status === 'Berakhir' ? 'danger' : 'warning'} /><SimStatusBadge label={notary.users?.some((user) => user.is_active) ? 'Portal aktif' : 'Belum ada akun'} tone={notary.users?.some((user) => user.is_active) ? 'success' : 'warning'} /></div></td><td className="px-4 py-3"><div className="flex flex-wrap gap-1"><Button type="button" variant="ghost" size="sm" onClick={() => editNotary(notary)}><Edit3 className="size-4" />Edit</Button>{notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir' ? (!notary.users?.length && <Button type="button" variant="outline" size="sm" onClick={() => openAccount(notary)}><KeyRound className="size-4" />Buat akun</Button>) : null}</div></td></tr>
+                                <tr key={notary.id} className="border-t"><td className="px-4 py-3"><div className="font-medium">{notary.name}</div><div className="mt-1 text-xs text-muted-foreground">{notary.address || 'Alamat belum diisi'}</div></td><td className="px-4 py-3 text-muted-foreground"><div className="inline-flex items-center gap-1"><Mail className="size-3.5" />{notary.email || '-'}</div><br /><div className="inline-flex items-center gap-1"><Phone className="size-3.5" />{notary.phone || '-'}</div></td><td className="px-4 py-3">{notary.branches.map((branch) => branch.code).join(', ') || '-'}</td><td className="px-4 py-3"><div className="flex flex-wrap items-center gap-2"><SimStatusBadge label={notary.partnership_status ?? 'Belum lengkap'} tone={notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir' ? 'success' : notary.partnership_status === 'Berakhir' ? 'danger' : 'warning'} /><SimStatusBadge label={notary.users?.some((user) => user.is_active) ? 'Portal aktif' : 'Belum ada akun'} tone={notary.users?.some((user) => user.is_active) ? 'success' : 'warning'} /></div></td><td className="px-4 py-3"><div className="flex flex-wrap gap-1"><Button type="button" variant="ghost" size="sm" onClick={() => editNotary(notary)}><Edit3 className="size-4" />Edit</Button><Button type="button" variant="outline" size="sm" onClick={() => openManageAccounts(notary)}><UsersRound className="size-4" />Kelola akun</Button></div></td></tr>
                             ))}</tbody>
                 </SimTable></div>
                 <div className="space-y-3 md:hidden">
@@ -76,7 +79,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                             </div>
                             <div className="flex gap-2 border-t border-border pt-3">
                                 <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => editNotary(notary)}><Edit3 className="size-4" />Edit</Button>
-                                {(notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir') && !notary.users?.length && <Button type="button" size="sm" className="flex-1" onClick={() => openAccount(notary)}><KeyRound className="size-4" />Buat akun</Button>}
+                                <Button type="button" size="sm" className="flex-1" onClick={() => openManageAccounts(notary)}><UsersRound className="size-4" />Kelola akun</Button>
                             </div>
                         </article>
                     ))}
@@ -99,8 +102,28 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                         <DialogFooter><Button type="button" variant="outline" onClick={cancelEdit}><X className="size-4" />Batal</Button><Button type="submit" disabled={processing}>{editingId ? <Edit3 className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Tambah kantor notaris'}</Button></DialogFooter>
                     </form></DialogContent></Dialog>
             </div>
-            <Dialog open={Boolean(accountNotary)} onOpenChange={(open) => !open && setAccountNotary(null)}>
-                <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Buat akun portal notaris</DialogTitle><DialogDescription>{accountNotary?.name} akan dapat login ke Portal Notaris dengan akun ini.</DialogDescription></DialogHeader><form onSubmit={submitAccount} className="grid gap-4"><Field label="Nama pengguna" error={accountForm.errors.name}><Input value={accountForm.data.name} onChange={(event) => accountForm.setData('name', event.target.value)} /></Field><Field label="Email login" error={accountForm.errors.email}><Input type="email" value={accountForm.data.email} onChange={(event) => accountForm.setData('email', event.target.value)} /></Field><Field label="Password awal" error={accountForm.errors.password}><Input type="password" value={accountForm.data.password} onChange={(event) => accountForm.setData('password', event.target.value)} /></Field><DialogFooter><Button type="button" variant="outline" onClick={() => setAccountNotary(null)}>Batal</Button><Button type="submit" disabled={accountForm.processing}><KeyRound className="size-4" />Buat akun</Button></DialogFooter></form></DialogContent>
+            <Dialog open={Boolean(managedNotary)} onOpenChange={(open) => !open && setManagedNotary(null)}>
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Kelola akun portal</DialogTitle>
+                        <DialogDescription>{managedNotary?.name} · semua akun portal yang terhubung ke kantor ini.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-3">
+                        {managedNotary?.users?.length ? managedNotary.users.map((user) => (
+                            <div key={user.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+                                <div className="min-w-0"><div className="truncate font-medium">{user.name}</div><div className="truncate text-sm text-muted-foreground">{user.email}</div></div>
+                                <SimStatusBadge label={user.is_active ? 'Aktif' : 'Nonaktif'} tone={user.is_active ? 'success' : 'neutral'} />
+                            </div>
+                        )) : <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">Belum ada akun portal untuk kantor notaris ini.</div>}
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setManagedNotary(null)}>Tutup</Button>
+                        <Button type="button" disabled={managedNotary?.partnership_status !== 'Aktif' && managedNotary?.partnership_status !== 'Akan berakhir'} onClick={() => managedNotary && openAddAccount(managedNotary)}><UserPlus className="size-4" />Tambah akun notaris</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={accountFormOpen} onOpenChange={(open) => { if (!open) { setAccountFormOpen(false); setAccountNotary(null); } }}>
+                <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Tambah akun notaris</DialogTitle><DialogDescription>{accountNotary?.name} akan dapat login ke Portal Notaris.</DialogDescription></DialogHeader><form onSubmit={submitAccount} className="grid gap-4"><Field label="Nama pengguna" error={accountForm.errors.name}><Input value={accountForm.data.name} onChange={(event) => accountForm.setData('name', event.target.value)} /></Field><Field label="Email login" error={accountForm.errors.email}><Input type="email" value={accountForm.data.email} onChange={(event) => accountForm.setData('email', event.target.value)} /></Field><Field label="Password awal" error={accountForm.errors.password}><Input type="password" value={accountForm.data.password} onChange={(event) => accountForm.setData('password', event.target.value)} /></Field><DialogFooter><Button type="button" variant="outline" onClick={() => { setAccountFormOpen(false); setAccountNotary(null); }}>Batal</Button><Button type="submit" disabled={accountForm.processing}><KeyRound className="size-4" />Tambah akun</Button></DialogFooter></form></DialogContent>
             </Dialog>
         </>
     );

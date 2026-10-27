@@ -35,7 +35,6 @@ class NotaryController extends Controller
     public function createPortalAccount(Request $request, Notary $notary): RedirectResponse
     {
         abort_unless($notary->hasActivePartnership(), 422, 'Akun portal hanya dapat dibuat untuk kantor notaris dengan legalitas kemitraan yang aktif.');
-        abort_if($notary->users()->exists(), 422, 'Notaris ini sudah memiliki akun portal.');
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],

@@ -50,12 +50,10 @@ export default function Users({
     users,
     branches,
     positions,
-    notaries,
 }: {
     users: { data: User[]; links: SimPaginationLink[] };
     branches: Option[];
     positions: Option[];
-    notaries: Option[];
 }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({
         name: '',
@@ -64,7 +62,6 @@ export default function Users({
         password: '',
         branch_id: '',
         job_position_id: '',
-        notary_id: '',
         is_active: true,
     });
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -78,16 +75,12 @@ export default function Users({
         (position) => String(position.id) === data.job_position_id,
     );
     const selectedRole = selectedPosition?.role?.name ?? '';
-    const visiblePositions = accountType === 'sso'
-        ? positions.filter((position) => position.code !== 'NOTARIS')
-        : positions;
-    const notaryPosition = selectedRole === 'Notaris';
     const branchRequired = [
         'Pimpinan Cabang',
         'Kadiv Operasional Cabang',
         'Admin Legal',
     ].includes(selectedRole);
-    const branchHidden = ['IT Administrator', 'Notaris'].includes(selectedRole);
+    const branchHidden = selectedRole === 'IT Administrator';
     const submit = (event: FormEvent) => {
         event.preventDefault();
         const options = {
@@ -102,6 +95,8 @@ export default function Users({
             : post('/users', options);
     };
     const editUser = (user: User) => {
+        if (user.notary) return;
+
         setEditingId(user.id);
         setData({
             name: user.name,
@@ -112,7 +107,6 @@ export default function Users({
             job_position_id: user.job_position?.id
                 ? String(user.job_position.id)
                 : '',
-            notary_id: user.notary?.id ? String(user.notary.id) : '',
             is_active: user.is_active,
         });
         setAccountType(user.sso_employee_id ? 'sso' : 'local');
@@ -222,15 +216,21 @@ export default function Users({
                                         />
                                     </td>
                                     <td className="px-4 py-3">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => editUser(user)}
-                                        >
-                                            <Edit3 className="size-4" />
-                                            Edit
-                                        </Button>
+                                        {user.notary ? (
+                                            <span className="text-xs text-muted-foreground">
+                                                Kelola di Kantor Notaris
+                                            </span>
+                                        ) : (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => editUser(user)}
+                                            >
+                                                <Edit3 className="size-4" />
+                                                Edit
+                                            </Button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -297,16 +297,22 @@ export default function Users({
                                     </div>
                                 </div>
                             </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="w-full"
-                                onClick={() => editUser(user)}
-                            >
-                                <Edit3 className="size-4" />
-                                Edit pengguna
-                            </Button>
+                            {user.notary ? (
+                                <div className="border-t border-border pt-3 text-center text-xs text-muted-foreground">
+                                    Kelola akun dari Kantor Notaris
+                                </div>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => editUser(user)}
+                                >
+                                    <Edit3 className="size-4" />
+                                    Edit pengguna
+                                </Button>
+                            )}
                         </article>
                     ))}
                 </div>
@@ -336,8 +342,6 @@ export default function Users({
                                         setAccountType('sso');
                                         setData('email', '');
                                         setData('password', '');
-                                        setData('notary_id', '');
-                                        if (notaryPosition) setData('job_position_id', '');
                                     }}
                                 >
                                     Pegawai internal (SSO)
@@ -424,12 +428,8 @@ export default function Users({
                                 value={data.job_position_id}
                                 onChange={(v) => {
                                     setData('job_position_id', v);
-                                    const nextPosition = positions.find((position) => String(position.id) === v);
-                                    if (nextPosition?.role?.name !== 'Notaris' && data.notary_id) {
-                                        setData('notary_id', '');
-                                    }
                                 }}
-                                options={visiblePositions}
+                                options={positions}
                                 error={errors.job_position_id}
                             />
                             {!branchHidden && (
@@ -439,15 +439,6 @@ export default function Users({
                                     onChange={(v) => setData('branch_id', v)}
                                     options={branches}
                                     error={errors.branch_id}
-                                />
-                            )}
-                            {accountType === 'local' && (
-                                <SelectField
-                                    label={`Mitra notaris${notaryPosition ? ' (wajib)' : ' (opsional)'}`}
-                                    value={data.notary_id}
-                                    onChange={(v) => setData('notary_id', v)}
-                                    options={notaries}
-                                    error={errors.notary_id}
                                 />
                             )}
                             <DialogFooter>
