@@ -1,7 +1,10 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { FormEvent } from 'react';
+import { RotateCcw, Search } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { SimPageHeader } from '@/components/sim-page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import type { Paginated } from '@/types';
 import { SimSelect } from '@/components/sim-select';
 import { SimTable } from '@/components/sim-table';
@@ -23,44 +26,56 @@ type AuditItem = {
     payload?: unknown;
 };
 
+type Option = { id: number; name: string; code?: string; role?: { name: string } };
+
 export default function AuditIndex({
     filters,
-    modules,
-    actions,
+    branches,
+    positions,
     logs,
 }: {
-    filters: { search: string; module: string; action: string; date_from: string; date_to: string };
-    modules: string[];
-    actions: string[];
+    filters: { search: string; type: string; branch_id: string; position_id: string; status: string };
+    branches: Option[];
+    positions: Option[];
     logs: Paginated<AuditItem>;
 }) {
     const { data, setData } = useForm(filters);
-
-    const submit = (event: FormEvent) => {
-        event.preventDefault();
-        router.get('/audit-logs', data, { preserveState: true, replace: true });
+    const filterInitialized = useRef(false);
+    const skipNextFilterRequest = useRef(false);
+    const resetFilters = () => {
+        const emptyFilters = { search: '', type: '', branch_id: '', position_id: '', status: '' };
+        skipNextFilterRequest.current = true;
+        setData(emptyFilters);
+        router.get('/audit-logs', emptyFilters, { preserveState: true, preserveScroll: true, replace: true });
     };
+    useEffect(() => {
+        if (!filterInitialized.current) {
+            filterInitialized.current = true;
+            return;
+        }
+        if (skipNextFilterRequest.current) {
+            skipNextFilterRequest.current = false;
+            return;
+        }
+        const timeout = window.setTimeout(() => {
+            router.get('/audit-logs', data, { preserveState: true, preserveScroll: true, replace: true });
+        }, 300);
+        return () => window.clearTimeout(timeout);
+    }, [data.search, data.type, data.branch_id, data.position_id, data.status]);
 
     return (
         <>
             <Head title="Audit Log" />
-            <div className="flex h-full flex-1 flex-col gap-5 p-4 md:p-6">
-                <div>
-                    <h1 className="text-2xl font-semibold">Audit Log</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Jejak aktivitas append-only untuk pemeriksaan internal.</p>
+            <div className="sim-workspace">
+                <SimPageHeader title="Audit Log" description="Jejak aktivitas append-only untuk pemeriksaan internal." />
+                <div className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto] md:items-end">
+                    <div className="grid gap-2"><Label htmlFor="audit-search">Cari pengguna</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="audit-search" className="pl-9" value={data.search} onChange={(event) => setData('search', event.target.value)} placeholder="Nama, ID SSO, email" /></div></div>
+                    <FilterSelect label="Tipe akun" value={data.type} onChange={(value) => setData('type', value)} options={[{ value: '', label: 'Semua tipe' }, { value: 'internal', label: 'Pegawai internal' }, { value: 'notary', label: 'Portal notaris' }]} />
+                    <FilterSelect label="Cabang" value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={[{ value: '', label: 'Semua cabang' }, ...branches.map((branch) => ({ value: String(branch.id), label: `${branch.code ? `${branch.code} · ` : ''}${branch.name}` }))]} />
+                    <FilterSelect label="Posisi" value={data.position_id} onChange={(value) => setData('position_id', value)} options={[{ value: '', label: 'Semua posisi' }, ...positions.map((position) => ({ value: String(position.id), label: position.name }))]} />
+                    <FilterSelect label="Status" value={data.status} onChange={(value) => setData('status', value)} options={[{ value: '', label: 'Semua status' }, { value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
+                    <Button type="button" variant="outline" onClick={resetFilters}><RotateCcw className="size-4" />Reset</Button>
                 </div>
-
-                <form onSubmit={submit} className="grid gap-3 rounded-lg border p-3 xl:grid-cols-[1fr_180px_180px_160px_160px_auto]">
-                    <Input value={data.search} onChange={(event) => setData('search', event.target.value)} placeholder="Cari pelaku, deskripsi, entitas" />
-                    <SimSelect value={data.module} onChange={(value) => setData('module', value)} options={modules.map((module) => ({ value: module, label: module }))} placeholder="Semua modul" />
-                    <SimSelect value={data.action} onChange={(value) => setData('action', value)} options={actions.map((action) => ({ value: action, label: action }))} placeholder="Semua aksi" />
-                    <Input type="date" value={data.date_from} onChange={(event) => setData('date_from', event.target.value)} />
-                    <Input type="date" value={data.date_to} onChange={(event) => setData('date_to', event.target.value)} />
-                    <div className="flex gap-2">
-                        <Button type="submit">Filter</Button>
-                        <Button type="button" variant="outline" onClick={() => router.get('/audit-logs')}>Reset</Button>
-                    </div>
-                </form>
 
                 <div className="hidden md:block"><SimTable raw>
                         <table className="sim-table w-full min-w-[1040px] text-sm">
@@ -114,6 +129,10 @@ export default function AuditIndex({
             </div>
         </>
     );
+}
+
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
+    return <div className="min-w-0 grid gap-2"><Label>{label}</Label><SimSelect value={value} onChange={onChange} placeholder="Pilih..." options={options} /></div>;
 }
 
 function actionLabel(action: string): string {
