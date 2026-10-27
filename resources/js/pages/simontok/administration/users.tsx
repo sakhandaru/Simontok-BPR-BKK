@@ -1,5 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
-import { Edit3, UserPlus, X } from 'lucide-react';
+import { Edit3, RotateCcw, Search, UserPlus, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
 import { SimPageHeader } from '@/components/sim-page-header';
@@ -50,10 +50,12 @@ export default function Users({
     users,
     branches,
     positions,
+    filters,
 }: {
     users: { data: User[]; links: SimPaginationLink[] };
     branches: Option[];
     positions: Option[];
+    filters: { search: string; type: string; branch_id: string; position_id: string; status: string };
 }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({
         name: '',
@@ -64,6 +66,7 @@ export default function Users({
         job_position_id: '',
         is_active: true,
     });
+    const filterForm = useForm({ ...filters });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const [accountType, setAccountType] = useState<AccountType>('sso');
@@ -124,20 +127,36 @@ export default function Users({
         setAccountType('sso');
         setFormOpen(false);
     };
+    const applyFilters = (event: FormEvent) => {
+        event.preventDefault();
+        filterForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
+    };
+    const resetFilters = () => {
+        filterForm.setData({ search: '', type: '', branch_id: '', position_id: '', status: '' });
+        filterForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
+    };
     return (
         <>
             <Head title="Manajemen Pengguna" />
             <div className="sim-workspace">
                 <SimPageHeader
                     title="Manajemen Pengguna"
-                    description="Atur akun internal, posisi, dan akses portal notaris."
+                    description="Direktori akses global untuk akun internal dan portal notaris."
                     actions={
                         <Button type="button" onClick={openCreate}>
                             <UserPlus className="size-4" />
-                            Tambah pengguna
+                            Tambah akun internal
                         </Button>
                     }
                 />
+                <form onSubmit={applyFilters} className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto_auto] md:items-end">
+                    <div className="grid gap-2"><Label htmlFor="user-search">Cari pengguna</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="user-search" className="pl-9" value={filterForm.data.search} onChange={(event) => filterForm.setData('search', event.target.value)} placeholder="Nama, ID SSO, email" /></div></div>
+                    <FilterSelect label="Tipe akun" value={filterForm.data.type} onChange={(value) => filterForm.setData('type', value)} options={[{ value: '', label: 'Semua tipe' }, { value: 'internal', label: 'Pegawai internal' }, { value: 'notary', label: 'Portal notaris' }]} />
+                    <FilterSelect label="Cabang" value={filterForm.data.branch_id} onChange={(value) => filterForm.setData('branch_id', value)} options={[{ value: '', label: 'Semua cabang' }, ...branches.map((branch) => ({ value: String(branch.id), label: `${branch.code ? `${branch.code} · ` : ''}${branch.name}` }))]} />
+                    <FilterSelect label="Posisi" value={filterForm.data.position_id} onChange={(value) => filterForm.setData('position_id', value)} options={[{ value: '', label: 'Semua posisi' }, ...positions.map((position) => ({ value: String(position.id), label: position.name }))]} />
+                    <FilterSelect label="Status" value={filterForm.data.status} onChange={(value) => filterForm.setData('status', value)} options={[{ value: '', label: 'Semua status' }, { value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
+                    <Button type="submit" disabled={filterForm.processing}><Search className="size-4" />Terapkan</Button><Button type="button" variant="outline" onClick={resetFilters}><RotateCcw className="size-4" />Reset</Button>
+                </form>
                 <SimPagination links={users.links} />
                 <div className="hidden md:block">
                     <SimTable minWidth="800px">
@@ -511,6 +530,10 @@ function SelectField({
             />
         </Field>
     );
+}
+
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
+    return <div className="grid gap-2"><Label>{label}</Label><SimSelect value={value} onChange={onChange} placeholder="Pilih..." options={options} /></div>;
 }
 Users.layout = {
     breadcrumbs: [{ title: 'Manajemen Pengguna', href: '/users' }],

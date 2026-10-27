@@ -17,15 +17,45 @@ use Inertia\Response;
 
 class UserController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'type' => ['nullable', Rule::in(['internal', 'notary'])],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+            'position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+        ]);
+
+        $users = User::with(['jobPosition.role', 'branch', 'notary'])
+            ->when(($filters['type'] ?? null) === 'internal', fn ($query) => $query->whereNull('notary_id'))
+            ->when(($filters['type'] ?? null) === 'notary', fn ($query) => $query->whereNotNull('notary_id'))
+            ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->where('branch_id', $branchId))
+            ->when($filters['position_id'] ?? null, fn ($query, $positionId) => $query->where('job_position_id', $positionId))
+            ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
+            ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
+            ->when($filters['search'] ?? null, function ($query, string $search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('sso_employee_id', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name')->paginate(15)->withQueryString();
+
         return Inertia::render('simontok/administration/users', [
-            'users' => User::with(['jobPosition.role', 'branch', 'notary'])
-                ->orderBy('name')->paginate(15)->withQueryString(),
-            'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'users' => $users,
+            'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'positions' => JobPosition::with('role:id,code,name')
                 ->whereHas('role', fn ($query) => $query->where('code', '!=', 'notaris'))
                 ->orderBy('name')->get(['id', 'code', 'name', 'role_id']),
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'type' => $filters['type'] ?? '',
+                'branch_id' => (string) ($filters['branch_id'] ?? ''),
+                'position_id' => (string) ($filters['position_id'] ?? ''),
+                'status' => $filters['status'] ?? '',
+            ],
         ]);
     }
 
