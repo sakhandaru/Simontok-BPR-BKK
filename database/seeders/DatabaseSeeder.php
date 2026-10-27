@@ -213,7 +213,7 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        if (! app()->isProduction()) {
+        if (! app()->isProduction() && filter_var(env('SEED_DEMO_DATA', true), FILTER_VALIDATE_BOOLEAN)) {
             $this->call(DemoFullDataSeeder::class);
         }
     }
