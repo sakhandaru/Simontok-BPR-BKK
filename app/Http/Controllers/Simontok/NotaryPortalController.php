@@ -9,6 +9,7 @@ use App\Enums\OrderDocumentType;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderCollateral;
+use App\Models\OrderProgress;
 use App\Support\Audit;
 use App\Support\InAppNotification;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class NotaryPortalController extends Controller
 {
@@ -141,6 +143,16 @@ class NotaryPortalController extends Controller
                     : [],
                 [],
             ),
+        ]);
+    }
+
+    public function progressEvidence(Request $request, Order $order, OrderProgress $progress): BinaryFileResponse
+    {
+        $this->authorizeOrder($request, $order);
+        abort_unless($progress->order_id === $order->id && filled($progress->evidence_path), 404);
+
+        return response()->file(Storage::disk('local')->path($progress->evidence_path), [
+            'Content-Disposition' => 'inline',
         ]);
     }
 

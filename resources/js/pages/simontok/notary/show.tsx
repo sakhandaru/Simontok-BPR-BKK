@@ -20,6 +20,13 @@ import { Label } from '@/components/ui/label';
 import { SimSelect } from '@/components/sim-select';
 import { SimFileUpload } from '@/components/sim-file-upload';
 import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 
 type Option = { value: string; label: string };
 
@@ -56,6 +63,7 @@ export default function NotaryOrdersShow({
 }) {
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
+    const [evidencePreview, setEvidencePreview] = useState<any | null>(null);
     const progressOptions = useMemo(() => {
         return Object.fromEntries(
             order.collaterals.map((collateral: any) => [
@@ -1213,6 +1221,20 @@ export default function NotaryOrdersShow({
                                                     {item.catatan}
                                                 </div>
                                             )}
+                                            {item.evidence_path && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="mt-2"
+                                                    onClick={() =>
+                                                        setEvidencePreview(item)
+                                                    }
+                                                >
+                                                    <Eye className="size-4" />
+                                                    Lihat bukti
+                                                </Button>
+                                            )}
                                             <div className="mt-1 text-xs text-muted-foreground">
                                                 Oleh{' '}
                                                 {item.user?.name ?? 'Notaris'}
@@ -1229,6 +1251,32 @@ export default function NotaryOrdersShow({
                         </div>
                     </section>
                 )}
+
+                <Dialog
+                    open={Boolean(evidencePreview)}
+                    onOpenChange={(open) => !open && setEvidencePreview(null)}
+                >
+                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+                        <DialogHeader>
+                            <DialogTitle>
+                                Bukti progres —{' '}
+                                {evidencePreview
+                                    ? progressLabel(evidencePreview.status)
+                                    : ''}
+                            </DialogTitle>
+                            <DialogDescription>
+                                Bukti yang diunggah notaris untuk langkah ini.
+                            </DialogDescription>
+                        </DialogHeader>
+                        {evidencePreview && (
+                            <iframe
+                                title={`Bukti ${progressLabel(evidencePreview.status)}`}
+                                src={`/notary/orders/${order.id}/progress/${evidencePreview.id}/evidence`}
+                                className="h-[min(70vh,42rem)] w-full rounded-md border bg-white"
+                            />
+                        )}
+                    </DialogContent>
+                </Dialog>
             </div>
         </>
     );

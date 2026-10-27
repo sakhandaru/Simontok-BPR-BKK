@@ -91,6 +91,7 @@ Route::middleware(['auth'])->group(function () {
         });
         Route::get('notary/orders/{order}/documents/{document}/download', [OrderDocumentController::class, 'download'])->name('notary.orders.documents.download');
         Route::get('notary/orders/{order}/documents/{document}/preview', [OrderDocumentController::class, 'preview'])->name('notary.orders.documents.preview');
+        Route::get('notary/orders/{order}/progress/{progress}/evidence', [NotaryPortalController::class, 'progressEvidence'])->name('notary.orders.progress.evidence');
         Route::get('notary/orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('notary.orders.payment-requests.payments.download');
     });
     Route::middleware('permission:covernotes.approve')->group(function () {
