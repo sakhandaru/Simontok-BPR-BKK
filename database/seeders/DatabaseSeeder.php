@@ -184,6 +184,11 @@ class DatabaseSeeder extends Seeder
             ['name' => 'SKAI/Auditor', 'role_id' => $roles['auditor']->id]
         );
 
+        JobPosition::updateOrCreate(
+            ['code' => 'NOTARIS'],
+            ['name' => 'Notaris', 'role_id' => $roles['notaris']->id]
+        );
+
         collect([
             ['login' => 'admin', 'name' => 'Administrator', 'position' => 'IT_ADMIN'],
             ['login' => 'legal', 'name' => 'Staf Legal', 'position' => 'LEGAL_ADMIN'],
@@ -208,7 +213,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Notaris',
             'password' => $seedPassword,
             'branch_id' => null,
-            'job_position_id' => null,
+            'job_position_id' => JobPosition::where('code', 'NOTARIS')->value('id'),
             'notary_id' => $notary->id,
             'is_active' => true,
         ]);

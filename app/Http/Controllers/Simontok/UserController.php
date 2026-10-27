@@ -11,6 +11,7 @@ use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -74,7 +75,6 @@ class UserController extends Controller
 
         if ($data['notary_id'] ?? null) {
             abort_if(User::where('notary_id', $data['notary_id'])->where('id', '!=', $user->id)->exists(), 422, 'Notaris tersebut sudah memiliki akun.');
-            $data['job_position_id'] = null;
         }
 
         if (blank($data['password'] ?? null)) {
@@ -109,14 +109,24 @@ class UserController extends Controller
         }
 
         if ($roleCode === 'it_admin' && ! empty($data['branch_id'])) {
-            throw IlluminateValidationValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'branch_id' => 'Admin IT tidak perlu dibatasi ke cabang tertentu.',
             ]);
         }
 
-        if (! empty($data['notary_id']) && ! empty($data['job_position_id'])) {
-            throw IlluminateValidationValidationException::withMessages([
-                'job_position_id' => 'Akun notaris tidak menggunakan posisi user internal.',
+        if ($roleCode === 'notaris') {
+            validator($data, [
+                'notary_id' => ['required', 'integer', 'exists:notaries,id'],
+                'sso_employee_id' => ['prohibited'],
+            ], [
+                'notary_id.required' => 'Mitra notaris wajib dipilih untuk posisi Notaris.',
+                'sso_employee_id.prohibited' => 'Akun Notaris menggunakan akun lokal.',
+            ])->validate();
+        }
+
+        if (! empty($data['notary_id']) && $roleCode !== 'notaris') {
+            throw ValidationException::withMessages([
+                'job_position_id' => 'Mitra notaris hanya dapat dipasangkan dengan posisi Notaris.',
             ]);
         }
     }

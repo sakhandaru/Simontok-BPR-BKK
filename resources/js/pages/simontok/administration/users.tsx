@@ -78,12 +78,16 @@ export default function Users({
         (position) => String(position.id) === data.job_position_id,
     );
     const selectedRole = selectedPosition?.role?.name ?? '';
+    const visiblePositions = accountType === 'sso'
+        ? positions.filter((position) => position.code !== 'NOTARIS')
+        : positions;
+    const notaryPosition = selectedRole === 'Notaris';
     const branchRequired = [
         'Pimpinan Cabang',
         'Kadiv Operasional Cabang',
         'Admin Legal',
     ].includes(selectedRole);
-    const branchHidden = selectedRole === 'IT Administrator';
+    const branchHidden = ['IT Administrator', 'Notaris'].includes(selectedRole);
     const submit = (event: FormEvent) => {
         event.preventDefault();
         const options = {
@@ -333,6 +337,7 @@ export default function Users({
                                         setData('email', '');
                                         setData('password', '');
                                         setData('notary_id', '');
+                                        if (notaryPosition) setData('job_position_id', '');
                                     }}
                                 >
                                     Pegawai internal (SSO)
@@ -417,8 +422,14 @@ export default function Users({
                             <SelectField
                                 label="Posisi"
                                 value={data.job_position_id}
-                                onChange={(v) => setData('job_position_id', v)}
-                                options={positions}
+                                onChange={(v) => {
+                                    setData('job_position_id', v);
+                                    const nextPosition = positions.find((position) => String(position.id) === v);
+                                    if (nextPosition?.role?.name !== 'Notaris' && data.notary_id) {
+                                        setData('notary_id', '');
+                                    }
+                                }}
+                                options={visiblePositions}
                                 error={errors.job_position_id}
                             />
                             {!branchHidden && (
@@ -432,7 +443,7 @@ export default function Users({
                             )}
                             {accountType === 'local' && (
                                 <SelectField
-                                    label="Mitra notaris (opsional)"
+                                    label={`Mitra notaris${notaryPosition ? ' (wajib)' : ' (opsional)'}`}
                                     value={data.notary_id}
                                     onChange={(v) => setData('notary_id', v)}
                                     options={notaries}
