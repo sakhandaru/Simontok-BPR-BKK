@@ -1295,7 +1295,16 @@ function orderStatusLabel(
         dibatalkan: 'Dibatalkan',
     };
 
-    if (key === 'menunggu_approval_covernote' && !order?.covernote_submitted_at) {
+    const covernoteComplete =
+        order?.collaterals?.length > 0 &&
+        order.collaterals.every(
+            (collateral: any) =>
+                collateral.covernote_no &&
+                collateral.covernote_end &&
+                collateral.covernote_file_path,
+        );
+
+    if (key === 'menunggu_approval_covernote' && !covernoteComplete) {
         return 'Menunggu covernote notaris';
     }
 
