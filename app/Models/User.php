@@ -35,6 +35,24 @@ class User extends Authenticatable implements PasskeyUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
+    protected static function booted(): void
+    {
+        static::saving(function (User $user) {
+            $user->leadership_slot = self::leadershipSlotFor($user->job_position_id, (bool) $user->is_active);
+        });
+    }
+
+    public static function leadershipSlotFor(?int $positionId, bool $isActive): ?string
+    {
+        if (! $positionId || ! $isActive) {
+            return null;
+        }
+
+        $roleCode = JobPosition::with('role:id,code')->find($positionId)?->role?->code;
+
+        return in_array($roleCode, ['kepala_cabang', 'kadiv_operasional'], true) ? $roleCode : null;
+    }
+
     public function jobPosition(): BelongsTo
     {
         return $this->belongsTo(JobPosition::class);

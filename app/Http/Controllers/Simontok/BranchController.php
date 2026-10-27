@@ -48,6 +48,7 @@ class BranchController extends Controller
             'job_position_id' => ['required', 'integer', 'exists:job_positions,id'],
         ]);
         $this->validateBranchPosition((int) $data['job_position_id']);
+        $this->validateUniqueLeadership($branch, (int) $data['job_position_id']);
 
         $user = User::create([
             'name' => 'Pegawai SSO '.$data['sso_employee_id'],
@@ -76,6 +77,7 @@ class BranchController extends Controller
             'is_active' => ['required', 'boolean'],
         ]);
         $this->validateBranchPosition((int) $data['job_position_id']);
+        $this->validateUniqueLeadership($branch, (int) $data['job_position_id'], $user->id, (bool) $data['is_active']);
 
         $user->update($data);
         Audit::record($request, 'users', $user, 'update_branch_internal_account', 'Akun internal cabang diperbarui.', [
@@ -131,5 +133,27 @@ class BranchController extends Controller
         ]);
 
         return back()->with('success', 'Cabang diperbarui.');
+    }
+
+    private function validateUniqueLeadership(Branch $branch, int $positionId, ?int $exceptUserId = null, bool $isActive = true): void
+    {
+        $slot = User::leadershipSlotFor($positionId, $isActive);
+
+        if (! $slot) {
+            return;
+        }
+
+        $exists = User::query()
+            ->where('branch_id', $branch->id)
+            ->where('leadership_slot', $slot)
+            ->when($exceptUserId, fn ($query) => $query->where('id', '!=', $exceptUserId))
+            ->exists();
+
+        if ($exists) {
+            $label = $slot === 'kepala_cabang' ? 'Pimpinan Cabang' : 'Kadiv Operasional';
+            throw ValidationException::withMessages([
+                'job_position_id' => "Cabang ini sudah memiliki {$label} aktif.",
+            ]);
+        }
     }
 }

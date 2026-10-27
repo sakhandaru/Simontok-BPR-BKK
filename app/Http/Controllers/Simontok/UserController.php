@@ -73,6 +73,7 @@ class UserController extends Controller
         ]);
 
         $this->validateOrganizationalAssignment($data);
+        $this->validateUniqueBranchLeadership($data);
 
         if (filled($data['sso_employee_id'] ?? null)) {
             $data['name'] = filled($data['name'] ?? null) ? $data['name'] : 'Pegawai SSO '.$data['sso_employee_id'];
@@ -101,7 +102,13 @@ class UserController extends Controller
             'is_active' => ['boolean'],
         ]);
 
-        $this->validateOrganizationalAssignment($data);
+        $assignment = array_merge([
+            'branch_id' => $user->branch_id,
+            'job_position_id' => $user->job_position_id,
+            'is_active' => $user->is_active,
+        ], $data);
+        $this->validateOrganizationalAssignment($assignment);
+        $this->validateUniqueBranchLeadership($assignment, $user->id);
 
         if (blank($data['password'] ?? null)) {
             unset($data['password']);
@@ -143,6 +150,28 @@ class UserController extends Controller
         if ($roleCode === 'notaris') {
             throw ValidationException::withMessages([
                 'job_position_id' => 'Akun portal notaris dibuat dari menu Kantor Notaris.',
+            ]);
+        }
+    }
+
+    private function validateUniqueBranchLeadership(array $data, ?int $exceptUserId = null): void
+    {
+        $slot = User::leadershipSlotFor($data['job_position_id'] ?? null, (bool) ($data['is_active'] ?? true));
+
+        if (! $slot || empty($data['branch_id'])) {
+            return;
+        }
+
+        $exists = User::query()
+            ->where('branch_id', $data['branch_id'])
+            ->where('leadership_slot', $slot)
+            ->when($exceptUserId, fn ($query) => $query->where('id', '!=', $exceptUserId))
+            ->exists();
+
+        if ($exists) {
+            $label = $slot === 'kepala_cabang' ? 'Pimpinan Cabang' : 'Kadiv Operasional';
+            throw ValidationException::withMessages([
+                'job_position_id' => "Cabang ini sudah memiliki {$label} aktif.",
             ]);
         }
     }
