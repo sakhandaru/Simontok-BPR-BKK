@@ -398,6 +398,7 @@ export default function OrdersShow({
     const [batchDocuments, setBatchDocuments] = useState<
         Record<string, BatchDocument[]>
     >({});
+    const [documentsOpen, setDocumentsOpen] = useState(true);
     const [documentEditor, setDocumentEditor] = useState<DocumentEditor | null>(
         null,
     );
@@ -517,6 +518,7 @@ export default function OrdersShow({
         setDocumentEditor(null);
     };
     const submitBatch = (collateralId: string) => {
+        setDocumentsOpen(true);
         const documents = batchDocuments[collateralId] ?? [];
         if (
             !documents.length ||
@@ -547,6 +549,7 @@ export default function OrdersShow({
         });
         router.post(`/orders/${order.id}/documents/batch`, formData, {
             forceFormData: true,
+            preserveState: true,
             preserveScroll: true,
             onSuccess: () =>
                 setBatchDocuments((current) => ({
@@ -1743,7 +1746,13 @@ export default function OrdersShow({
                 )}
 
                 {!orderSentToNotary && canManageOrder && (
-                    <details className="sim-panel group">
+                    <details
+                        className="sim-panel group"
+                        open={documentsOpen}
+                        onToggle={(event) =>
+                            setDocumentsOpen(event.currentTarget.open)
+                        }
+                    >
                         <summary className="sim-panel-header flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
                             <div>
                                 <h2 className="font-medium">
