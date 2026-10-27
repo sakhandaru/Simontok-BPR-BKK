@@ -167,6 +167,9 @@ export default function OrdersShow({
     const [finalRevisionDocument, setFinalRevisionDocument] = useState<
         number | null
     >(null);
+    const [progressDocumentsPreview, setProgressDocumentsPreview] = useState<
+        any[] | null
+    >(null);
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
     const canViewInitialDocuments = canManageOrder || canApproveOrder;
     const [draftSaveState, setDraftSaveState] = useState<
@@ -1453,54 +1456,7 @@ export default function OrdersShow({
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        {document.document_type ===
-                                                            'final' &&
-                                                            (document.validated_at ? (
-                                                                <SimStatusBadge
-                                                                    label="Tervalidasi"
-                                                                    tone="success"
-                                                                />
-                                                            ) : (
-                                                                <SimStatusBadge
-                                                                    label="Menunggu validasi"
-                                                                    tone="warning"
-                                                                />
-                                                            ))}
                                                     </div>
-                                                    {canValidateDocuments &&
-                                                        document.document_type ===
-                                                            'final' &&
-                                                        !document.validated_at && (
-                                                            <div className="flex flex-wrap gap-2">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() =>
-                                                                        router.post(
-                                                                            `/orders/${order.id}/documents/${document.id}/validate-final`,
-                                                                            {},
-                                                                            {
-                                                                                preserveScroll: true,
-                                                                            },
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <FileCheck2 className="size-4" />
-                                                                    Setujui
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="ghost"
-                                                                    onClick={() =>
-                                                                        setFinalRevisionDocument(
-                                                                            document.id,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Revisi
-                                                                </Button>
-                                                            </div>
-                                                        )}
                                                     <div className="grid grid-cols-2 gap-3 text-xs">
                                                         <div>
                                                             <div className="text-muted-foreground">
@@ -2082,6 +2038,182 @@ export default function OrdersShow({
                     </DialogContent>
                 </Dialog>
 
+                {order.progress?.length > 0 && (
+                    <section className="sim-panel">
+                        <div className="sim-panel-header sim-panel-title">
+                            Riwayat progres
+                        </div>
+                        <div className="divide-y">
+                            {order.progress.map((item: any) => {
+                                const finalDocuments =
+                                    item.status === 'Selesai'
+                                        ? order.documents.filter(
+                                              (document: any) =>
+                                                  document.document_type ===
+                                                      'final' &&
+                                                  document.order_collateral_id ===
+                                                      item.order_collateral_id,
+                                          )
+                                        : [];
+                                const allFinalDocumentsValidated =
+                                    finalDocuments.length > 0 &&
+                                    finalDocuments.every(
+                                        (document: any) => document.validated_at,
+                                    );
+
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[145px_minmax(0,1fr)_180px] md:items-center"
+                                    >
+                                        <div className="flex items-center gap-2 text-xs whitespace-nowrap text-muted-foreground">
+                                            <span className="size-2 shrink-0 rounded-full bg-primary" />
+                                            Proses notaris
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="font-medium">
+                                                {progressLabel(item.status)}
+                                            </div>
+                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                {item.collateral?.job_type?.name ??
+                                                    'Agunan'}{' '}
+                                                · Komitmen{' '}
+                                                {dateOnly(
+                                                    item.komitmen_penyelesaian,
+                                                ) || '-'}
+                                            </div>
+                                            {item.catatan && (
+                                                <div className="mt-1 truncate text-xs text-muted-foreground">
+                                                    {item.catatan}
+                                                </div>
+                                            )}
+                                            {finalDocuments.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                    <SimStatusBadge
+                                                        label={
+                                                            allFinalDocumentsValidated
+                                                                ? 'Tervalidasi'
+                                                                : 'Menunggu validasi'
+                                                        }
+                                                        tone={
+                                                            allFinalDocumentsValidated
+                                                                ? 'success'
+                                                                : 'warning'
+                                                        }
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setProgressDocumentsPreview(
+                                                                finalDocuments,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Eye className="size-4" />
+                                                        Lihat dokumen final ({finalDocuments.length})
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                Oleh {item.user?.name ?? 'Notaris'}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground md:text-right">
+                                            {formatTimelineDate(item.created_at)}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
+                <Dialog
+                    open={Boolean(progressDocumentsPreview)}
+                    onOpenChange={(open) =>
+                        !open && setProgressDocumentsPreview(null)
+                    }
+                >
+                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>Dokumen final progres selesai</DialogTitle>
+                            <DialogDescription>
+                                Periksa dan validasi dokumen final dari progres ini.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                            {(progressDocumentsPreview ?? []).map(
+                                (document: any) => (
+                                    <div
+                                        key={document.id}
+                                        className="flex items-center gap-3 rounded-md border p-3 text-sm"
+                                    >
+                                        <FileText className="size-4 shrink-0 text-muted-foreground" />
+                                        <a
+                                            href={`/orders/${order.id}/documents/${document.id}/preview`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="min-w-0 flex-1 truncate font-medium hover:underline"
+                                        >
+                                            {document.original_name}
+                                        </a>
+                                        {document.validated_at ? (
+                                            <SimStatusBadge
+                                                label="Tervalidasi"
+                                                tone="success"
+                                            />
+                                        ) : canValidateDocuments ? (
+                                            <div className="flex shrink-0 gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        router.post(
+                                                            `/orders/${order.id}/documents/${document.id}/validate-final`,
+                                                            {},
+                                                            {
+                                                                preserveScroll: true,
+                                                                onSuccess: () =>
+                                                                    setProgressDocumentsPreview(
+                                                                        null,
+                                                                    ),
+                                                            },
+                                                        )
+                                                    }
+                                                >
+                                                    <FileCheck2 className="size-4" />
+                                                    Setujui
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setFinalRevisionDocument(
+                                                            document.id,
+                                                        );
+                                                        setProgressDocumentsPreview(
+                                                            null,
+                                                        );
+                                                    }}
+                                                >
+                                                    Revisi
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <SimStatusBadge
+                                                label="Menunggu validasi"
+                                                tone="warning"
+                                            />
+                                        )}
+                                    </div>
+                                ),
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
                 <section className="sim-panel">
                     <div className="sim-panel-header sim-panel-title">
                         Riwayat status
@@ -2643,6 +2775,16 @@ function dateOnly(value?: string | null) {
         month: 'short',
         year: 'numeric',
     }).format(date);
+}
+
+function progressLabel(value?: string | null): string {
+    if (!value) return '-';
+
+    return value
+        .replaceAll('_', ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function slaState(value?: string | null) {

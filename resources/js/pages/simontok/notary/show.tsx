@@ -56,6 +56,7 @@ export default function NotaryOrdersShow({
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
     const [evidencePreview, setEvidencePreview] = useState<any | null>(null);
+    const [finalDocumentsPreview, setFinalDocumentsPreview] = useState<any[] | null>(null);
     const progressOptions = useMemo(() => {
         return Object.fromEntries(
             order.collaterals.map((collateral: any) => [
@@ -1124,21 +1125,6 @@ export default function NotaryOrdersShow({
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        {document.document_type ===
-                                                            'final' && (
-                                                            <SimStatusBadge
-                                                                label={
-                                                                    document.validated_at
-                                                                        ? 'Tervalidasi'
-                                                                        : 'Menunggu validasi'
-                                                                }
-                                                                tone={
-                                                                    document.validated_at
-                                                                        ? 'success'
-                                                                        : 'warning'
-                                                                }
-                                                            />
-                                                        )}
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-3 text-xs">
                                                         <div>
@@ -1252,6 +1238,77 @@ export default function NotaryOrdersShow({
                                                     Lihat bukti
                                                 </Button>
                                             )}
+                                            {item.status ===
+                                                (progressOptions[
+                                                    item.order_collateral_id
+                                                ] ?? [])[(
+                                                    progressOptions[
+                                                        item.order_collateral_id
+                                                    ] ?? []
+                                                ).length - 1] &&
+                                                order.documents.filter(
+                                                    (document: any) =>
+                                                        document.document_type ===
+                                                            'final' &&
+                                                        document.order_collateral_id ===
+                                                            item.order_collateral_id,
+                                                ).length > 0 && (
+                                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                        <SimStatusBadge
+                                                            label={
+                                                                order.documents
+                                                                    .filter(
+                                                                        (document: any) =>
+                                                                            document.document_type ===
+                                                                                'final' &&
+                                                                            document.order_collateral_id ===
+                                                                                item.order_collateral_id,
+                                                                    )
+                                                                    .every(
+                                                                        (document: any) =>
+                                                                            document.validated_at,
+                                                                    )
+                                                                    ? 'Tervalidasi'
+                                                                    : 'Menunggu validasi'
+                                                            }
+                                                            tone={
+                                                                order.documents
+                                                                    .filter(
+                                                                        (document: any) =>
+                                                                            document.document_type ===
+                                                                                'final' &&
+                                                                            document.order_collateral_id ===
+                                                                                item.order_collateral_id,
+                                                                    )
+                                                                    .every(
+                                                                        (document: any) =>
+                                                                            document.validated_at,
+                                                                    )
+                                                                    ? 'success'
+                                                                    : 'warning'
+                                                            }
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setFinalDocumentsPreview(
+                                                                    order.documents.filter(
+                                                                        (document: any) =>
+                                                                            document.document_type ===
+                                                                                'final' &&
+                                                                            document.order_collateral_id ===
+                                                                                item.order_collateral_id,
+                                                                    ),
+                                                                )
+                                                            }
+                                                        >
+                                                            <Eye className="size-4" />
+                                                            Lihat dokumen final
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             <div className="mt-1 text-xs text-muted-foreground">
                                                 Oleh{' '}
                                                 {item.user?.name ?? 'Notaris'}
@@ -1292,6 +1349,41 @@ export default function NotaryOrdersShow({
                                 className="h-[min(70vh,42rem)] w-full rounded-md border bg-white"
                             />
                         )}
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={Boolean(finalDocumentsPreview)}
+                    onOpenChange={(open) =>
+                        !open && setFinalDocumentsPreview(null)
+                    }
+                >
+                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>Dokumen final</DialogTitle>
+                            <DialogDescription>
+                                Dokumen final yang diunggah pada progres selesai.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                            {(finalDocumentsPreview ?? []).map(
+                                (document: any) => (
+                                    <a
+                                        key={document.id}
+                                        href={`/notary/orders/${order.id}/documents/${document.id}/preview`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex items-center gap-3 rounded-md border p-3 text-sm hover:bg-muted/50"
+                                    >
+                                        <FileText className="size-4 shrink-0 text-muted-foreground" />
+                                        <span className="min-w-0 flex-1 truncate">
+                                            {document.original_name}
+                                        </span>
+                                        <Eye className="size-4 shrink-0 text-muted-foreground" />
+                                    </a>
+                                ),
+                            )}
+                        </div>
                     </DialogContent>
                 </Dialog>
             </div>
