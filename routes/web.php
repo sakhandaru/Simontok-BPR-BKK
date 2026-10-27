@@ -104,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('branches', BranchController::class)->only(['index', 'store', 'update']);
         Route::resource('notaries', NotaryController::class)->only(['index', 'store', 'update']);
         Route::post('notaries/{notary}/portal-account', [NotaryController::class, 'createPortalAccount'])->name('notaries.portal-account.store');
+        Route::put('notaries/{notary}/portal-account/{user}', [NotaryController::class, 'updatePortalAccount'])->name('notaries.portal-account.update');
         Route::get('notaries/{notary}/agreement/preview', [NotaryController::class, 'previewAgreement'])->name('notaries.agreement.preview');
         Route::resource('job-types', JobTypeController::class)->only(['index', 'store', 'update']);
     });

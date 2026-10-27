@@ -57,6 +57,30 @@ class NotaryController extends Controller
         return back()->with('success', 'Akun portal notaris berhasil dibuat.');
     }
 
+    public function updatePortalAccount(Request $request, Notary $notary, User $user): RedirectResponse
+    {
+        abort_unless($user->notary_id === $notary->id, 404);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['nullable', 'string', 'min:8'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        if (blank($data['password'] ?? null)) {
+            unset($data['password']);
+        }
+
+        $user->update($data);
+        Audit::record($request, 'users', $user, 'update_notary_portal_account', 'Akun portal notaris diperbarui.', [
+            'notary_id' => $notary->id,
+            'after' => $user->fresh()->only(['name', 'email', 'notary_id', 'is_active']),
+        ]);
+
+        return back()->with('success', 'Akun portal notaris diperbarui.');
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([

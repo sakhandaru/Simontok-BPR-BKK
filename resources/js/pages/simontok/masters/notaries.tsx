@@ -5,6 +5,7 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { Option } from '@/types';
 import { SimPageHeader } from '@/components/sim-page-header';
 import { SimStatusBadge } from '@/components/sim-status-badge';
@@ -14,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 
-type Notary = { id: number; name: string; email?: string; phone?: string; address?: string; is_active: boolean; agreement_type?: 'PKS' | 'MoU' | null; agreement_file_name?: string | null; pks_no?: string | null; pks_start?: string | null; pks_end?: string | null; partnership_status?: string; branches: Option[]; users?: { id: number; name: string; email: string; is_active: boolean }[] };
+type PortalUser = { id: number; name: string; email: string; is_active: boolean };
+type Notary = { id: number; name: string; email?: string; phone?: string; address?: string; is_active: boolean; agreement_type?: 'PKS' | 'MoU' | null; agreement_file_name?: string | null; pks_no?: string | null; pks_start?: string | null; pks_end?: string | null; partnership_status?: string; branches: Option[]; users?: PortalUser[] };
 
 export default function Notaries({ notaries, branches }: { notaries: { data: Notary[]; links: SimPaginationLink[] }; branches: Option[] }) {
     const { data, setData, post, processing, reset, errors, transform } = useForm({
@@ -34,8 +36,9 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
     const { sortedRows, sort, toggleSort } = useSimTableSort(notaries.data, 'name');
     const [managedNotary, setManagedNotary] = useState<Notary | null>(null);
     const [accountNotary, setAccountNotary] = useState<Notary | null>(null);
+    const [editingAccount, setEditingAccount] = useState<PortalUser | null>(null);
     const [accountFormOpen, setAccountFormOpen] = useState(false);
-    const accountForm = useForm({ name: '', email: '', password: '' });
+    const accountForm = useForm({ name: '', email: '', password: '', is_active: true });
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -54,8 +57,10 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
     const openCreate = () => { reset(); setEditingId(null); setFormOpen(true); };
     const cancelEdit = () => { reset(); setEditingId(null); setFormOpen(false); };
     const openManageAccounts = (notary: Notary) => setManagedNotary(notary);
-    const openAddAccount = (notary: Notary) => { setManagedNotary(null); setAccountNotary(notary); accountForm.setData({ name: '', email: '', password: '' }); setAccountFormOpen(true); };
-    const submitAccount = (event: FormEvent) => { event.preventDefault(); if (!accountNotary) return; accountForm.post(`/notaries/${accountNotary.id}/portal-account`, { onSuccess: () => { setAccountFormOpen(false); setAccountNotary(null); setManagedNotary(null); accountForm.reset(); } }); };
+    const openAddAccount = (notary: Notary) => { setManagedNotary(null); setAccountNotary(notary); setEditingAccount(null); accountForm.setData({ name: '', email: '', password: '', is_active: true }); setAccountFormOpen(true); };
+    const openEditAccount = (notary: Notary, user: PortalUser) => { setManagedNotary(null); setAccountNotary(notary); setEditingAccount(user); accountForm.setData({ name: user.name, email: user.email, password: '', is_active: user.is_active }); setAccountFormOpen(true); };
+    const closeAccountForm = () => { setAccountFormOpen(false); setAccountNotary(null); setEditingAccount(null); accountForm.reset(); };
+    const submitAccount = (event: FormEvent) => { event.preventDefault(); if (!accountNotary) return; const options = { onSuccess: closeAccountForm }; editingAccount ? accountForm.put(`/notaries/${accountNotary.id}/portal-account/${editingAccount.id}`, options) : accountForm.post(`/notaries/${accountNotary.id}/portal-account`, options); };
 
     return (
         <>
@@ -118,7 +123,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                         {managedNotary?.users?.length ? managedNotary.users.map((user) => (
                             <div key={user.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
                                 <div className="min-w-0"><div className="truncate font-medium">{user.name}</div><div className="truncate text-sm text-muted-foreground">{user.email}</div></div>
-                                <SimStatusBadge label={user.is_active ? 'Aktif' : 'Nonaktif'} tone={user.is_active ? 'success' : 'neutral'} />
+                                <div className="flex shrink-0 items-center gap-2"><SimStatusBadge label={user.is_active ? 'Aktif' : 'Nonaktif'} tone={user.is_active ? 'success' : 'neutral'} /><Button type="button" variant="ghost" size="sm" onClick={() => openEditAccount(managedNotary, user)}><Edit3 className="size-4" />Edit</Button></div>
                             </div>
                         )) : <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">Belum ada akun portal untuk kantor notaris ini.</div>}
                     </div>
@@ -128,8 +133,8 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <Dialog open={accountFormOpen} onOpenChange={(open) => { if (!open) { setAccountFormOpen(false); setAccountNotary(null); } }}>
-                <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Tambah akun notaris</DialogTitle><DialogDescription>{accountNotary?.name} akan dapat login ke Portal Notaris.</DialogDescription></DialogHeader><form onSubmit={submitAccount} className="grid gap-4"><Field label="Nama pengguna" error={accountForm.errors.name}><Input value={accountForm.data.name} onChange={(event) => accountForm.setData('name', event.target.value)} /></Field><Field label="Email login" error={accountForm.errors.email}><Input type="email" value={accountForm.data.email} onChange={(event) => accountForm.setData('email', event.target.value)} /></Field><Field label="Password awal" error={accountForm.errors.password}><Input type="password" value={accountForm.data.password} onChange={(event) => accountForm.setData('password', event.target.value)} /></Field><DialogFooter><Button type="button" variant="outline" onClick={() => { setAccountFormOpen(false); setAccountNotary(null); }}>Batal</Button><Button type="submit" disabled={accountForm.processing}><KeyRound className="size-4" />Tambah akun</Button></DialogFooter></form></DialogContent>
+            <Dialog open={accountFormOpen} onOpenChange={(open) => { if (!open) closeAccountForm(); }}>
+                <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>{editingAccount ? 'Edit akun notaris' : 'Tambah akun notaris'}</DialogTitle><DialogDescription>{accountNotary?.name} · akun portal kantor notaris.</DialogDescription></DialogHeader><form onSubmit={submitAccount} className="grid gap-4"><Field label="Nama pengguna" error={accountForm.errors.name}><Input value={accountForm.data.name} onChange={(event) => accountForm.setData('name', event.target.value)} /></Field><Field label="Email login" error={accountForm.errors.email}><Input type="email" value={accountForm.data.email} onChange={(event) => accountForm.setData('email', event.target.value)} /></Field><Field label={editingAccount ? 'Password baru (opsional)' : 'Password awal'} error={accountForm.errors.password}><Input type="password" value={accountForm.data.password} onChange={(event) => accountForm.setData('password', event.target.value)} /></Field><label className="flex items-center gap-3 text-sm"><Checkbox checked={accountForm.data.is_active} onCheckedChange={(checked) => accountForm.setData('is_active', checked === true)} />Akun aktif dan boleh login</label><DialogFooter><Button type="button" variant="outline" onClick={closeAccountForm}>Batal</Button><Button type="submit" disabled={accountForm.processing}>{editingAccount ? <Edit3 className="size-4" /> : <KeyRound className="size-4" />}{editingAccount ? 'Simpan perubahan' : 'Tambah akun'}</Button></DialogFooter></form></DialogContent>
             </Dialog>
         </>
     );
