@@ -129,7 +129,7 @@ class OrderController extends Controller
             ],
             'createOptions' => [
                 'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-                'notaries' => Notary::where('is_active', true)->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
+                'notaries' => Notary::availableForOrders()->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
                 'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             ],
         ]);
@@ -139,7 +139,7 @@ class OrderController extends Controller
     {
         return Inertia::render('simontok/orders/create', [
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-            'notaries' => Notary::where('is_active', true)->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
+            'notaries' => Notary::availableForOrders()->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'slaPolicies' => $this->slaPolicies(),
         ]);
@@ -226,7 +226,7 @@ class OrderController extends Controller
             'canSubmitApproval' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canApproveOrder' => $request->user()->hasPermission('orders.approve') && $order->status === TrackAStatus::MenungguApproval,
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-            'notaries' => Notary::where('is_active', true)->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
+            'notaries' => Notary::availableForOrders()->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
             'paymentBlockers' => $paymentBlockers,
@@ -270,7 +270,7 @@ class OrderController extends Controller
         return Inertia::render('simontok/orders/edit', [
             'order' => $order,
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-            'notaries' => Notary::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'notaries' => Notary::availableForOrders()->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
         ]);
@@ -593,6 +593,12 @@ class OrderController extends Controller
             ]);
         }
 
+        if (! Notary::availableForOrders()->whereKey($data['notary_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'notary_id' => 'Legalitas kemitraan kantor notaris belum lengkap atau sudah berakhir.',
+            ]);
+        }
+
         return $data;
     }
 
@@ -619,6 +625,12 @@ class OrderController extends Controller
         ]);
 
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
+
+        if (! Notary::availableForOrders()->whereKey($data['notary_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'notary_id' => 'Legalitas kemitraan kantor notaris belum lengkap atau sudah berakhir.',
+            ]);
+        }
 
         foreach ($data['collaterals'] ?? [] as $index => $collateralData) {
             if (! ($collateralData['job_type_id'] ?? null)) {

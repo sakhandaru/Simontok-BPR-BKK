@@ -1,5 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
-import { Edit3, KeyRound, Mail, Phone, Plus, X } from 'lucide-react';
+import { Edit3, FileText, KeyRound, Mail, Phone, Plus, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,12 @@ import type { Option } from '@/types';
 import { SimPageHeader } from '@/components/sim-page-header';
 import { SimStatusBadge } from '@/components/sim-status-badge';
 import { SimMultiSelect } from '@/components/sim-multi-select';
+import { SimSelect } from '@/components/sim-select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 
-type Notary = { id: number; name: string; email?: string; phone?: string; address?: string; is_active: boolean; branches: Option[]; users?: { id: number; name: string; email: string; is_active: boolean }[] };
+type Notary = { id: number; name: string; email?: string; phone?: string; address?: string; is_active: boolean; agreement_type?: 'PKS' | 'MoU' | null; agreement_file_name?: string | null; pks_no?: string | null; pks_start?: string | null; pks_end?: string | null; partnership_status?: string; branches: Option[]; users?: { id: number; name: string; email: string; is_active: boolean }[] };
 
 export default function Notaries({ notaries, branches }: { notaries: { data: Notary[]; links: SimPaginationLink[] }; branches: Option[] }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({
@@ -21,6 +22,11 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
         email: '',
         phone: '',
         address: '',
+        agreement_type: 'PKS',
+        pks_no: '',
+        pks_start: '',
+        pks_end: '',
+        agreement_file: null as File | null,
         branch_ids: [] as number[],
     });
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -32,10 +38,11 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
     const submit = (event: FormEvent) => {
         event.preventDefault();
         const options = { onSuccess: () => { reset(); setEditingId(null); setFormOpen(false); } };
-        editingId ? put(`/notaries/${editingId}`, options) : post('/notaries', options);
+        const requestOptions = { ...options, forceFormData: true };
+        editingId ? put(`/notaries/${editingId}`, requestOptions) : post('/notaries', requestOptions);
     };
 
-    const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', address: notary.address ?? '', branch_ids: notary.branches.map((branch) => branch.id) }); setFormOpen(true); };
+    const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', address: notary.address ?? '', agreement_type: notary.agreement_type ?? 'PKS', pks_no: notary.pks_no ?? '', pks_start: notary.pks_start?.slice(0, 10) ?? '', pks_end: notary.pks_end?.slice(0, 10) ?? '', agreement_file: null, branch_ids: notary.branches.map((branch) => branch.id) }); setFormOpen(true); };
     const openCreate = () => { reset(); setEditingId(null); setFormOpen(true); };
     const cancelEdit = () => { reset(); setEditingId(null); setFormOpen(false); };
     const openAccount = (notary: Notary) => { setAccountNotary(notary); accountForm.setData({ name: notary.name, email: notary.email ?? '', password: '' }); };
@@ -50,7 +57,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                 <div className="hidden md:block"><SimTable minWidth="720px">
                             <SimTableHead><tr><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('email')}>Kontak</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('branches')}>Cabang</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>
                             <tbody>{sortedRows.map((notary) => (
-                                <tr key={notary.id} className="border-t"><td className="px-4 py-3"><div className="font-medium">{notary.name}</div><div className="mt-1 text-xs text-muted-foreground">{notary.address || 'Alamat belum diisi'}</div></td><td className="px-4 py-3 text-muted-foreground"><div className="inline-flex items-center gap-1"><Mail className="size-3.5" />{notary.email || '-'}</div><br /><div className="inline-flex items-center gap-1"><Phone className="size-3.5" />{notary.phone || '-'}</div></td><td className="px-4 py-3">{notary.branches.map((branch) => branch.code).join(', ') || '-'}</td><td className="px-4 py-3"><div className="flex flex-wrap items-center gap-2"><SimStatusBadge label={notary.is_active ? 'Aktif' : 'Nonaktif'} tone={notary.is_active ? 'success' : 'neutral'} /><SimStatusBadge label={notary.users?.some((user) => user.is_active) ? 'Portal aktif' : 'Belum ada akun'} tone={notary.users?.some((user) => user.is_active) ? 'success' : 'warning'} /></div></td><td className="px-4 py-3"><div className="flex flex-wrap gap-1"><Button type="button" variant="ghost" size="sm" onClick={() => editNotary(notary)}><Edit3 className="size-4" />Edit</Button>{notary.is_active && !notary.users?.length && <Button type="button" variant="outline" size="sm" onClick={() => openAccount(notary)}><KeyRound className="size-4" />Buat akun</Button>}</div></td></tr>
+                                <tr key={notary.id} className="border-t"><td className="px-4 py-3"><div className="font-medium">{notary.name}</div><div className="mt-1 text-xs text-muted-foreground">{notary.address || 'Alamat belum diisi'}</div></td><td className="px-4 py-3 text-muted-foreground"><div className="inline-flex items-center gap-1"><Mail className="size-3.5" />{notary.email || '-'}</div><br /><div className="inline-flex items-center gap-1"><Phone className="size-3.5" />{notary.phone || '-'}</div></td><td className="px-4 py-3">{notary.branches.map((branch) => branch.code).join(', ') || '-'}</td><td className="px-4 py-3"><div className="flex flex-wrap items-center gap-2"><SimStatusBadge label={notary.partnership_status ?? 'Belum lengkap'} tone={notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir' ? 'success' : notary.partnership_status === 'Berakhir' ? 'danger' : 'warning'} /><SimStatusBadge label={notary.users?.some((user) => user.is_active) ? 'Portal aktif' : 'Belum ada akun'} tone={notary.users?.some((user) => user.is_active) ? 'success' : 'warning'} /></div></td><td className="px-4 py-3"><div className="flex flex-wrap gap-1"><Button type="button" variant="ghost" size="sm" onClick={() => editNotary(notary)}><Edit3 className="size-4" />Edit</Button>{notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir' ? (!notary.users?.length && <Button type="button" variant="outline" size="sm" onClick={() => openAccount(notary)}><KeyRound className="size-4" />Buat akun</Button>) : null}</div></td></tr>
                             ))}</tbody>
                 </SimTable></div>
                 <div className="space-y-3 md:hidden">
@@ -58,17 +65,18 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                         <article key={notary.id} className="space-y-4 border border-border bg-card p-4">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0"><div className="text-lg font-medium leading-6">{notary.name}</div><div className="mt-1 text-sm text-muted-foreground">{notary.address || 'Alamat belum diisi'}</div></div>
-                                <SimStatusBadge label={notary.is_active ? 'Aktif' : 'Nonaktif'} tone={notary.is_active ? 'success' : 'neutral'} />
+                                <div className="flex flex-col items-end gap-1"><SimStatusBadge label={notary.partnership_status ?? 'Belum lengkap'} tone={notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir' ? 'success' : notary.partnership_status === 'Berakhir' ? 'danger' : 'warning'} /><SimStatusBadge label={notary.is_active ? 'Kantor aktif' : 'Kantor nonaktif'} tone={notary.is_active ? 'neutral' : 'warning'} /></div>
                             </div>
                             <div className="grid grid-cols-2 gap-x-3 gap-y-4 text-sm">
                                 <div className="min-w-0"><div className="text-xs text-muted-foreground">Email</div><div className="mt-1 truncate">{notary.email || '-'}</div></div>
                                 <div className="min-w-0"><div className="text-xs text-muted-foreground">Telepon</div><div className="mt-1 truncate">{notary.phone || '-'}</div></div>
                                 <div className="min-w-0"><div className="text-xs text-muted-foreground">Cabang</div><div className="mt-1 truncate">{notary.branches.map((branch) => branch.code).join(', ') || '-'}</div></div>
                                 <div><div className="text-xs text-muted-foreground">Portal</div><div className="mt-1"><SimStatusBadge label={notary.users?.some((user) => user.is_active) ? 'Aktif' : 'Belum ada akun'} tone={notary.users?.some((user) => user.is_active) ? 'success' : 'warning'} /></div></div>
+                                <div className="col-span-2"><div className="text-xs text-muted-foreground">Perjanjian</div><div className="mt-1">{notary.agreement_type && notary.pks_no ? `${notary.agreement_type} · ${notary.pks_no}` : 'Belum dicatat'}</div></div>
                             </div>
                             <div className="flex gap-2 border-t border-border pt-3">
                                 <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => editNotary(notary)}><Edit3 className="size-4" />Edit</Button>
-                                {notary.is_active && !notary.users?.length && <Button type="button" size="sm" className="flex-1" onClick={() => openAccount(notary)}><KeyRound className="size-4" />Buat akun</Button>}
+                                {(notary.partnership_status === 'Aktif' || notary.partnership_status === 'Akan berakhir') && !notary.users?.length && <Button type="button" size="sm" className="flex-1" onClick={() => openAccount(notary)}><KeyRound className="size-4" />Buat akun</Button>}
                             </div>
                         </article>
                     ))}
@@ -78,11 +86,17 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                         <Field label="Email" error={errors.email}><Input value={data.email} onChange={(e) => setData('email', e.target.value)} /></Field>
                         <Field label="Telepon" error={errors.phone}><Input value={data.phone} onChange={(e) => setData('phone', e.target.value)} /></Field>
                         <Field label="Alamat"><textarea className="min-h-20 rounded-md border border-input bg-background px-4 py-2 text-sm" value={data.address} onChange={(e) => setData('address', e.target.value)} /></Field>
+                        <div className="border-t border-border pt-4"><div className="mb-3"><div className="font-medium">Legalitas kemitraan</div><p className="mt-1 text-sm text-muted-foreground">Tidak perlu approval di aplikasi. Lengkapi PKS atau MoU agar kantor notaris dapat menerima order.</p></div><div className="grid gap-4 md:grid-cols-2">
+                            <Field label="Jenis perjanjian" error={errors.agreement_type}><SimSelect value={data.agreement_type} onChange={(value) => setData('agreement_type', value as 'PKS' | 'MoU')} options={[{ value: 'PKS', label: 'PKS' }, { value: 'MoU', label: 'MoU' }]} placeholder="Pilih jenis" /></Field>
+                            <Field label="Nomor perjanjian" error={errors.pks_no}><Input value={data.pks_no} onChange={(e) => setData('pks_no', e.target.value)} placeholder="Contoh: 012/PKS/2026" /></Field>
+                            <Field label="Berlaku mulai" error={errors.pks_start}><Input type="date" value={data.pks_start} onChange={(e) => setData('pks_start', e.target.value)} /></Field>
+                            <Field label="Berlaku sampai" error={errors.pks_end}><Input type="date" value={data.pks_end} onChange={(e) => setData('pks_end', e.target.value)} /></Field>
+                        </div><div className="mt-4 grid gap-2"><Label>File perjanjian (PDF)</Label><Input type="file" accept="application/pdf,.pdf" onChange={(e) => setData('agreement_file', e.target.files?.[0] ?? null)} /><p className="text-xs text-muted-foreground">Maksimal 10 MB. Status aktif hanya jika data perjanjian dan file sudah lengkap.</p>{editingId && data.agreement_file === null && <p className="text-xs text-muted-foreground">File tersimpan tidak berubah jika tidak memilih file baru.</p>}<InputError message={errors.agreement_file} /></div></div>
                         <div className="grid gap-2">
                             <Label>Cabang rekanan</Label>
                             <SimMultiSelect value={data.branch_ids.map(String)} onChange={(values) => setData('branch_ids', values.map(Number))} options={branches.map((branch) => ({ value: String(branch.id), label: `${branch.code} - ${branch.name}` }))} placeholder="Pilih cabang rekanan" />
                         </div>
-                        <DialogFooter><Button type="button" variant="outline" onClick={cancelEdit}><X className="size-4" />Batal</Button><Button type="submit" disabled={processing}>{editingId ? <Edit3 className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Tambah notaris'}</Button></DialogFooter>
+                        <DialogFooter><Button type="button" variant="outline" onClick={cancelEdit}><X className="size-4" />Batal</Button><Button type="submit" disabled={processing}>{editingId ? <Edit3 className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Tambah kantor notaris'}</Button></DialogFooter>
                     </form></DialogContent></Dialog>
             </div>
             <Dialog open={Boolean(accountNotary)} onOpenChange={(open) => !open && setAccountNotary(null)}>
