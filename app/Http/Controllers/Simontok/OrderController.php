@@ -386,14 +386,18 @@ class OrderController extends Controller
         abort_unless($this->canEditDraft($order), 403);
         $this->ensureReadyToSend($order);
 
+        $fromStatus = $order->status->value;
+        $isResubmission = $order->status === TrackAStatus::PerluPerbaikanOrder;
         $order->update(['status' => TrackAStatus::MenungguApproval]);
         $order->statusHistories()->create([
             'track' => 'A',
-            'from_status' => TrackAStatus::Draft->value,
+            'from_status' => $fromStatus,
             'to_status' => TrackAStatus::MenungguApproval->value,
             'actor_type' => 'user',
             'actor_id' => $request->user()->id,
-            'reason' => 'Order diajukan untuk approval cabang.',
+            'reason' => $isResubmission
+                ? 'Order diperbaiki dan diajukan ulang untuk approval cabang.'
+                : 'Order diajukan untuk approval cabang.',
         ]);
         Audit::record($request, 'orders', $order, 'submit_approval', 'Order diajukan untuk approval.', []);
         InAppNotification::forBranchApprovers($order, 'Order menunggu approval', "Order {$order->order_no} menunggu review approver cabang.");

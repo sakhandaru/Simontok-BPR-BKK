@@ -351,6 +351,14 @@ export default function OrdersShow({
             (item) => item.sla_days && !item.sla_override_reason,
         ) && 'Alasan perubahan SLA',
     ].filter(Boolean) as string[];
+    const needsOrderRevision =
+        statusValue(order.status) === 'perlu_perbaikan_order';
+    const latestOrderRevision = needsOrderRevision
+        ? order.status_histories?.find(
+              (history: any) =>
+                  statusValue(history.to_status) === 'perlu_perbaikan_order',
+          )
+        : null;
     const upload = useForm<{
         order_collateral_id: string;
         order_checklist_id: string;
@@ -510,7 +518,9 @@ export default function OrdersShow({
                                     disabled={!canSend || draft.processing}
                                 >
                                     <Send className="size-4" />
-                                    Ajukan approval
+                                    {needsOrderRevision
+                                        ? 'Kirim ulang approval'
+                                        : 'Ajukan approval'}
                                 </Button>
                             )}
                             {canApproveOrder && (
@@ -577,6 +587,27 @@ export default function OrdersShow({
                         </>
                     }
                 />
+
+                {needsOrderRevision && (
+                    <SimActionAlert
+                        tone="warning"
+                        title="Order dikembalikan untuk perbaikan"
+                        description={
+                            <>
+                                <span>
+                                    Catatan approver:{' '}
+                                    {latestOrderRevision?.reason ||
+                                        'Tidak ada catatan tambahan.'}
+                                </span>
+                                <span className="mt-1 block">
+                                    Perbaiki data yang diminta, lalu klik{' '}
+                                    <strong>Kirim ulang approval</strong> agar
+                                    order kembali masuk ke antrean atasan.
+                                </span>
+                            </>
+                        }
+                    />
+                )}
 
                 {canApproveOrder && revisionOpen && (
                     <form
