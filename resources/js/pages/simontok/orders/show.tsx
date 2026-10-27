@@ -2103,7 +2103,12 @@ export default function OrdersShow({
                                                     />
                                                     <Button
                                                         type="button"
-                                                        variant="outline"
+                                                        variant={
+                                                            canValidateDocuments &&
+                                                            !allFinalDocumentsValidated
+                                                                ? 'default'
+                                                                : 'outline'
+                                                        }
                                                         size="sm"
                                                         onClick={() =>
                                                             setProgressDocumentsPreview(
@@ -2111,8 +2116,16 @@ export default function OrdersShow({
                                                             )
                                                         }
                                                     >
-                                                        <Eye className="size-4" />
-                                                        Lihat dokumen final ({finalDocuments.length})
+                                                        {canValidateDocuments &&
+                                                        !allFinalDocumentsValidated ? (
+                                                            <FileCheck2 className="size-4" />
+                                                        ) : (
+                                                            <Eye className="size-4" />
+                                                        )}
+                                                        {canValidateDocuments &&
+                                                        !allFinalDocumentsValidated
+                                                            ? `Validasi dokumen final (${finalDocuments.length})`
+                                                            : `Lihat dokumen final (${finalDocuments.length})`}
                                                     </Button>
                                                 </div>
                                             )}
