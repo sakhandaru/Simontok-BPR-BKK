@@ -61,7 +61,7 @@ export function useFlashToast(): void {
         const firstError = Object.values(errors ?? {})[0];
 
         if (firstError) {
-            toast.error(firstError, { id: `validation:${firstError}` });
+            toast.error(firstError);
         }
     }, [errors]);
 }

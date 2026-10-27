@@ -354,6 +354,14 @@ export default function OrdersShow({
             !item.job_type_id && `Jenis pekerjaan agunan ${index + 1}`,
             !item.deskripsi_agunan && `Deskripsi agunan ${index + 1}`,
         ]),
+        order.collaterals?.some((item: any) =>
+            item.checklists?.some(
+                (checklist: any) => !checklist.is_checked || !checklist.order_document_id,
+            ),
+        ) && 'Dokumen checklist agunan',
+        draft.data.collaterals.some(
+            (item) => item.sla_days && !item.sla_override_reason,
+        ) && 'Alasan perubahan SLA',
     ].filter(Boolean) as string[];
     const upload = useForm<{
         order_collateral_id: string;
