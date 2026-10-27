@@ -10,8 +10,8 @@ import { Label } from '@/components/ui/label';
 
 type Option = { id: number; code?: string; name: string };
 
-export default function OrdersCreate({ branches, notaries }: { branches: Option[]; notaries: Option[] }) {
-    const { data, setData, post, processing, errors } = useForm({ branch_id: '', notary_id: '', customer_name: '', no_rekening: '', tgl_masuk_notaris: '' });
+export default function OrdersCreate({ branches, notaries, defaultBranchId, branchLocked }: { branches: Option[]; notaries: Option[]; defaultBranchId: number | null; branchLocked: boolean }) {
+    const { data, setData, post, processing, errors } = useForm({ branch_id: defaultBranchId ? String(defaultBranchId) : '', notary_id: '', customer_name: '', no_rekening: '', tgl_masuk_notaris: '' });
     const submit = (event: FormEvent) => { event.preventDefault(); post('/orders'); };
 
     return <><Head title="Buat order" /><div className="sim-workspace">
@@ -19,7 +19,7 @@ export default function OrdersCreate({ branches, notaries }: { branches: Option[
         <form onSubmit={submit} className="sim-panel max-w-3xl">
             <div className="sim-panel-header"><h2 className="sim-panel-title">Mulai order</h2><p className="sim-panel-subtitle">Pilih tujuan order terlebih dahulu. Data kredit, agunan, dan dokumen diisi setelah draft dibuat.</p></div>
             <div className="grid gap-4 p-4 md:grid-cols-2">
-                <Field label="Cabang" error={errors.branch_id}><SimSelect value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={branches.map((item) => ({ value: String(item.id), label: `${item.code} - ${item.name}` }))} placeholder="Pilih cabang" /></Field>
+                <Field label="Cabang" error={errors.branch_id}><SimSelect value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={branches.map((item) => ({ value: String(item.id), label: `${item.code} - ${item.name}` }))} placeholder="Pilih cabang" disabled={branchLocked} />{branchLocked && <p className="text-xs text-muted-foreground">Otomatis mengikuti cabang yang terdaftar pada akun Anda.</p>}</Field>
                 <Field label="Notaris" error={errors.notary_id}><SimSelect value={data.notary_id} onChange={(value) => setData('notary_id', value)} options={notaries.map((item) => ({ value: String(item.id), label: item.name }))} placeholder="Pilih notaris" /></Field>
                 <Field label="Nama nasabah" error={errors.customer_name}><Input value={data.customer_name} onChange={(event) => setData('customer_name', event.target.value)} /></Field>
                 <Field label="No rekening" error={errors.no_rekening}><Input value={data.no_rekening} onChange={(event) => setData('no_rekening', event.target.value)} /></Field>

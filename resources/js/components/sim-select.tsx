@@ -2,9 +2,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 type SimSelectOption = { value: string; label: string };
 
-export function SimSelect({ value, onChange, options, placeholder = 'Pilih...' }: { value: string; onChange: (value: string) => void; options: SimSelectOption[]; placeholder?: string }) {
+export function SimSelect({ value, onChange, options, placeholder = 'Pilih...', disabled = false }: { value: string; onChange: (value: string) => void; options: SimSelectOption[]; placeholder?: string; disabled?: boolean }) {
     return <Select value={value || undefined} onValueChange={(next) => onChange(next === '__empty__' ? '' : next)}>
-        <SelectTrigger className="min-w-0 w-full overflow-hidden bg-background !pr-5">
+        <SelectTrigger disabled={disabled} className="min-w-0 w-full overflow-hidden bg-background !pr-5">
             <SelectValue className="min-w-0 truncate" placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>

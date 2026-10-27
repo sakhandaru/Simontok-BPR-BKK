@@ -135,13 +135,20 @@ class OrderController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $branchId = $this->userBranchScope($request);
+
         return Inertia::render('simontok/orders/create', [
-            'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-            'notaries' => Notary::availableForOrders()->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
+            'branches' => Branch::where('is_active', true)->when($branchId, fn ($query) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
+            'notaries' => Notary::availableForOrders()
+                ->whereHas('users', fn ($query) => $query->where('is_active', true))
+                ->when($branchId, fn ($query) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))
+                ->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'slaPolicies' => $this->slaPolicies(),
+            'defaultBranchId' => $branchId,
+            'branchLocked' => $branchId !== null,
         ]);
     }
 
@@ -704,9 +711,20 @@ class OrderController extends Controller
 
     private function authorizeBranchAssignment(Request $request, int $branchId): void
     {
+        $scopedBranchId = $this->userBranchScope($request);
+
+        abort_unless($scopedBranchId === null || $scopedBranchId === $branchId, 403);
+    }
+
+    private function userBranchScope(Request $request): ?int
+    {
         $user = $request->user();
 
-        abort_unless($user && ! (in_array($user->roleCode(), ['kepala_cabang', 'kadiv_operasional'], true) && $user->branch_id && $user->branch_id !== $branchId), 403);
+        if (! $user || $user->roleCode() === 'it_admin' || ! $user->branch_id) {
+            return null;
+        }
+
+        return (int) $user->branch_id;
     }
 
     private function paymentBlockers(Order $order): array
