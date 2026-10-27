@@ -604,34 +604,7 @@ export default function OrdersShow({
                                     <strong>Kirim ulang approval</strong> agar
                                     order kembali masuk ke antrean atasan.
                                 </span>
-                                <span className="mt-1 block">
-                                    Jika diminta dokumen tambahan yang belum ada
-                                    di checklist, masukkan melalui{' '}
-                                    <strong>Tambah dokumen pendukung</strong>.
-                                </span>
                             </>
-                        }
-                        action={
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    setDocumentsOpen(true);
-                                    requestAnimationFrame(() =>
-                                        document
-                                            .getElementById(
-                                                'kelengkapan-dokumen',
-                                            )
-                                            ?.scrollIntoView({
-                                                behavior: 'smooth',
-                                                block: 'start',
-                                            }),
-                                    );
-                                }}
-                            >
-                                Buka kelengkapan dokumen
-                            </Button>
                         }
                     />
                 )}
@@ -1702,7 +1675,6 @@ export default function OrdersShow({
 
                 {!orderSentToNotary && canManageOrder && (
                     <details
-                        id="kelengkapan-dokumen"
                         className="sim-panel group"
                         open={documentsOpen}
                         onToggle={(event) =>
