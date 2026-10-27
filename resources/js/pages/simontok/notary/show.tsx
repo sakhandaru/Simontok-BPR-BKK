@@ -225,8 +225,8 @@ export default function NotaryOrdersShow({
                                 {order.order_no}
                             </h1>
                             <SimStatusBadge
-                                label={orderStatusLabel(order.status)}
-                                tone={toneForStatus(orderStatusLabel(order.status))}
+                                label={orderStatusLabel(order.status, order)}
+                                tone={toneForStatus(orderStatusLabel(order.status, order))}
                             />
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -1264,7 +1264,10 @@ function progressLabel(value?: string | null): string {
         .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function orderStatusLabel(value?: string | { value?: string } | null): string {
+function orderStatusLabel(
+    value?: string | { value?: string } | null,
+    order?: any,
+): string {
     const key = typeof value === 'object' ? value?.value : value;
     const labels: Record<string, string> = {
         draft: 'Draft',
@@ -1291,6 +1294,10 @@ function orderStatusLabel(value?: string | { value?: string } | null): string {
         ditolak_notaris: 'Ditolak notaris',
         dibatalkan: 'Dibatalkan',
     };
+
+    if (key === 'menunggu_approval_covernote' && !order?.covernote_submitted_at) {
+        return 'Menunggu covernote notaris';
+    }
 
     return key ? (labels[key] ?? progressLabel(key)) : 'Status order';
 }
