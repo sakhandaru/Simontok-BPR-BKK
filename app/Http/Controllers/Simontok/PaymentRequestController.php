@@ -247,7 +247,7 @@ class PaymentRequestController extends Controller
     {
         $order->loadMissing('collaterals');
 
-        if ($order->status !== TrackAStatus::DokumenFinalDiunggah) {
+        if (! in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true)) {
             throw ValidationException::withMessages([
                 'invoice' => 'Invoice baru tersedia setelah seluruh dokumen final disetujui Admin Legal.',
             ]);

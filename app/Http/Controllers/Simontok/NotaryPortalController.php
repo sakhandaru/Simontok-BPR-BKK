@@ -117,7 +117,7 @@ class NotaryPortalController extends Controller
             ], true),
             'initialDocumentsComplete' => $initialDocumentsComplete,
             'canViewDocuments' => $canViewDocuments,
-            'canRequestInvoice' => $canAct && $order->status === TrackAStatus::DokumenFinalDiunggah && $order->paymentRequest === null && $paymentBlockers === [],
+            'canRequestInvoice' => $canAct && in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true) && $order->paymentRequest === null && $paymentBlockers === [],
             'canAddProgress' => $canAddProgress,
             'needsCovernote' => $canAct && $missingCovernote && ! in_array($order->status, [TrackAStatus::MenungguVerifikasiNotaris, TrackAStatus::PerbaikanDokumen, TrackAStatus::PerluPengalihanNotaris], true),
             'canRequestAdditionalDocuments' => $canAct && $covernoteApprovedStage,
