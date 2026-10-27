@@ -124,11 +124,13 @@ class NotaryController extends Controller
         return back()->with('success', 'Notaris diperbarui.');
     }
 
-    public function downloadAgreement(Notary $notary)
+    public function previewAgreement(Notary $notary)
     {
         abort_unless($notary->agreement_file_path && Storage::disk('local')->exists($notary->agreement_file_path), 404);
 
-        return Storage::disk('local')->download($notary->agreement_file_path, $notary->agreement_file_name);
+        return response()->file(Storage::disk('local')->path($notary->agreement_file_path), [
+            'Content-Disposition' => 'inline; filename="'.addslashes($notary->agreement_file_name ?: 'perjanjian-notaris.pdf').'"',
+        ]);
     }
 
     private function agreementData(Request $request, array $data, ?Notary $notary = null): array
