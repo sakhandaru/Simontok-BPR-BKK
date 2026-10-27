@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Edit3, RotateCcw, Search, UserPlus, X } from 'lucide-react';
+import { Edit3, RotateCcw, Search, X } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import { SimPageHeader } from '@/components/sim-page-header';
@@ -57,7 +57,7 @@ export default function Users({
     positions: Option[];
     filters: { search: string; type: string; branch_id: string; position_id: string; status: string };
 }) {
-    const { data, setData, post, put, processing, reset, errors } = useForm({
+    const { data, setData, put, processing, reset, errors } = useForm({
         name: '',
         email: '',
         sso_employee_id: '',
@@ -88,6 +88,8 @@ export default function Users({
     const branchHidden = selectedRole === 'IT Administrator';
     const submit = (event: FormEvent) => {
         event.preventDefault();
+        if (!editingId) return;
+
         const options = {
             onSuccess: () => {
                 reset();
@@ -95,9 +97,7 @@ export default function Users({
                 setFormOpen(false);
             },
         };
-        editingId
-            ? put(`/users/${editingId}`, options)
-            : post('/users', options);
+        put(`/users/${editingId}`, options);
     };
     const editUser = (user: User) => {
         if (user.notary) return;
@@ -115,12 +115,6 @@ export default function Users({
             is_active: user.is_active,
         });
         setAccountType(user.sso_employee_id ? 'sso' : 'local');
-        setFormOpen(true);
-    };
-    const openCreate = () => {
-        reset();
-        setEditingId(null);
-        setAccountType('sso');
         setFormOpen(true);
     };
     const cancelEdit = () => {
@@ -159,12 +153,6 @@ export default function Users({
                 <SimPageHeader
                     title="Manajemen Pengguna"
                     description="Direktori akses global untuk akun internal dan portal notaris."
-                    actions={
-                        <Button type="button" onClick={openCreate}>
-                            <UserPlus className="size-4" />
-                            Tambah akun internal
-                        </Button>
-                    }
                 />
                 <div className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto] md:items-end">
                     <div className="grid gap-2"><Label htmlFor="user-search">Cari pengguna</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="user-search" className="pl-9" value={filterForm.data.search} onChange={(event) => filterForm.setData('search', event.target.value)} placeholder="Nama, ID SSO, email" /></div></div>
@@ -361,9 +349,7 @@ export default function Users({
                     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                         <DialogHeader>
                             <DialogTitle>
-                                {editingId
-                                    ? 'Edit pengguna'
-                                    : 'Tambah pengguna'}
+                                Edit pengguna
                             </DialogTitle>
                             <DialogDescription>
                                 Atur identitas, posisi, unit, dan akun pengguna.
@@ -487,14 +473,8 @@ export default function Users({
                                     Batal
                                 </Button>
                                 <Button type="submit" disabled={processing}>
-                                    {editingId ? (
-                                        <Edit3 className="size-4" />
-                                    ) : (
-                                        <UserPlus className="size-4" />
-                                    )}
-                                    {editingId
-                                        ? 'Simpan perubahan'
-                                        : 'Tambah pengguna'}
+                                    <Edit3 className="size-4" />
+                                    Simpan perubahan
                                 </Button>
                             </DialogFooter>
                         </form>
