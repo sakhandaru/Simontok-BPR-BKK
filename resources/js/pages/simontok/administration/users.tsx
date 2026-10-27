@@ -1,6 +1,6 @@
 import { Head, useForm } from '@inertiajs/react';
 import { Edit3, RotateCcw, Search, UserPlus, X } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import { SimPageHeader } from '@/components/sim-page-header';
 import { SimStatusBadge } from '@/components/sim-status-badge';
@@ -70,6 +70,7 @@ export default function Users({
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const [accountType, setAccountType] = useState<AccountType>('sso');
+    const filterInitialized = useRef(false);
     const { sortedRows, sort, toggleSort } = useSimTableSort(
         users.data,
         'name',
@@ -127,14 +128,21 @@ export default function Users({
         setAccountType('sso');
         setFormOpen(false);
     };
-    const applyFilters = (event: FormEvent) => {
-        event.preventDefault();
-        filterForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
-    };
     const resetFilters = () => {
         filterForm.setData({ search: '', type: '', branch_id: '', position_id: '', status: '' });
-        filterForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
     };
+    useEffect(() => {
+        if (!filterInitialized.current) {
+            filterInitialized.current = true;
+            return;
+        }
+
+        const timeout = window.setTimeout(() => {
+            filterForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
+        }, 300);
+
+        return () => window.clearTimeout(timeout);
+    }, [filterForm.data.search, filterForm.data.type, filterForm.data.branch_id, filterForm.data.position_id, filterForm.data.status]);
     return (
         <>
             <Head title="Manajemen Pengguna" />
@@ -149,14 +157,14 @@ export default function Users({
                         </Button>
                     }
                 />
-                <form onSubmit={applyFilters} className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto_auto] md:items-end">
+                <div className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto] md:items-end">
                     <div className="grid gap-2"><Label htmlFor="user-search">Cari pengguna</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="user-search" className="pl-9" value={filterForm.data.search} onChange={(event) => filterForm.setData('search', event.target.value)} placeholder="Nama, ID SSO, email" /></div></div>
                     <FilterSelect label="Tipe akun" value={filterForm.data.type} onChange={(value) => filterForm.setData('type', value)} options={[{ value: '', label: 'Semua tipe' }, { value: 'internal', label: 'Pegawai internal' }, { value: 'notary', label: 'Portal notaris' }]} />
                     <FilterSelect label="Cabang" value={filterForm.data.branch_id} onChange={(value) => filterForm.setData('branch_id', value)} options={[{ value: '', label: 'Semua cabang' }, ...branches.map((branch) => ({ value: String(branch.id), label: `${branch.code ? `${branch.code} · ` : ''}${branch.name}` }))]} />
                     <FilterSelect label="Posisi" value={filterForm.data.position_id} onChange={(value) => filterForm.setData('position_id', value)} options={[{ value: '', label: 'Semua posisi' }, ...positions.map((position) => ({ value: String(position.id), label: position.name }))]} />
                     <FilterSelect label="Status" value={filterForm.data.status} onChange={(value) => filterForm.setData('status', value)} options={[{ value: '', label: 'Semua status' }, { value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
-                    <Button type="submit" disabled={filterForm.processing}><Search className="size-4" />Terapkan</Button><Button type="button" variant="outline" onClick={resetFilters}><RotateCcw className="size-4" />Reset</Button>
-                </form>
+                    <Button type="button" variant="outline" onClick={resetFilters}><RotateCcw className="size-4" />Reset</Button>
+                </div>
                 <SimPagination links={users.links} />
                 <div className="hidden md:block">
                     <SimTable minWidth="800px">
