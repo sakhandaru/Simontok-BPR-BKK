@@ -28,8 +28,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 
-type Option = { value: string; label: string };
-
 export default function NotaryOrdersShow({
     order,
     canReview,
@@ -38,13 +36,10 @@ export default function NotaryOrdersShow({
     canRequestInvoice,
     canAddProgress,
     needsCovernote,
-    canUploadWork,
-    canUploadFinal,
     canSubmitFinal,
     canRequestAdditionalDocuments,
     canExtendCovernote,
     paymentBlockers,
-    documentTypes,
 }: {
     order: any;
     canReview: boolean;
@@ -53,13 +48,10 @@ export default function NotaryOrdersShow({
     canRequestInvoice: boolean;
     canAddProgress: boolean;
     needsCovernote: boolean;
-    canUploadWork: boolean;
-    canUploadFinal: boolean;
     canSubmitFinal: boolean;
     canRequestAdditionalDocuments: boolean;
     canExtendCovernote: boolean;
     paymentBlockers: string[];
-    documentTypes: Option[];
 }) {
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
@@ -81,16 +73,7 @@ export default function NotaryOrdersShow({
         catatan: '',
         komitmen_penyelesaian: '',
         evidence: null as File | null,
-        final_document: null as File | null,
-    });
-    const upload = useForm<{
-        order_collateral_id: string;
-        document_type: string;
-        file: File | null;
-    }>({
-        order_collateral_id: String(order.collaterals[0]?.id ?? ''),
-        document_type: 'draft',
-        file: null,
+        final_documents: [] as File[],
     });
     const invoice = useForm({
         invoice_no: '',
@@ -171,16 +154,8 @@ export default function NotaryOrdersShow({
                     'catatan',
                     'komitmen_penyelesaian',
                     'evidence',
-                    'final_document',
+                    'final_documents',
                 ),
-        });
-    };
-
-    const submitUpload = (event: FormEvent) => {
-        event.preventDefault();
-        upload.post(`/notary/orders/${order.id}/documents`, {
-            forceFormData: true,
-            preserveScroll: true,
         });
     };
     const submitFinal = () =>
@@ -950,20 +925,53 @@ export default function NotaryOrdersShow({
                             </div>
                             {isFinalProgressStep && (
                                 <div className="grid gap-2 md:col-span-2">
-                                    <Label>Dokumen final wajib</Label>
-                                    <SimFileUpload
-                                        value={progress.data.final_document}
+                                    <Label htmlFor="final-documents">
+                                        Dokumen final wajib
+                                    </Label>
+                                    <Input
+                                        id="final-documents"
+                                        type="file"
                                         accept="application/pdf"
-                                        onChange={(file) =>
+                                        multiple
+                                        onChange={(event) =>
                                             progress.setData(
-                                                'final_document',
-                                                file,
+                                                'final_documents',
+                                                Array.from(
+                                                    event.target.files ?? [],
+                                                ),
                                             )
                                         }
-                                        label="Pilih dokumen final"
                                     />
+                                    <p className="text-xs text-muted-foreground">
+                                        Pilih satu atau beberapa PDF. Minimal
+                                        satu dokumen wajib diunggah untuk
+                                        menyelesaikan langkah terakhir.
+                                    </p>
+                                    {progress.data.final_documents.length >
+                                        0 && (
+                                        <div className="rounded-md border bg-muted/20 p-3 text-sm">
+                                            <div className="font-medium">
+                                                {progress.data.final_documents.length}{' '}
+                                                dokumen dipilih
+                                            </div>
+                                            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                                {progress.data.final_documents.map(
+                                                    (file) => (
+                                                        <li
+                                                            key={`${file.name}-${file.size}`}
+                                                            className="truncate"
+                                                        >
+                                                            {file.name}
+                                                        </li>
+                                                    ),
+                                                )}
+                                            </ul>
+                                        </div>
+                                    )}
                                     <InputError
-                                        message={progress.errors.final_document}
+                                        message={
+                                            progress.errors.final_documents
+                                        }
                                     />
                                 </div>
                             )}
@@ -971,52 +979,6 @@ export default function NotaryOrdersShow({
                         <Button className="mt-4" disabled={progress.processing}>
                             <Save className="size-4" />
                             Simpan progres
-                        </Button>
-                    </form>
-                )}
-
-                {canViewDocuments && (canUploadWork || canUploadFinal) && (
-                    <form onSubmit={submitUpload} className="sim-panel p-4">
-                        <h2 className="font-medium">
-                            Upload dokumen pekerjaan
-                        </h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Gunakan PDF untuk draft, resi BPN, dan dokumen
-                            final.
-                        </p>
-                        <div className="mt-4 grid gap-4 md:grid-cols-3">
-                            <SimSelect
-                                value={upload.data.order_collateral_id}
-                                onChange={(value) =>
-                                    upload.setData('order_collateral_id', value)
-                                }
-                                options={order.collaterals.map(
-                                    (collateral: any) => ({
-                                        value: String(collateral.id),
-                                        label: `${collateral.job_type?.name} - ${collateral.agunan_id || collateral.id}`,
-                                    }),
-                                )}
-                                placeholder="Pilih agunan"
-                            />
-                            <SimSelect
-                                value={upload.data.document_type}
-                                onChange={(value) =>
-                                    upload.setData('document_type', value)
-                                }
-                                options={documentTypes}
-                                placeholder="Pilih jenis dokumen"
-                            />
-                            <SimFileUpload
-                                value={upload.data.file}
-                                onChange={(file) =>
-                                    upload.setData('file', file)
-                                }
-                                label="Pilih dokumen pekerjaan"
-                            />
-                        </div>
-                        <Button className="mt-4" disabled={upload.processing}>
-                            <FileUp className="size-4" />
-                            Upload dokumen
                         </Button>
                     </form>
                 )}

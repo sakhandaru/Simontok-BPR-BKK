@@ -106,13 +106,6 @@ class NotaryPortalController extends Controller
             TrackAStatus::ProsesBpnSamsat,
             TrackAStatus::DraftDiunggah,
         ], true);
-        $canUploadWork = $canAct && $covernoteComplete && in_array($order->status, [
-            TrackAStatus::DokumenValid,
-            TrackAStatus::ProsesAkta,
-            TrackAStatus::ProsesBpnSamsat,
-            TrackAStatus::DraftDiunggah,
-            TrackAStatus::MenungguValidasiBpr,
-        ], true) && (! in_array($order->status, [TrackAStatus::DraftDiunggah, TrackAStatus::MenungguValidasiBpr], true) || $progressComplete);
         $canExtendCovernote = $canAct && $order->collaterals->contains(fn ($collateral) => $collateral->covernote_end !== null)
             && ! in_array($order->status, [TrackAStatus::Draft, TrackAStatus::MenungguApproval, TrackAStatus::PerluPerbaikanOrder], true);
 
@@ -128,21 +121,10 @@ class NotaryPortalController extends Controller
             'canAddProgress' => $canAddProgress,
             'needsCovernote' => $canAct && $missingCovernote && ! in_array($order->status, [TrackAStatus::MenungguVerifikasiNotaris, TrackAStatus::PerbaikanDokumen, TrackAStatus::PerluPengalihanNotaris], true),
             'canRequestAdditionalDocuments' => $canAct && $covernoteApprovedStage,
-            'canUploadWork' => $canUploadWork,
-            'canUploadFinal' => false,
             'canSubmitFinal' => $canAct && $progressComplete && $order->status === TrackAStatus::DraftDiunggah && $order->documents()->where('document_type', 'final')->exists(),
             'canExtendCovernote' => $canExtendCovernote,
             'isMonitor' => $request->user()?->roleCode() === 'it_admin',
             'paymentBlockers' => $paymentBlockers,
-            'documentTypes' => array_merge(
-                in_array($order->status, [TrackAStatus::DokumenValid, TrackAStatus::ProsesAkta, TrackAStatus::ProsesBpnSamsat], true)
-                    ? [
-                        ['value' => 'draft', 'label' => 'Draft'],
-                        ['value' => 'resi_bpn', 'label' => 'Resi BPN'],
-                    ]
-                    : [],
-                [],
-            ),
         ]);
     }
 
@@ -376,7 +358,8 @@ class NotaryPortalController extends Controller
             'catatan' => ['required', 'string', 'max:2000'],
             'komitmen_penyelesaian' => ['nullable', 'date'],
             'evidence' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
-            'final_document' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'final_documents' => ['nullable', 'array'],
+            'final_documents.*' => ['file', 'mimes:pdf', 'max:10240'],
         ]);
 
         $collateral = $order->collaterals()->with('jobType.steps')->findOrFail($data['order_collateral_id']);
@@ -398,16 +381,23 @@ class NotaryPortalController extends Controller
         $isExistingStep = in_array($data['status'], $completedNames, true);
         $isFinalReupload = $isFinalStep && $completedCount >= count($stepNames) - 1;
         abort_unless($isNextStep || $isExistingStep || $isFinalReupload, 422, 'Selesaikan langkah sebelumnya terlebih dahulu.');
+        $finalDocuments = $request->file('final_documents', []);
         if ($isFinalStep) {
-            validator($data, ['final_document' => ['required', 'file', 'mimes:pdf', 'max:10240']], ['final_document.required' => 'Dokumen final wajib diunggah pada langkah terakhir.'])->validate();
+            validator(
+                ['final_documents' => $finalDocuments],
+                ['final_documents' => ['required', 'array', 'min:1'], 'final_documents.*' => ['file', 'mimes:pdf', 'max:10240']],
+                [
+                    'final_documents.required' => 'Minimal satu dokumen final wajib diunggah pada langkah terakhir.',
+                    'final_documents.min' => 'Minimal satu dokumen final wajib diunggah pada langkah terakhir.',
+                ],
+            )->validate();
         }
         $evidencePath = $request->file('evidence')?->store("documents/{$order->order_no}/progress", 'local');
-        $finalDocument = $request->file('final_document');
 
-        DB::transaction(function () use ($request, $order, $data, $evidencePath, $collateral, $finalDocument, $isFinalStep) {
+        DB::transaction(function () use ($request, $order, $data, $evidencePath, $collateral, $finalDocuments, $isFinalStep) {
             $existingFinalProgress = $collateral->progress()->where('status', $data['status'])->latest('id')->first();
             $progressData = [
-                ...collect($data)->except(['evidence', 'final_document'])->all(),
+                ...collect($data)->except(['evidence', 'final_documents'])->all(),
                 'order_collateral_id' => $collateral->id,
                 'completed_at' => now(),
                 'evidence_path' => $evidencePath,
@@ -419,20 +409,24 @@ class NotaryPortalController extends Controller
                 $order->progress()->create($progressData);
             }
 
-            if ($isFinalStep && $finalDocument) {
-                $path = $finalDocument->store("documents/{$order->order_no}/final", 'local');
-                $document = $order->documents()->create([
-                    'order_collateral_id' => $collateral->id,
-                    'document_type' => OrderDocumentType::Final,
-                    'display_name' => 'Dokumen final',
-                    'version' => ((int) $order->documents()->where('order_collateral_id', $collateral->id)->where('document_type', OrderDocumentType::Final)->max('version')) + 1,
-                    'original_name' => $finalDocument->getClientOriginalName(),
-                    'stored_name' => basename($path),
-                    'stored_path' => $path,
-                    'mime_type' => $finalDocument->getMimeType(),
-                    'file_size' => $finalDocument->getSize(),
-                    'uploaded_by' => $request->user()->id,
-                ]);
+            if ($isFinalStep && $finalDocuments !== []) {
+                $documentIds = [];
+                foreach ($finalDocuments as $finalDocument) {
+                    $path = $finalDocument->store("documents/{$order->order_no}/final", 'local');
+                    $document = $order->documents()->create([
+                        'order_collateral_id' => $collateral->id,
+                        'document_type' => OrderDocumentType::Final,
+                        'display_name' => null,
+                        'version' => ((int) $order->documents()->where('order_collateral_id', $collateral->id)->where('document_type', OrderDocumentType::Final)->max('version')) + 1,
+                        'original_name' => $finalDocument->getClientOriginalName(),
+                        'stored_name' => basename($path),
+                        'stored_path' => $path,
+                        'mime_type' => $finalDocument->getMimeType(),
+                        'file_size' => $finalDocument->getSize(),
+                        'uploaded_by' => $request->user()->id,
+                    ]);
+                    $documentIds[] = $document->id;
+                }
                 $collateral->update(['doc_status' => TrackBDocStatus::FinalDiunggah]);
                 $allFinalDocumentsUploaded = $order->collaterals()
                     ->where('doc_status', '!=', TrackBDocStatus::FinalDiunggah->value)
@@ -459,7 +453,7 @@ class NotaryPortalController extends Controller
                 } else {
                     $order->update(['status' => TrackAStatus::DraftDiunggah]);
                 }
-                Audit::record($request, 'documents', $order, 'upload_final', 'Dokumen final diunggah pada langkah progres terakhir.', ['document_id' => $document->id]);
+                Audit::record($request, 'documents', $order, 'upload_final', 'Dokumen final diunggah pada langkah progres terakhir.', ['document_ids' => $documentIds]);
             }
 
             $before = $order->status;
