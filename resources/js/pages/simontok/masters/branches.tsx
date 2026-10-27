@@ -77,6 +77,7 @@ export default function Branches({ branches, positions }: { branches: { data: Br
                             <InputError message={errors.name} />
                         </div>
                         <div className="grid gap-2"><Label>Alamat <span className="font-normal text-muted-foreground">(opsional)</span></Label><textarea className="min-h-24 rounded-md border border-input bg-background px-4 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50" value={data.address} onChange={(e) => setData('address', e.target.value)} placeholder="Alamat kantor cabang" /></div>
+                        <label className="flex items-center gap-3 text-sm"><Checkbox checked={data.is_active} onCheckedChange={(checked) => setData('is_active', checked === true)} />Kantor cabang aktif dan dapat dipakai untuk order baru</label>
                         <DialogFooter><Button type="button" variant="outline" onClick={cancelEdit}><X className="size-4" />Batal</Button><Button type="submit" disabled={processing}>{editingId ? <Edit3 className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Tambah cabang'}</Button></DialogFooter>
                     </form></DialogContent></Dialog>
                 <Dialog open={Boolean(managedBranch)} onOpenChange={(open) => !open && setManagedBranch(null)}>

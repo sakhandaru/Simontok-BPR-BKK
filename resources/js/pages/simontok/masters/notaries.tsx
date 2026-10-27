@@ -30,6 +30,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
         pks_end: '',
         agreement_file: null as File | null,
         branch_ids: [] as number[],
+        is_active: true,
     });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
@@ -53,7 +54,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
         }
     };
 
-    const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', address: notary.address ?? '', agreement_type: notary.agreement_type ?? 'PKS', pks_no: notary.pks_no ?? '', pks_start: notary.pks_start?.slice(0, 10) ?? '', pks_end: notary.pks_end?.slice(0, 10) ?? '', agreement_file: null, branch_ids: notary.branches.map((branch) => branch.id) }); setFormOpen(true); };
+    const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', address: notary.address ?? '', agreement_type: notary.agreement_type ?? 'PKS', pks_no: notary.pks_no ?? '', pks_start: notary.pks_start?.slice(0, 10) ?? '', pks_end: notary.pks_end?.slice(0, 10) ?? '', agreement_file: null, branch_ids: notary.branches.map((branch) => branch.id), is_active: notary.is_active }); setFormOpen(true); };
     const openCreate = () => { reset(); setEditingId(null); setFormOpen(true); };
     const cancelEdit = () => { reset(); setEditingId(null); setFormOpen(false); };
     const openManageAccounts = (notary: Notary) => setManagedNotary(notary);
@@ -110,6 +111,7 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
                             <Label>Cabang rekanan</Label>
                             <SimMultiSelect value={data.branch_ids.map(String)} onChange={(values) => setData('branch_ids', values.map(Number))} options={branches.map((branch) => ({ value: String(branch.id), label: `${branch.code} - ${branch.name}` }))} placeholder="Pilih cabang rekanan" />
                         </div>
+                        <label className="flex items-center gap-3 text-sm"><Checkbox checked={data.is_active} onCheckedChange={(checked) => setData('is_active', checked === true)} />Kantor notaris aktif dan dapat menerima order baru</label>
                         <DialogFooter><Button type="button" variant="outline" onClick={cancelEdit}><X className="size-4" />Batal</Button><Button type="submit" disabled={processing}>{editingId ? <Edit3 className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Tambah kantor notaris'}</Button></DialogFooter>
                     </form></DialogContent></Dialog>
             </div>
