@@ -1,7 +1,6 @@
 import { router, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import type { FlashToast } from '@/types/ui';
 
 type FlashProps = {
     flash?: {
@@ -16,41 +15,45 @@ type FlashProps = {
 
 export function useFlashToast(): void {
     const { flash, errors } = usePage<FlashProps>().props;
+    const skipNextFlashProps = useRef(false);
 
-    useEffect(() => {
-        return router.on('flash', (event) => {
-            const flash = (event as CustomEvent).detail?.flash;
-            const data = flash?.toast as FlashToast | undefined;
+    const showFlash = useCallback((value?: FlashProps['flash']) => {
+        if (!value) return;
 
-            if (!data) {
-                return;
-            }
+        if (value.toast) {
+            toast[value.toast.type](value.toast.message);
+            return;
+        }
 
-            toast[data.type](data.message);
-        });
+        if (value.success) {
+            toast.success(value.success);
+        } else if (value.error) {
+            toast.error(value.error);
+        } else if (value.warning) {
+            toast.warning(value.warning);
+        } else if (value.info) {
+            toast.info(value.info);
+        }
     }, []);
 
     useEffect(() => {
-        if (flash?.toast) {
-            toast[flash.toast.type](flash.toast.message);
+        return router.on('success', (event) => {
+            const pageFlash = (event.detail.page.props as FlashProps).flash;
+            if (pageFlash) {
+                showFlash(pageFlash);
+                skipNextFlashProps.current = true;
+            }
+        });
+    }, [showFlash]);
+
+    useEffect(() => {
+        if (skipNextFlashProps.current) {
+            skipNextFlashProps.current = false;
+            return;
         }
 
-        if (flash?.success) {
-            toast.success(flash.success);
-        }
-
-        if (flash?.error) {
-            toast.error(flash.error);
-        }
-
-        if (flash?.warning) {
-            toast.warning(flash.warning);
-        }
-
-        if (flash?.info) {
-            toast.info(flash.info);
-        }
-    }, [flash]);
+        showFlash(flash);
+    }, [flash, showFlash]);
 
     useEffect(() => {
         const firstError = Object.values(errors ?? {})[0];
