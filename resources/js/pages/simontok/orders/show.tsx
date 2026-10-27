@@ -158,7 +158,10 @@ export default function OrdersShow({
                 covernote_no: item.covernote_no ?? '',
                 covernote_start: dateInput(item.covernote_start),
                 covernote_end: dateInput(item.covernote_end),
-                sla_days: item.sla_days ? String(item.sla_days) : '',
+                sla_days:
+                    item.sla_source === 'override' && item.sla_days
+                        ? String(item.sla_days)
+                        : '',
                 sla_override_reason: item.sla_override_reason ?? '',
             })) ?? [],
     });
