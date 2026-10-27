@@ -23,6 +23,11 @@ class JobType extends Model
         return $this->hasMany(JobTypeStep::class)->orderBy('sort_order');
     }
 
+    public function slaPolicies(): HasMany
+    {
+        return $this->hasMany(SlaPolicy::class);
+    }
+
     public function checklists(): HasMany
     {
         return $this->hasMany(DocumentChecklist::class);

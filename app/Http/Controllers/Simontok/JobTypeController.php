@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Simontok;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobType;
+use App\Models\SlaPolicy;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,8 +18,13 @@ class JobTypeController extends Controller
     {
         return Inertia::render('simontok/masters/job-types', [
             'jobTypes' => JobType::with('steps:id,job_type_id,name,sort_order,is_active')
+                ->with(['slaPolicies' => fn ($query) => $query->whereNull('branch_id')->where('is_active', true)])
                 ->orderBy('name')
-                ->paginate(15)->withQueryString(),
+                ->paginate(15)->withQueryString()->through(fn (JobType $jobType) => [
+                    ...$jobType->only(['id', 'code', 'name', 'is_active']),
+                    'steps' => $jobType->steps->map(fn ($step) => $step->only(['id', 'name', 'sort_order']))->values()->all(),
+                    'sla_days' => $jobType->slaPolicies->first()?->days,
+                ]),
         ]);
     }
 
@@ -28,6 +34,7 @@ class JobTypeController extends Controller
             'code' => ['required', 'string', 'max:20', 'unique:job_types,code'],
             'name' => ['required', 'string', 'max:255'],
             'steps' => ['nullable', 'string'],
+            'sla_days' => ['required', 'integer', 'min:1', 'max:365'],
         ]);
 
         $jobType = JobType::create([
@@ -46,6 +53,11 @@ class JobTypeController extends Controller
                 'is_active' => true,
             ]));
 
+        SlaPolicy::updateOrCreate(
+            ['job_type_id' => $jobType->id, 'branch_id' => null],
+            ['days' => $data['sla_days'], 'is_active' => true],
+        );
+
         Audit::record($request, 'masters', $jobType, 'create_job_type', 'Jenis pekerjaan ditambahkan.', [
             'after' => $jobType->load('steps')->toArray(),
         ]);
@@ -60,12 +72,14 @@ class JobTypeController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'steps' => ['nullable', 'string'],
             'is_active' => ['boolean'],
+            'sla_days' => ['required', 'integer', 'min:1', 'max:365'],
         ]);
 
         DB::transaction(function () use ($jobType, $data) {
             $jobType->update(['code' => strtoupper($data['code']), 'name' => $data['name'], 'is_active' => $data['is_active'] ?? true]);
             $jobType->steps()->delete();
             collect(preg_split('/\r\n|\r|\n/', $data['steps'] ?? ''))->map(fn (?string $step) => trim((string) $step))->filter()->values()->each(fn (string $step, int $index) => $jobType->steps()->create(['name' => $step, 'sort_order' => $index + 1, 'is_active' => true]));
+            SlaPolicy::updateOrCreate(['job_type_id' => $jobType->id, 'branch_id' => null], ['days' => $data['sla_days'], 'is_active' => true]);
         });
 
         Audit::record($request, 'masters', $jobType, 'update_job_type', 'Jenis pekerjaan diperbarui.', ['after' => $jobType->load('steps')->toArray()]);
