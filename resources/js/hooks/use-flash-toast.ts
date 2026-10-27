@@ -22,18 +22,19 @@ export function useFlashToast(): void {
         if (!value) return;
 
         if (value.toast) {
-            toast[value.toast.type](value.toast.message);
+            const id = `flash:${value.toast.type}:${value.toast.message}`;
+            toast[value.toast.type](value.toast.message, { id });
             return;
         }
 
         if (value.success) {
-            toast.success(value.success);
+            toast.success(value.success, { id: `flash:success:${value.success}` });
         } else if (value.error) {
-            toast.error(value.error);
+            toast.error(value.error, { id: `flash:error:${value.error}` });
         } else if (value.warning) {
-            toast.warning(value.warning);
+            toast.warning(value.warning, { id: `flash:warning:${value.warning}` });
         } else if (value.info) {
-            toast.info(value.info);
+            toast.info(value.info, { id: `flash:info:${value.info}` });
         }
     }, []);
 
@@ -60,7 +61,7 @@ export function useFlashToast(): void {
         const firstError = Object.values(errors ?? {})[0];
 
         if (firstError) {
-            toast.error(firstError);
+            toast.error(firstError, { id: `validation:${firstError}` });
         }
     }, [errors]);
 }
