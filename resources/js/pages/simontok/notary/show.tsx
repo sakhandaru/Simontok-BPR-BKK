@@ -462,12 +462,9 @@ export default function NotaryOrdersShow({
                                                             </span>
                                                         </div>
                                                         {checklist.order_document ? (
-                                                            <a
-                                                                className="mt-2 block truncate text-xs text-primary underline-offset-4 hover:underline"
-                                                                href={`/notary/orders/${order.id}/documents/${checklist.order_document.id}/download`}
-                                                            >
+                                                            <div className="mt-2 truncate text-xs text-muted-foreground">
                                                                 File: {checklist.order_document.display_name ?? checklist.order_document.original_name}
-                                                            </a>
+                                                            </div>
                                                         ) : (
                                                             <div className="mt-2 text-xs text-muted-foreground">
                                                                 Belum tersedia
@@ -490,13 +487,12 @@ export default function NotaryOrdersShow({
                                                                 (document.document_type?.value ?? document.document_type) === 'lainnya',
                                                         )
                                                         .map((document: any) => (
-                                                            <a
+                                                            <div
                                                                 key={document.id}
-                                                                className="truncate text-xs text-primary underline-offset-4 hover:underline"
-                                                                href={`/notary/orders/${order.id}/documents/${document.id}/download`}
+                                                                className="truncate text-xs text-muted-foreground"
                                                             >
                                                                 {document.display_name ?? document.original_name}
-                                                            </a>
+                                                            </div>
                                                         ))}
                                                 </div>
                                             </div>
