@@ -73,6 +73,9 @@ class NotaryPortalController extends Controller
 
         $paymentBlockers = $this->paymentBlockers($order);
         $canAct = $this->canAct($request);
+        $initialDocumentsComplete = $order->collaterals->isNotEmpty()
+            && $order->collaterals->every(fn ($collateral) => $collateral->checklists->isNotEmpty()
+                && $collateral->checklists->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id));
         $covernoteApprovedStage = in_array($order->status, [
             TrackAStatus::CovernoteDisetujui,
             TrackAStatus::DokumenValid,
@@ -117,6 +120,7 @@ class NotaryPortalController extends Controller
                 TrackAStatus::MenungguVerifikasiNotaris,
                 TrackAStatus::PerbaikanDokumen,
             ], true),
+            'initialDocumentsComplete' => $initialDocumentsComplete,
             'canViewDocuments' => $canViewDocuments,
             'canRequestInvoice' => $canAct && $order->status === TrackAStatus::DokumenFinalDiunggah && $order->paymentRequest === null && $paymentBlockers === [],
             'canAddProgress' => $canAddProgress,
@@ -144,6 +148,14 @@ class NotaryPortalController extends Controller
     {
         $this->authorizeOrder($request, $order);
         abort_unless($this->canAct($request) && $order->status === TrackAStatus::MenungguVerifikasiNotaris, 422, 'Order sudah diproses atau belum tersedia untuk diterima.');
+        $order->loadMissing('collaterals.checklists');
+        abort_unless(
+            $order->collaterals->isNotEmpty()
+                && $order->collaterals->every(fn ($collateral) => $collateral->checklists->isNotEmpty()
+                    && $collateral->checklists->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id)),
+            422,
+            'Dokumen checklist belum lengkap. Periksa dokumen atau minta perbaikan terlebih dahulu.',
+        );
 
         DB::transaction(function () use ($request, $order) {
             $before = $order->status;

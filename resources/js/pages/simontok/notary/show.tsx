@@ -26,6 +26,7 @@ type Option = { value: string; label: string };
 export default function NotaryOrdersShow({
     order,
     canReview,
+    initialDocumentsComplete,
     canViewDocuments,
     canRequestInvoice,
     canAddProgress,
@@ -40,6 +41,7 @@ export default function NotaryOrdersShow({
 }: {
     order: any;
     canReview: boolean;
+    initialDocumentsComplete: boolean;
     canViewDocuments: boolean;
     canRequestInvoice: boolean;
     canAddProgress: boolean;
@@ -113,6 +115,18 @@ export default function NotaryOrdersShow({
         selectedProgressSteps.length > 0 &&
         progress.data.status ===
             selectedProgressSteps[selectedProgressSteps.length - 1];
+    const missingInitialDocuments = order.collaterals.flatMap(
+        (collateral: any) =>
+            (collateral.checklists ?? [])
+                .filter(
+                    (checklist: any) =>
+                        !checklist.is_checked || !checklist.order_document,
+                )
+                .map(
+                    (checklist: any) =>
+                        `${collateral.job_type?.name ?? 'Agunan'} - ${checklist.document_checklist?.name ?? 'Dokumen checklist'}`,
+                ),
+    );
 
     const acceptDocuments = () => {
         router.post(
@@ -396,14 +410,119 @@ export default function NotaryOrdersShow({
                 )}
 
                 {canReview && (
+                    <>
+                        <section className="sim-panel overflow-hidden">
+                            <div className="sim-panel-header">
+                                <h2 className="font-medium">
+                                    Data dan dokumen untuk pemeriksaan
+                                </h2>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Periksa data order, agunan, dan file sebelum
+                                    menerima atau meminta perbaikan.
+                                </p>
+                            </div>
+                            <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-4">
+                                <Info label="Nama nasabah" value={order.customer_name} />
+                                <Info label="Nomor rekening" value={order.no_rekening} />
+                                <Info label="Tanggal akad" value={dateOnly(order.tgl_realisasi)} />
+                                <Info label="Nominal jasa" value={money(order.nominal)} />
+                                <Info label="Skema pembayaran" value={order.skema_pembayaran} />
+                            </div>
+                            <div className="divide-y border-t">
+                                {order.collaterals.map((collateral: any) => (
+                                    <div key={collateral.id} className="p-4">
+                                        <div className="font-medium">
+                                            {collateral.job_type?.name ?? 'Agunan'}
+                                            {collateral.agunan_id
+                                                ? ` - ${collateral.agunan_id}`
+                                                : ` - AGN-${collateral.id}`}
+                                        </div>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            {collateral.deskripsi_agunan || '-'}
+                                        </p>
+                                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                            {(collateral.checklists ?? []).map(
+                                                (checklist: any) => (
+                                                    <div
+                                                        key={checklist.id}
+                                                        className="rounded-md border p-3 text-sm"
+                                                    >
+                                                        <div className="flex items-start gap-2">
+                                                            <span
+                                                                className={
+                                                                    checklist.order_document
+                                                                        ? 'flex size-5 shrink-0 items-center justify-center rounded bg-emerald-500 text-xs text-white'
+                                                                        : 'flex size-5 shrink-0 items-center justify-center rounded border text-xs text-muted-foreground'
+                                                                }
+                                                            >
+                                                                {checklist.order_document ? '✓' : ''}
+                                                            </span>
+                                                            <span className="font-medium">
+                                                                {checklist.document_checklist?.name ?? 'Dokumen checklist'}
+                                                            </span>
+                                                        </div>
+                                                        {checklist.order_document ? (
+                                                            <a
+                                                                className="mt-2 block truncate text-xs text-primary underline-offset-4 hover:underline"
+                                                                href={`/notary/orders/${order.id}/documents/${checklist.order_document.id}/download`}
+                                                            >
+                                                                File: {checklist.order_document.display_name ?? checklist.order_document.original_name}
+                                                            </a>
+                                                        ) : (
+                                                            <div className="mt-2 text-xs text-muted-foreground">
+                                                                Belum tersedia
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
+                                        {(collateral.documents ?? []).filter(
+                                            (document: any) =>
+                                                (document.document_type?.value ?? document.document_type) === 'lainnya',
+                                        ).length > 0 && (
+                                            <div className="mt-3 rounded-md border border-dashed p-3">
+                                                <div className="text-sm font-medium">Dokumen pendukung</div>
+                                                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                                    {(collateral.documents ?? [])
+                                                        .filter(
+                                                            (document: any) =>
+                                                                (document.document_type?.value ?? document.document_type) === 'lainnya',
+                                                        )
+                                                        .map((document: any) => (
+                                                            <a
+                                                                key={document.id}
+                                                                className="truncate text-xs text-primary underline-offset-4 hover:underline"
+                                                                href={`/notary/orders/${order.id}/documents/${document.id}/download`}
+                                                            >
+                                                                {document.display_name ?? document.original_name}
+                                                            </a>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
                     <section className="sim-panel p-4">
                         <h2 className="font-medium">Verifikasi dokumen awal</h2>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Pilih keputusan setelah memeriksa data nasabah,
                             agunan, dan checklist dokumen.
                         </p>
+                        {!initialDocumentsComplete && (
+                            <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-300">
+                                Checklist belum lengkap. Minta perbaikan untuk:{' '}
+                                {missingInitialDocuments.join(', ') || 'dokumen awal'}.
+                            </div>
+                        )}
                         <div className="mt-4 flex flex-wrap gap-2">
-                            <Button type="button" onClick={acceptDocuments}>
+                            <Button
+                                type="button"
+                                onClick={acceptDocuments}
+                                disabled={!initialDocumentsComplete}
+                            >
                                 <Check className="size-4" />
                                 Terima dokumen
                             </Button>
@@ -447,7 +566,8 @@ export default function NotaryOrdersShow({
                                 </Button>
                             </form>
                         )}
-                    </section>
+                        </section>
+                    </>
                 )}
 
                 {canViewDocuments &&
