@@ -102,6 +102,8 @@ Route::middleware(['auth'])->group(function () {
     });
     Route::middleware('permission:masters.manage')->group(function () {
         Route::resource('branches', BranchController::class)->only(['index', 'store', 'update']);
+        Route::post('branches/{branch}/internal-account', [BranchController::class, 'createInternalAccount'])->name('branches.internal-account.store');
+        Route::put('branches/{branch}/internal-account/{user}', [BranchController::class, 'updateInternalAccount'])->name('branches.internal-account.update');
         Route::resource('notaries', NotaryController::class)->only(['index', 'store', 'update']);
         Route::post('notaries/{notary}/portal-account', [NotaryController::class, 'createPortalAccount'])->name('notaries.portal-account.store');
         Route::put('notaries/{notary}/portal-account/{user}', [NotaryController::class, 'updatePortalAccount'])->name('notaries.portal-account.update');
