@@ -1374,22 +1374,31 @@ export default function OrdersShow({
                     <details className="sim-panel group">
                         <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
                             <div>
-                                <h2 className="font-medium">Dokumen digital</h2>
+                                <h2 className="font-medium">Dokumen pendukung</h2>
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Validasi dokumen final dilakukan dari daftar
-                                    ini.
+                                    Dokumen awal dan pendukung pada order ini.
+                                    Dokumen final direview dari progres Selesai.
                                 </p>
                             </div>
                             <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                         </summary>
                         <div className="p-3 md:p-4">
-                            {order.documents.length === 0 ? (
+                            {order.documents.filter(
+                                (document: any) =>
+                                    document.document_type !== 'final',
+                            ).length === 0 ? (
                                 <div className="px-1 py-8 text-center text-sm text-muted-foreground">
                                     Belum ada dokumen.
                                 </div>
                             ) : (
                                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                                    {order.documents.map((document: any) => {
+                                    {order.documents
+                                        .filter(
+                                            (document: any) =>
+                                                document.document_type !==
+                                                'final',
+                                        )
+                                        .map((document: any) => {
                                         const documentName =
                                             document.display_name ||
                                             checklistNameForDocument(
@@ -1508,7 +1517,7 @@ export default function OrdersShow({
                                                 </div>
                                             </article>
                                         );
-                                    })}
+                                        })}
                                 </div>
                             )}
                         </div>
