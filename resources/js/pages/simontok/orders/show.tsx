@@ -49,13 +49,6 @@ import {
 import { orderJourneyStages } from '@/lib/sim-journey';
 
 type Option = { value: string; label: string };
-type BatchDocument = {
-    id: string;
-    file: File | null;
-    checklist_id: string;
-    display_name: string;
-    kind: 'agunan' | 'pendukung';
-};
 type DocumentEditor = {
     collateralId: string;
     id?: string;
@@ -395,42 +388,10 @@ export default function OrdersShow({
         bukti: null as File | null,
         catatan: '',
     });
-    const [batchDocuments, setBatchDocuments] = useState<
-        Record<string, BatchDocument[]>
-    >({});
     const [documentsOpen, setDocumentsOpen] = useState(true);
     const [documentEditor, setDocumentEditor] = useState<DocumentEditor | null>(
         null,
     );
-
-    useEffect(() => {
-        setBatchDocuments((current) => {
-            let changed = false;
-            const next = { ...current };
-
-            for (const collateral of order.collaterals ?? []) {
-                const collateralId = String(collateral.id);
-                const persistedChecklistIds = new Set(
-                    (collateral.checklists ?? [])
-                        .filter((item: any) => item.order_document)
-                        .map((item: any) => String(item.id)),
-                );
-                const records = current[collateralId] ?? [];
-                const remaining = records.filter(
-                    (record) =>
-                        record.kind !== 'agunan' ||
-                        !persistedChecklistIds.has(record.checklist_id),
-                );
-
-                if (remaining.length !== records.length) {
-                    next[collateralId] = remaining;
-                    changed = true;
-                }
-            }
-
-            return changed ? next : current;
-        });
-    }, [order.collaterals]);
 
     const submitUpload = (event?: FormEvent) => {
         event?.preventDefault();
@@ -440,62 +401,12 @@ export default function OrdersShow({
         });
     };
 
-    const addBatchFiles = (collateralId: string, files: FileList | null) => {
-        if (!files) return;
-        const next = Array.from(files).map((file) => ({
-            id: `${Date.now()}-${Math.random()}`,
-            file,
-            checklist_id: '',
-            display_name: '',
-            kind: 'agunan' as const,
-        }));
-        setBatchDocuments((current) => ({
-            ...current,
-            [collateralId]: [...(current[collateralId] ?? []), ...next],
-        }));
-    };
-    const addBatchRecord = (collateralId: string) =>
-        setBatchDocuments((current) => ({
-            ...current,
-            [collateralId]: [
-                ...(current[collateralId] ?? []),
-                {
-                    id: `${Date.now()}-${Math.random()}`,
-                    file: null,
-                    checklist_id: '',
-                    display_name: '',
-                    kind: 'pendukung' as const,
-                },
-            ],
-        }));
-    const updateBatchDocument = (
-        collateralId: string,
-        id: string,
-        changes: Partial<BatchDocument>,
-    ) =>
-        setBatchDocuments((current) => ({
-            ...current,
-            [collateralId]: (current[collateralId] ?? []).map((item) =>
-                item.id === id ? { ...item, ...changes } : item,
-            ),
-        }));
-    const removeBatchDocument = (collateralId: string, id: string) =>
-        setBatchDocuments((current) => ({
-            ...current,
-            [collateralId]: (current[collateralId] ?? []).filter(
-                (item) => item.id !== id,
-            ),
-        }));
     const openChecklistEditor = (collateralId: string, checklistId: string) => {
-        const existing = (batchDocuments[collateralId] ?? []).find(
-            (item) => item.checklist_id === checklistId,
-        );
         setDocumentEditor({
             collateralId,
-            id: existing?.id,
             checklistId,
-            displayName: existing?.display_name ?? '',
-            file: existing?.file ?? null,
+            displayName: '',
+            file: null,
             kind: 'agunan',
         });
     };
@@ -525,61 +436,23 @@ export default function OrdersShow({
             );
             return;
         }
-        const item: BatchDocument = {
-            id: documentEditor.id ?? `${Date.now()}-${Math.random()}`,
-            file: documentEditor.file,
-            checklist_id: documentEditor.checklistId,
-            display_name: documentEditor.displayName,
-            kind: documentEditor.kind,
-        };
-        setBatchDocuments((current) => {
-            const records = current[documentEditor.collateralId] ?? [];
-            const exists = records.some((record) => record.id === item.id);
-            return {
-                ...current,
-                [documentEditor.collateralId]: exists
-                    ? records.map((record) =>
-                          record.id === item.id ? item : record,
-                      )
-                    : [...records, item],
-            };
-        });
-        setDocumentEditor(null);
-    };
-    const submitBatch = (collateralId: string) => {
-        setDocumentsOpen(true);
-        const documents = batchDocuments[collateralId] ?? [];
-        if (
-            !documents.length ||
-            documents.some(
-                (item) =>
-                    !item.file ||
-                    (item.kind === 'agunan'
-                        ? !item.checklist_id
-                        : !item.display_name.trim()),
-            )
-        )
-            return;
         const formData = new FormData();
-        formData.append('order_collateral_id', collateralId);
-        documents.forEach((item, index) => {
-            if (item.file)
-                formData.append(`documents[${index}][file]`, item.file);
-            if (item.checklist_id)
-                formData.append(
-                    `documents[${index}][checklist_id]`,
-                    item.checklist_id,
-                );
-            if (item.display_name)
-                formData.append(
-                    `documents[${index}][display_name]`,
-                    item.display_name,
-                );
-        });
-        router.post(`/orders/${order.id}/documents/batch`, formData, {
+        formData.append(
+            'order_collateral_id',
+            documentEditor.collateralId,
+        );
+        formData.append('document_type', documentEditor.kind === 'agunan' ? 'dokumen_awal' : 'lainnya');
+        if (documentEditor.checklistId)
+            formData.append('order_checklist_id', documentEditor.checklistId);
+        if (documentEditor.displayName)
+            formData.append('display_name', documentEditor.displayName);
+        if (documentEditor.file)
+            formData.append('file', documentEditor.file);
+        router.post(`/orders/${order.id}/documents`, formData, {
             forceFormData: true,
             preserveState: true,
             preserveScroll: true,
+            onSuccess: () => setDocumentEditor(null),
         });
     };
 
@@ -1811,35 +1684,6 @@ export default function OrdersShow({
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         <Button
                                             type="button"
-                                            onClick={() =>
-                                                submitBatch(
-                                                    String(collateral.id),
-                                                )
-                                            }
-                                            disabled={
-                                                (
-                                                    batchDocuments[
-                                                        String(collateral.id)
-                                                    ] ?? []
-                                                ).length === 0 ||
-                                                (
-                                                    batchDocuments[
-                                                        String(collateral.id)
-                                                    ] ?? []
-                                                ).some(
-                                                    (item) =>
-                                                        !item.file ||
-                                                        (item.kind === 'agunan'
-                                                            ? !item.checklist_id
-                                                            : !item.display_name.trim()),
-                                                )
-                                            }
-                                        >
-                                            <Upload className="size-4" />
-                                            Upload dokumen agunan
-                                        </Button>
-                                        <Button
-                                            type="button"
                                             variant="outline"
                                             size="sm"
                                             onClick={() =>
@@ -1861,15 +1705,6 @@ export default function OrdersShow({
                                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                                         {collateral.checklists.map(
                                             (item: any) => {
-                                                const pendingRecord = (
-                                                    batchDocuments[
-                                                        String(collateral.id)
-                                                    ] ?? []
-                                                ).find(
-                                                    (record) =>
-                                                        record.checklist_id ===
-                                                        String(item.id),
-                                                );
                                                 return (
                                                     <div
                                                         key={item.id}
@@ -1878,14 +1713,12 @@ export default function OrdersShow({
                                                         <label className="flex items-start gap-3">
                                                             <span
                                                                 className={
-                                                                    item.order_document ||
-                                                                    pendingRecord
+                                                                    item.order_document
                                                                         ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white'
                                                                         : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'
                                                                 }
                                                             >
-                                                                {item.order_document ||
-                                                                pendingRecord
+                                                                {item.order_document
                                                                     ? '✓'
                                                                     : ''}
                                                             </span>
@@ -1981,72 +1814,6 @@ export default function OrdersShow({
                                                                     </Button>
                                                                 </span>
                                                             </div>
-                                                        ) : pendingRecord?.file ? (
-                                                            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
-                                                                <div className="min-w-0 flex-1">
-                                                                    <span
-                                                                        className="block truncate text-primary"
-                                                                        title={
-                                                                            pendingRecord
-                                                                                .file
-                                                                                .name
-                                                                        }
-                                                                    >
-                                                                        Siap
-                                                                        diunggah:{' '}
-                                                                        {
-                                                                            pendingRecord
-                                                                                .file
-                                                                                .name
-                                                                        }
-                                                                    </span>
-                                                                    <span className="text-muted-foreground">
-                                                                        {formatBytes(
-                                                                            pendingRecord
-                                                                                .file
-                                                                                .size,
-                                                                        )}
-                                                                    </span>
-                                                                </div>
-                                                                <span className="flex shrink-0 items-center gap-1">
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="icon"
-                                                                        className="size-8 shrink-0 bg-foreground text-background hover:bg-foreground/90"
-                                                                        title="Edit dokumen"
-                                                                        aria-label="Edit dokumen"
-                                                                        onClick={() =>
-                                                                            openChecklistEditor(
-                                                                                String(
-                                                                                    collateral.id,
-                                                                                ),
-                                                                                String(
-                                                                                    item.id,
-                                                                                ),
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Pencil className="size-4" />
-                                                                    </Button>
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="icon"
-                                                                        className="size-8 shrink-0 bg-foreground text-background hover:bg-foreground/90"
-                                                                        title="Hapus dokumen"
-                                                                        aria-label="Hapus dokumen"
-                                                                        onClick={() =>
-                                                                            removeBatchDocument(
-                                                                                String(
-                                                                                    collateral.id,
-                                                                                ),
-                                                                                pendingRecord.id,
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Trash2 className="size-4" />
-                                                                    </Button>
-                                                                </span>
-                                                            </div>
                                                         ) : (
                                                             <Button
                                                                 type="button"
@@ -2073,87 +1840,6 @@ export default function OrdersShow({
                                             },
                                         )}
                                     </div>
-                                    {(
-                                        batchDocuments[String(collateral.id)] ??
-                                        []
-                                    ).filter(
-                                        (item) => item.kind === 'pendukung',
-                                    ).length > 0 && (
-                                        <div className="mt-3 rounded-md border border-dashed p-3">
-                                            <div className="mb-2 text-sm font-medium">
-                                                Dokumen pendukung
-                                            </div>
-                                            {(
-                                                batchDocuments[
-                                                    String(collateral.id)
-                                                ] ?? []
-                                            )
-                                                .filter(
-                                                    (item) =>
-                                                        item.kind ===
-                                                        'pendukung',
-                                                )
-                                                .map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="flex items-center justify-between gap-3 border-t py-2 text-sm"
-                                                    >
-                                                        <span className="truncate">
-                                                            {item.display_name ||
-                                                                'Tanpa nama'}
-                                                            {item.file
-                                                                ? ` - ${item.file.name}`
-                                                                : ''}
-                                                        </span>
-                                                        <span className="flex shrink-0 gap-1">
-                                                            <Button
-                                                                type="button"
-                                                                size="icon"
-                                                                className="size-8 shrink-0 bg-foreground text-background hover:bg-foreground/90"
-                                                                title="Edit dokumen pendukung"
-                                                                aria-label="Edit dokumen pendukung"
-                                                                onClick={() =>
-                                                                    setDocumentEditor(
-                                                                        {
-                                                                            collateralId:
-                                                                                String(
-                                                                                    collateral.id,
-                                                                                ),
-                                                                            id: item.id,
-                                                                            checklistId:
-                                                                                '',
-                                                                            displayName:
-                                                                                item.display_name,
-                                                                            file: item.file,
-                                                                            kind: 'pendukung',
-                                                                        },
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Pencil className="size-4" />
-                                                            </Button>
-                                                            <Button
-                                                                type="button"
-                                                                size="icon"
-                                                                className="size-8 shrink-0 bg-foreground text-background hover:bg-foreground/90"
-                                                                title="Hapus dokumen pendukung"
-                                                                aria-label="Hapus dokumen pendukung"
-                                                                onClick={() =>
-                                                                    removeBatchDocument(
-                                                                        String(
-                                                                            collateral.id,
-                                                                        ),
-                                                                        item.id,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </Button>
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    )}
                                 </div>
                             ))}
                         </div>
@@ -2172,9 +1858,8 @@ export default function OrdersShow({
                                     : 'Input dokumen agunan'}
                             </DialogTitle>
                             <DialogDescription>
-                                Masukkan satu file untuk record ini. Semua file
-                                akan dikirim bersama saat tombol upload agunan
-                                ditekan.
+                                Masukkan satu file untuk record ini. File akan
+                                langsung disimpan saat tombol simpan ditekan.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4">
@@ -2249,7 +1934,7 @@ export default function OrdersShow({
                                 }
                             >
                                 <Save className="size-4" />
-                                Simpan record
+                                Simpan dokumen
                             </Button>
                         </DialogFooter>
                     </DialogContent>
