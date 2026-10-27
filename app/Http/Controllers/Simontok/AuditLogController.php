@@ -55,7 +55,9 @@ class AuditLogController extends Controller
                 'action' => $log->action,
                 'description' => $log->description,
                 'entity_type' => $log->entity_type,
+                'entity_type_label' => $this->entityTypeLabel($log->entity_type),
                 'entity_id' => $log->entity_id,
+                'entity_name' => $this->entityName($log),
                 'route' => $log->route,
                 'method' => $log->method,
                 'ip_address' => $log->ip_address,
@@ -63,5 +65,69 @@ class AuditLogController extends Controller
                 'payload' => $log->payload,
             ]),
         ]);
+    }
+
+    private function entityName(AuditLog $log): ?string
+    {
+        $snapshot = collect(['name', 'order_no', 'invoice_no', 'title', 'display_name', 'code'])
+            ->map(fn (string $key) => data_get($log->payload, "after.{$key}"))
+            ->first(fn ($value) => filled($value));
+
+        if (filled($snapshot)) {
+            return (string) $snapshot;
+        }
+
+        $modelClass = [
+            'User' => \App\Models\User::class,
+            'Branch' => \App\Models\Branch::class,
+            'Notary' => \App\Models\Notary::class,
+            'Order' => \App\Models\Order::class,
+            'JobType' => \App\Models\JobType::class,
+            'Role' => \App\Models\Role::class,
+            'PaymentRequest' => \App\Models\PaymentRequest::class,
+            'OrderDocument' => \App\Models\OrderDocument::class,
+            'OrderCollateral' => \App\Models\OrderCollateral::class,
+            'OrderHandover' => \App\Models\OrderHandover::class,
+            'Notification' => \App\Models\Notification::class,
+        ][$log->entity_type ?? ''] ?? null;
+
+        if (! $modelClass || ! $log->entity_id) {
+            return null;
+        }
+
+        $entity = $modelClass::query()->find($log->entity_id);
+
+        if (! $entity) {
+            return null;
+        }
+
+        $name = collect(match ($log->entity_type) {
+            'Order' => [$entity->order_no, $entity->customer_name],
+            'PaymentRequest' => [$entity->invoice_no],
+            'OrderDocument' => [$entity->display_name, $entity->original_name],
+            'OrderCollateral' => [$entity->deskripsi_agunan, $entity->agunan_id],
+            'OrderHandover' => [$entity->receiver_name],
+            'Notification' => [$entity->title],
+            default => [$entity->name, $entity->code],
+        })->first(fn ($value) => filled($value));
+
+        return filled($name) ? (string) $name : null;
+    }
+
+    private function entityTypeLabel(?string $entityType): string
+    {
+        return [
+            'User' => 'Pengguna',
+            'Branch' => 'Kantor cabang',
+            'Notary' => 'Kantor notaris',
+            'Order' => 'Order',
+            'JobType' => 'Jenis pekerjaan',
+            'Role' => 'Role',
+            'PaymentRequest' => 'Permintaan pembayaran',
+            'OrderDocument' => 'Dokumen order',
+            'OrderCollateral' => 'Agunan order',
+            'OrderHandover' => 'Handover dokumen',
+            'Notification' => 'Notifikasi',
+        ][$entityType ?? ''] ?? 'Objek';
     }
 }

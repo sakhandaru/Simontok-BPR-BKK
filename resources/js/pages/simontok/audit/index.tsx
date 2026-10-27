@@ -18,7 +18,9 @@ type AuditItem = {
     action: string;
     description?: string | null;
     entity_type?: string | null;
+    entity_type_label: string;
     entity_id?: number | null;
+    entity_name?: string | null;
     route?: string | null;
     method?: string | null;
     ip_address?: string | null;
@@ -104,7 +106,10 @@ export default function AuditIndex({
                                             <div>{log.description ?? '-'}</div>
                                             <div className="mt-1 text-muted-foreground">{log.method ?? ''} {log.route ?? ''}</div>
                                         </td>
-                                        <td className="px-4 py-3">{log.entity_type ?? '-'} {log.entity_id ?? ''}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="font-medium">{log.entity_name ?? 'Objek tidak tersedia'}</div>
+                                            <div className="text-xs text-muted-foreground">{log.entity_type_label}{log.entity_id ? ` · #${log.entity_id}` : ''}</div>
+                                        </td>
                                         <td className="px-4 py-3 text-muted-foreground">{log.ip_address ?? '-'}</td>
                                     </tr>
                                 ))}
@@ -120,7 +125,7 @@ export default function AuditIndex({
                                 <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="font-medium leading-5">{log.description || actionLabel(log.action)}</div><div className="mt-1 text-xs text-muted-foreground">{log.actor_name ?? 'Sistem'} · {actorLabel(log.actor_type)}</div></div><SimStatusBadge label={actionLabel(log.action)} tone={toneForStatus(log.action)} /></div>
                                 <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>{moduleLabel(log.module)}</span><span>{log.created_at}</span></div>
                             </summary>
-                            <div className="grid gap-3 border-t border-border px-4 py-3 text-sm"><div><div className="text-xs text-muted-foreground">Objek</div><div className="mt-1">{entityLabel(log.entity_type)} {String(log.entity_id ?? '')}</div></div><div><div className="text-xs text-muted-foreground">Permintaan</div><div className="mt-1">{log.method ?? '-'} {log.route ?? '-'}</div></div><div><div className="text-xs text-muted-foreground">Alamat IP</div><div className="mt-1">{log.ip_address ?? '-'}</div></div>{Boolean(log.payload) && <pre className="max-h-48 overflow-auto border border-border bg-muted/20 p-3 text-xs whitespace-pre-wrap">{String(JSON.stringify(log.payload, null, 2))}</pre>}</div>
+                            <div className="grid gap-3 border-t border-border px-4 py-3 text-sm"><div><div className="text-xs text-muted-foreground">Objek</div><div className="mt-1 font-medium">{log.entity_name ?? 'Objek tidak tersedia'}</div><div className="text-xs text-muted-foreground">{log.entity_type_label}{log.entity_id ? ` · #${log.entity_id}` : ''}</div></div><div><div className="text-xs text-muted-foreground">Permintaan</div><div className="mt-1">{log.method ?? '-'} {log.route ?? '-'}</div></div><div><div className="text-xs text-muted-foreground">Alamat IP</div><div className="mt-1">{log.ip_address ?? '-'}</div></div>{Boolean(log.payload) && <pre className="max-h-48 overflow-auto border border-border bg-muted/20 p-3 text-xs whitespace-pre-wrap">{String(JSON.stringify(log.payload, null, 2))}</pre>}</div>
                         </details>
                     ))}
                 </div>
@@ -144,8 +149,6 @@ function actionLabel(action: string): string {
 
 function moduleLabel(module?: string | null): string { return module ? module.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Aktivitas sistem'; }
 function actorLabel(actorType: string): string { return ({ user: 'Pengguna', notary: 'Notaris', system: 'Sistem' } as Record<string, string>)[actorType] ?? actorType; }
-function entityLabel(entityType?: string | null): string { return entityType ? entityType.split('\\').pop()?.replaceAll('_', ' ') ?? entityType : 'Tidak ada objek'; }
-
 AuditIndex.layout = {
     breadcrumbs: [{ title: 'Audit Log', href: '/audit-logs' }],
 };
