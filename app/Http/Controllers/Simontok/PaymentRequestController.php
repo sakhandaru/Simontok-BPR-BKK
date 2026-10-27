@@ -166,7 +166,7 @@ class PaymentRequestController extends Controller
         $data = $request->validate([
             'paid_at' => ['required', 'date'],
             'nominal' => ['required', 'numeric', 'min:1'],
-            'bukti' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'bukti' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 

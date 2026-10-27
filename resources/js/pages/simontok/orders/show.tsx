@@ -895,13 +895,15 @@ export default function OrdersShow({
                                         />
                                         <SimFileUpload
                                             value={paymentProof.data.bukti}
+                                            accept="application/pdf,image/jpeg,image/png"
+                                            description="JPG, PNG, atau PDF · maksimal 10 MB"
                                             onChange={(file) =>
                                                 paymentProof.setData(
                                                     'bukti',
                                                     file,
                                                 )
                                             }
-                                            label="Pilih bukti pembayaran"
+                                            label="Pilih foto atau PDF bukti pembayaran"
                                         />
                                         <textarea
                                             className="sim-input min-h-20 py-2"
