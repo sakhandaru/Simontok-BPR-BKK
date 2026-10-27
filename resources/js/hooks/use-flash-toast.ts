@@ -1,6 +1,7 @@
 import { router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import type { FlashToast } from '@/types/ui';
 
 type FlashProps = {
     flash?: {

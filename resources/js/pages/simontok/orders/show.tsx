@@ -24,7 +24,7 @@ import {
     Upload,
     WalletCards,
 } from 'lucide-react';
-import { FormEvent, useEffect, useState, type ReactNode } from 'react';
+import { FormEvent, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SimActionAlert } from '@/components/sim-action-alert';
@@ -175,13 +175,65 @@ export default function OrdersShow({
         number | null
     >(null);
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
+    const [draftSaveState, setDraftSaveState] = useState<
+        'saved' | 'pending' | 'saving' | 'error'
+    >('saved');
+    const draftInitialized = useRef(false);
+    const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const submitOrderApproval = () =>
+    const persistDraft = (silent = false, onSuccess?: () => void) => {
+        setDraftSaveState('saving');
+        draft.put(`/orders/${order.id}`, {
+            preserveScroll: true,
+            preserveState: true,
+            only: silent ? ['order'] : undefined,
+            onSuccess: () => {
+                draft.setDefaults();
+                setDraftSaveState('saved');
+                onSuccess?.();
+            },
+            onError: () => setDraftSaveState('error'),
+        });
+    };
+
+    useEffect(() => {
+        if (!canEdit) return;
+        if (!draftInitialized.current) {
+            draftInitialized.current = true;
+            return;
+        }
+        if (!draft.isDirty) return;
+
+        setDraftSaveState('pending');
+        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        draftSaveTimer.current = setTimeout(() => {
+            persistDraft(true);
+        }, 1000);
+
+        return () => {
+            if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        };
+    }, [canEdit, draft.data]);
+
+    const submitOrderApproval = () => {
+        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        if (draft.isDirty) {
+            persistDraft(true, () =>
+                router.post(
+                    `/orders/${order.id}/submit-approval`,
+                    {},
+                    { preserveScroll: true },
+                ),
+            );
+            return;
+        }
+
         router.post(
             `/orders/${order.id}/submit-approval`,
             {},
             { preserveScroll: true },
         );
+    };
     const approveOrder = () =>
         router.post(
             `/orders/${order.id}/approve`,
@@ -267,7 +319,8 @@ export default function OrdersShow({
     };
     const saveDraft = (event: FormEvent) => {
         event.preventDefault();
-        draft.put(`/orders/${order.id}`, { preserveScroll: true });
+        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        persistDraft(false);
     };
     const setCollateral = (
         index: number,
@@ -758,6 +811,7 @@ export default function OrdersShow({
                         setCollateral={setCollateral}
                         onSubmit={saveDraft}
                         incompleteFields={incompleteFields}
+                        saveState={draftSaveState}
                     />
                 )}
                 <OrderTrackingHero order={order} />
@@ -2309,6 +2363,7 @@ function DraftOrderForm({
     setCollateral,
     onSubmit,
     incompleteFields,
+    saveState,
 }: {
     draft: any;
     branches: any[];
@@ -2322,6 +2377,7 @@ function DraftOrderForm({
     ) => void;
     onSubmit: (event: FormEvent) => void;
     incompleteFields: string[];
+    saveState: 'saved' | 'pending' | 'saving' | 'error';
 }) {
     return (
         <form onSubmit={onSubmit} className="sim-panel overflow-hidden">
@@ -2333,14 +2389,25 @@ function DraftOrderForm({
                         sampai dikirim.
                     </p>
                 </div>
-                <Button
-                    type="submit"
-                    variant="outline"
-                    disabled={draft.processing}
-                >
-                    <Save className="size-4" />
-                    Simpan draft
-                </Button>
+                <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
+                        {saveState === 'saving'
+                            ? 'Menyimpan...'
+                            : saveState === 'pending'
+                              ? 'Perubahan akan disimpan...'
+                              : saveState === 'error'
+                                ? 'Gagal menyimpan'
+                                : 'Semua perubahan tersimpan'}
+                    </span>
+                    <Button
+                        type="submit"
+                        variant="outline"
+                        disabled={draft.processing}
+                    >
+                        <Save className="size-4" />
+                        Simpan draft
+                    </Button>
+                </div>
             </div>
             {incompleteFields.length > 0 && (
                 <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
