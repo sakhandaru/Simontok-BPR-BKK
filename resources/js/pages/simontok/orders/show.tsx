@@ -74,12 +74,15 @@ type CollateralDraft = {
     covernote_no: string;
     covernote_start: string;
     covernote_end: string;
+    sla_days: string;
+    sla_override_reason: string;
 };
 type OrderDraft = {
     branch_id: string;
     notary_id: string;
     customer_name: string;
     no_rekening: string;
+    tgl_masuk_notaris: string;
     tgl_realisasi: string;
     plafon: string;
     nominal: string;
@@ -110,6 +113,7 @@ export default function OrdersShow({
     branches,
     notaries,
     jobTypes,
+    slaPolicies,
 }: {
     order: any;
     canEdit: boolean;
@@ -132,12 +136,14 @@ export default function OrdersShow({
     branches: { id: number; code: string; name: string }[];
     notaries: { id: number; name: string }[];
     jobTypes: { id: number; code: string; name: string }[];
+    slaPolicies: Record<string, { days: number; source: string }>;
 }) {
     const draft = useForm<OrderDraft>({
         branch_id: String(order.branch_id ?? ''),
         notary_id: String(order.notary_id ?? ''),
         customer_name: order.customer_name ?? '',
         no_rekening: order.no_rekening ?? '',
+        tgl_masuk_notaris: dateInput(order.tgl_masuk_notaris),
         tgl_realisasi: dateInput(order.tgl_realisasi),
         plafon: order.plafon ?? '',
         nominal: order.nominal ?? '',
@@ -152,6 +158,8 @@ export default function OrdersShow({
                 covernote_no: item.covernote_no ?? '',
                 covernote_start: dateInput(item.covernote_start),
                 covernote_end: dateInput(item.covernote_end),
+                sla_days: item.sla_days ? String(item.sla_days) : '',
+                sla_override_reason: item.sla_override_reason ?? '',
             })) ?? [],
     });
     const [revisionOpen, setRevisionOpen] = useState(false);
@@ -743,6 +751,7 @@ export default function OrdersShow({
                         branches={branches}
                         notaries={notaries}
                         jobTypes={jobTypes}
+                        slaPolicies={slaPolicies}
                         setCollateral={setCollateral}
                         onSubmit={saveDraft}
                         incompleteFields={incompleteFields}
@@ -1028,6 +1037,32 @@ export default function OrdersShow({
                                     </div>
                                 </div>
                                 <div className="text-sm text-muted-foreground">
+                                    <div className="mb-3 rounded-md border bg-muted/20 p-3">
+                                        <div className="font-medium text-foreground">
+                                            SLA{' '}
+                                            {item.sla_source === 'override'
+                                                ? 'khusus'
+                                                : 'standar'}
+                                        </div>
+                                        <div className="mt-1">
+                                            {item.sla_days
+                                                ? `${item.sla_days} hari`
+                                                : 'Belum ditentukan'}{' '}
+                                            · jatuh tempo{' '}
+                                            {dateOnly(item.sla_due_at) ||
+                                                'menunggu tanggal masuk notaris'}
+                                        </div>
+                                        {item.sla_source === 'override' && (
+                                            <div className="mt-1 text-xs">
+                                                Alasan: {item.sla_override_reason || 'Menunggu alasan'}
+                                            </div>
+                                        )}
+                                        {item.sla_due_at && (
+                                            <div className="mt-1 text-xs font-medium text-foreground">
+                                                {slaState(item.sla_due_at)}
+                                            </div>
+                                        )}
+                                    </div>
                                     {item.covernote_no || item.covernote_end ? (
                                         <>
                                             <div>
@@ -2267,6 +2302,7 @@ function DraftOrderForm({
     branches,
     notaries,
     jobTypes,
+    slaPolicies,
     setCollateral,
     onSubmit,
     incompleteFields,
@@ -2275,6 +2311,7 @@ function DraftOrderForm({
     branches: any[];
     notaries: any[];
     jobTypes: any[];
+    slaPolicies: Record<string, { days: number; source: string }>;
     setCollateral: (
         index: number,
         key: keyof CollateralDraft,
@@ -2380,6 +2417,24 @@ function DraftOrderForm({
                             draft.setData('tgl_realisasi', event.target.value)
                         }
                     />
+                </DraftField>
+                <DraftField
+                    label="Tanggal masuk notaris"
+                    error={draft.errors.tgl_masuk_notaris}
+                >
+                    <Input
+                        type="date"
+                        value={draft.data.tgl_masuk_notaris}
+                        onChange={(event) =>
+                            draft.setData(
+                                'tgl_masuk_notaris',
+                                event.target.value,
+                            )
+                        }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        Menjadi titik awal perhitungan SLA.
+                    </p>
                 </DraftField>
                 <DraftField label="Plafon">
                     <RupiahInput
@@ -2501,6 +2556,69 @@ function DraftOrderForm({
                                         }
                                     />
                                 </DraftField>
+                                <DraftField
+                                    label="SLA order (hari)"
+                                    error={
+                                        draft.errors[
+                                            `collaterals.${index}.sla_days`
+                                        ]
+                                    }
+                                >
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={365}
+                                        value={item.sla_days}
+                                        placeholder={
+                                            slaPolicies[item.job_type_id]
+                                                ? String(
+                                                      slaPolicies[
+                                                          item.job_type_id
+                                                      ].days,
+                                                  )
+                                                : 'Otomatis dari kebijakan'
+                                        }
+                                        onChange={(event) =>
+                                            setCollateral(
+                                                index,
+                                                'sla_days',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Kosongkan untuk memakai SLA standar. Isi
+                                        berbeda wajib disertai alasan.
+                                    </p>
+                                </DraftField>
+                                {item.sla_days &&
+                                    slaPolicies[item.job_type_id] &&
+                                    Number(item.sla_days) !==
+                                        slaPolicies[item.job_type_id].days && (
+                                        <DraftField
+                                            label="Alasan perubahan SLA"
+                                            error={
+                                                draft.errors[
+                                                    `collaterals.${index}.sla_override_reason`
+                                                ]
+                                            }
+                                        >
+                                            <textarea
+                                                className="sim-input min-h-20 py-2"
+                                                value={
+                                                    item.sla_override_reason
+                                                }
+                                                onChange={(event) =>
+                                                    setCollateral(
+                                                        index,
+                                                        'sla_override_reason',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Jelaskan alasan SLA khusus"
+                                            />
+                                        </DraftField>
+                                    )}
                                 {draft.data.collaterals.length > 1 && (
                                     <Button
                                         type="button"
@@ -2570,6 +2688,8 @@ function emptyCollateralDraft(): CollateralDraft {
         covernote_no: '',
         covernote_start: '',
         covernote_end: '',
+        sla_days: '',
+        sla_override_reason: '',
     };
 }
 
@@ -2600,6 +2720,16 @@ function dateOnly(value?: string | null) {
         month: 'short',
         year: 'numeric',
     }).format(date);
+}
+
+function slaState(value?: string | null) {
+    if (!value) return 'SLA belum dimulai';
+    const due = new Date(value);
+    const today = new Date();
+    const days = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+    if (days < 0) return `Terlambat ${Math.abs(days)} hari`;
+    if (days <= 7) return `Mendekati batas, tersisa ${days} hari`;
+    return `Aman, tersisa ${days} hari`;
 }
 
 function formatTimelineDate(value?: string | null) {

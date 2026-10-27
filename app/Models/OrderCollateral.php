@@ -14,6 +14,7 @@ class OrderCollateral extends Model
         'order_id', 'job_type_id', 'agunan_id', 'deskripsi_agunan', 'legacy_id',
         'doc_status', 'covernote_no', 'covernote_start', 'covernote_end',
         'covernote_file_path', 'covernote_status', 'extension_count', 'sla_due_at',
+        'sla_days', 'sla_source', 'sla_override_reason',
     ];
 
     protected function casts(): array
@@ -24,6 +25,7 @@ class OrderCollateral extends Model
             'covernote_end' => 'date',
             'covernote_status' => TrackCCovernoteStatus::class,
             'sla_due_at' => 'datetime',
+            'sla_days' => 'integer',
         ];
     }
 

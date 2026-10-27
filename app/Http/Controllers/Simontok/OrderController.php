@@ -141,6 +141,7 @@ class OrderController extends Controller
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'notaries' => Notary::where('is_active', true)->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'slaPolicies' => $this->slaPolicies(),
         ]);
     }
 
@@ -161,11 +162,12 @@ class OrderController extends Controller
                 if (! ($collateralData['job_type_id'] ?? null)) {
                     continue;
                 }
+                $sla = $this->resolveSla($collateralData, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null);
                 $collateral = $order->collaterals()->create([
-                    ...$collateralData,
+                    ...collect($collateralData)->except(['id', 'sla_days', 'sla_override_reason'])->all(),
                     'doc_status' => TrackBDocStatus::MenungguVerifikasi,
                     'covernote_status' => null,
-                    'sla_due_at' => $this->slaDueAt((int) $collateralData['job_type_id'], (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
+                    ...$sla,
                 ]);
 
                 $this->seedOrderChecklists($order, $collateral, (int) $collateralData['job_type_id']);
@@ -226,10 +228,11 @@ class OrderController extends Controller
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'notaries' => Notary::where('is_active', true)->whereHas('users', fn ($query) => $query->where('is_active', true))->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
             'paymentBlockers' => $paymentBlockers,
             'canVerifyPayment' => $request->user()->hasPermission('payments.verify') && $order->paymentRequest?->status?->value === 'diajukan' && $paymentBlockers === [],
             'canApprovePayment' => false,
-            'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay') && $order->paymentRequest?->status?->value === 'diverifikasi_admin' && $order->status === TrackAStatus::DokumenFisikDiterima,
+            'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay') && $order->paymentRequest?->status?->value === 'disetujui' && $order->status === TrackAStatus::DokumenFisikDiterima,
             'canValidateDocuments' => $request->user()->hasPermission('documents.validate'),
             'canManageHandovers' => $request->user()->hasPermission('handovers.manage') && $order->status === TrackAStatus::DokumenFinalDiunggah,
             'canManageOrder' => $request->user()->hasPermission('orders.manage'),
@@ -269,6 +272,7 @@ class OrderController extends Controller
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'notaries' => Notary::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
         ]);
     }
 
@@ -303,13 +307,16 @@ class OrderController extends Controller
                 $collateral = ! empty($collateralData['id'])
                     ? $order->collaterals()->findOrFail($collateralData['id'])
                     : $order->collaterals()->create([
-                        ...collect($collateralData)->except('id')->all(),
+                        ...collect($collateralData)->except(['id', 'sla_days', 'sla_override_reason'])->all(),
                         'doc_status' => TrackBDocStatus::MenungguVerifikasi,
                         'covernote_status' => null,
-                        'sla_due_at' => $this->slaDueAt((int) $collateralData['job_type_id'], (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
+                        ...$this->resolveSla($collateralData, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
                     ]);
 
-                $collateral->update(collect($collateralData)->except('id')->all());
+                $collateral->update([
+                    ...collect($collateralData)->except(['id', 'sla_days', 'sla_override_reason'])->all(),
+                    ...$this->resolveSla($collateralData, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
+                ]);
                 if (! $collateral->checklists()->exists()) {
                     $this->seedOrderChecklists($order, $collateral, (int) $collateralData['job_type_id']);
                 }
@@ -405,6 +412,10 @@ class OrderController extends Controller
             $approvedAt = now();
             $roleName = $request->user()->role()?->name ?? 'Approver cabang';
             $reason = "Order disetujui oleh {$request->user()->name} ({$roleName}) dan dikirim ke notaris.";
+            $customSlaCount = $lockedOrder->collaterals()->where('sla_source', 'override')->count();
+            if ($customSlaCount > 0) {
+                $reason .= " {$customSlaCount} SLA khusus ikut disetujui.";
+            }
 
             $lockedOrder->update([
                 'status' => TrackAStatus::MenungguVerifikasiNotaris,
@@ -555,6 +566,7 @@ class OrderController extends Controller
             'customer_name' => ['required', 'string', 'max:255'],
             'no_rekening' => ['required', 'string', 'max:30'],
             'tgl_realisasi' => ['nullable', 'date'],
+            'tgl_masuk_notaris' => ['nullable', 'date'],
             'plafon' => ['nullable', 'numeric', 'min:0'],
             'nominal' => ['nullable', 'numeric', 'min:0'],
             'skema_pembayaran' => ['nullable', 'string', 'max:30'],
@@ -588,6 +600,7 @@ class OrderController extends Controller
             'customer_name' => ['required', 'string', 'max:255'],
             'no_rekening' => ['required', 'string', 'max:30'],
             'tgl_realisasi' => ['nullable', 'date'],
+            'tgl_masuk_notaris' => ['nullable', 'date'],
             'plafon' => ['nullable', 'numeric', 'min:0'],
             'nominal' => ['nullable', 'numeric', 'min:0'],
             'skema_pembayaran' => ['nullable', 'string', 'max:30'],
@@ -597,9 +610,23 @@ class OrderController extends Controller
             'collaterals.*.id' => ['nullable', 'integer', 'exists:order_collaterals,id'],
             'collaterals.*.agunan_id' => ['nullable', 'string', 'max:50'],
             'collaterals.*.deskripsi_agunan' => ['nullable', 'string'],
+            'collaterals.*.sla_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'collaterals.*.sla_override_reason' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
+
+        foreach ($data['collaterals'] ?? [] as $index => $collateralData) {
+            if (! ($collateralData['job_type_id'] ?? null)) {
+                continue;
+            }
+            $sla = $this->resolveSla($collateralData, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null);
+            if ($sla['sla_source'] === 'override' && blank($collateralData['sla_override_reason'] ?? null)) {
+                throw ValidationException::withMessages([
+                    "collaterals.{$index}.sla_override_reason" => 'Alasan wajib diisi jika SLA diubah dari nilai standar.',
+                ]);
+            }
+        }
 
         return [...$data, 'collaterals' => $data['collaterals'] ?? []];
     }
@@ -621,6 +648,10 @@ class OrderController extends Controller
 
         if ($order->collaterals->contains(fn ($collateral) => $collateral->checklists->contains(fn ($checklist) => ! $checklist->is_checked || ! $checklist->order_document_id))) {
             $missing[] = 'dokumen checklist lengkap';
+        }
+
+        if ($order->collaterals->contains(fn ($collateral) => $collateral->sla_source === 'override' && blank($collateral->sla_override_reason))) {
+            $missing[] = 'alasan perubahan SLA';
         }
 
         if ($missing !== []) {
@@ -686,19 +717,36 @@ class OrderController extends Controller
         return 'ORD-'.now()->format('Ymd').'-'.str_pad((string) (Order::whereDate('created_at', today())->count() + 1), 4, '0', STR_PAD_LEFT);
     }
 
-    private function slaDueAt(int $jobTypeId, int $branchId, ?string $startDate): mixed
+    private function slaPolicies(?int $branchId = null): array
     {
-        if (! $startDate) {
-            return null;
-        }
+        return SlaPolicy::query()
+            ->where('is_active', true)
+            ->when($branchId, fn ($query) => $query->where(fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->get()
+            ->groupBy('job_type_id')
+            ->map(fn ($policies) => $policies->sortBy(fn ($item) => $item->branch_id === $branchId ? 0 : 1)->first())
+            ->mapWithKeys(fn ($item) => [$item->job_type_id => ['days' => $item->days, 'source' => $item->branch_id ? 'cabang' : 'global']])
+            ->all();
+    }
 
-        $policy = SlaPolicy::query()
+    private function resolveSla(array $collateralData, int $branchId, ?string $startDate): array
+    {
+        $jobTypeId = (int) ($collateralData['job_type_id'] ?? 0);
+        $standard = SlaPolicy::query()
             ->where('job_type_id', $jobTypeId)
             ->where('is_active', true)
             ->where(fn ($query) => $query->where('branch_id', $branchId)->orWhereNull('branch_id'))
             ->orderByRaw('branch_id is null')
             ->first();
+        $standardDays = $standard?->days;
+        $requestedDays = filled($collateralData['sla_days'] ?? null) ? (int) $collateralData['sla_days'] : $standardDays;
+        $isOverride = $requestedDays !== null && $requestedDays !== $standardDays;
 
-        return $policy ? Carbon::parse($startDate)->addDays($policy->days) : null;
+        return [
+            'sla_days' => $requestedDays,
+            'sla_source' => $isOverride ? 'override' : 'standard',
+            'sla_override_reason' => $isOverride ? ($collateralData['sla_override_reason'] ?? null) : null,
+            'sla_due_at' => $startDate && $requestedDays ? Carbon::parse($startDate)->addDays($requestedDays) : null,
+        ];
     }
 }

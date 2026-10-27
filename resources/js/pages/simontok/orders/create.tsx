@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 type Option = { id: number; code?: string; name: string };
 
 export default function OrdersCreate({ branches, notaries }: { branches: Option[]; notaries: Option[] }) {
-    const { data, setData, post, processing, errors } = useForm({ branch_id: '', notary_id: '', customer_name: '', no_rekening: '' });
+    const { data, setData, post, processing, errors } = useForm({ branch_id: '', notary_id: '', customer_name: '', no_rekening: '', tgl_masuk_notaris: '' });
     const submit = (event: FormEvent) => { event.preventDefault(); post('/orders'); };
 
     return <><Head title="Buat order" /><div className="sim-workspace">
@@ -23,6 +23,7 @@ export default function OrdersCreate({ branches, notaries }: { branches: Option[
                 <Field label="Notaris" error={errors.notary_id}><SimSelect value={data.notary_id} onChange={(value) => setData('notary_id', value)} options={notaries.map((item) => ({ value: String(item.id), label: item.name }))} placeholder="Pilih notaris" /></Field>
                 <Field label="Nama nasabah" error={errors.customer_name}><Input value={data.customer_name} onChange={(event) => setData('customer_name', event.target.value)} /></Field>
                 <Field label="No rekening" error={errors.no_rekening}><Input value={data.no_rekening} onChange={(event) => setData('no_rekening', event.target.value)} /></Field>
+                <Field label="Tanggal masuk notaris" error={errors.tgl_masuk_notaris}><Input type="date" value={data.tgl_masuk_notaris} onChange={(event) => setData('tgl_masuk_notaris', event.target.value)} /><p className="text-xs text-muted-foreground">Menjadi titik awal perhitungan SLA setiap agunan.</p></Field>
             </div>
             <div className="flex justify-end border-t p-4"><Button disabled={processing}><FilePlus2 className="size-4" />Buat draft order</Button></div>
         </form>

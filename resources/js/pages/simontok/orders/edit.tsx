@@ -17,6 +17,8 @@ type CollateralForm = {
     covernote_no: string;
     covernote_start: string;
     covernote_end: string;
+    sla_days: string;
+    sla_override_reason: string;
 };
 
 type OrderForm = {
@@ -24,6 +26,7 @@ type OrderForm = {
     notary_id: string;
     customer_name: string;
     no_rekening: string;
+    tgl_masuk_notaris: string;
     tgl_realisasi: string;
     plafon: string;
     nominal: string;
@@ -39,16 +42,19 @@ const emptyCollateral = (): CollateralForm => ({
     covernote_no: '',
     covernote_start: '',
     covernote_end: '',
+    sla_days: '',
+    sla_override_reason: '',
 });
 
 const dateOnly = (value?: string | null) => value?.slice(0, 10) ?? '';
 
-export default function OrdersEdit({ order, branches, notaries, jobTypes }: { order: any; branches: Option[]; notaries: Option[]; jobTypes: Option[] }) {
+export default function OrdersEdit({ order, branches, notaries, jobTypes, slaPolicies }: { order: any; branches: Option[]; notaries: Option[]; jobTypes: Option[]; slaPolicies: Record<string, { days: number; source: string }> }) {
     const { data, setData, put, processing, errors } = useForm<OrderForm>({
         branch_id: String(order.branch_id ?? ''),
         notary_id: String(order.notary_id ?? ''),
         customer_name: order.customer_name ?? '',
         no_rekening: order.no_rekening ?? '',
+        tgl_masuk_notaris: dateOnly(order.tgl_masuk_notaris),
         tgl_realisasi: dateOnly(order.tgl_realisasi),
         plafon: order.plafon ?? '',
         nominal: order.nominal ?? '',
@@ -61,6 +67,8 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes }: { or
             covernote_no: item.covernote_no ?? '',
             covernote_start: dateOnly(item.covernote_start),
             covernote_end: dateOnly(item.covernote_end),
+            sla_days: item.sla_days ? String(item.sla_days) : '',
+            sla_override_reason: item.sla_override_reason ?? '',
         })) ?? [emptyCollateral()],
     });
 
@@ -100,6 +108,7 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes }: { or
                     <Field label="Nama nasabah" error={errors.customer_name}><Input value={data.customer_name} onChange={(e) => setData('customer_name', e.target.value)} /></Field>
                     <Field label="No rekening" error={errors.no_rekening}><Input value={data.no_rekening} onChange={(e) => setData('no_rekening', e.target.value)} /></Field>
                     <Field label="Tanggal akad"><Input type="date" value={data.tgl_realisasi} onChange={(e) => setData('tgl_realisasi', e.target.value)} /></Field>
+                    <Field label="Tanggal masuk notaris" error={errors.tgl_masuk_notaris}><Input type="date" value={data.tgl_masuk_notaris} onChange={(e) => setData('tgl_masuk_notaris', e.target.value)} /></Field>
                     <Field label="Plafon"><RupiahInput value={data.plafon} onChange={(value) => setData('plafon', value)} /></Field>
                     <Field label="Nominal jasa"><RupiahInput value={data.nominal} onChange={(value) => setData('nominal', value)} /></Field>
                     <Field label="Skema pembayaran"><Input list="payment-schemes-edit" value={data.skema_pembayaran} onChange={(e) => setData('skema_pembayaran', e.target.value)} placeholder="Pilih atau ketik skema" /><datalist id="payment-schemes-edit"><option value="Transfer penuh" /><option value="Lainnya" /></datalist></Field>
@@ -122,6 +131,8 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes }: { or
                             <Field label="Deskripsi agunan">
                                 <textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.deskripsi_agunan} onChange={(e) => setCollateral(index, 'deskripsi_agunan', e.target.value)} />
                             </Field>
+                            <Field label="SLA order (hari)" error={errors[`collaterals.${index}.sla_days` as keyof typeof errors]}><Input type="number" min={1} max={365} value={collateral.sla_days} placeholder={slaPolicies[collateral.job_type_id] ? String(slaPolicies[collateral.job_type_id].days) : 'Otomatis'} onChange={(e) => setCollateral(index, 'sla_days', e.target.value)} /></Field>
+                            {collateral.sla_days && slaPolicies[collateral.job_type_id] && Number(collateral.sla_days) !== slaPolicies[collateral.job_type_id].days && <Field label="Alasan perubahan SLA" error={errors[`collaterals.${index}.sla_override_reason` as keyof typeof errors]}><textarea className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.sla_override_reason} onChange={(e) => setCollateral(index, 'sla_override_reason', e.target.value)} /></Field>}
                             {data.collaterals.length > 1 && (
                                 <Button type="button" variant="outline" size="sm" className="md:w-fit" onClick={() => setData('collaterals', data.collaterals.filter((_, i) => i !== index))}>
                                     <Trash2 className="size-4" />
