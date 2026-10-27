@@ -7,7 +7,11 @@ type RupiahInputProps = Omit<ComponentProps<typeof Input>, 'type' | 'value' | 'o
 };
 
 export function formatRupiahInput(value: string | number | null | undefined): string {
-    const digits = String(value ?? '').replace(/\D/g, '');
+    const rawValue = String(value ?? '').trim();
+    const databaseDecimal = /^\d+\.\d+$/.test(rawValue)
+        ? rawValue.split('.')[0]
+        : rawValue;
+    const digits = databaseDecimal.replace(/\D/g, '');
     return digits ? new Intl.NumberFormat('id-ID').format(Number(digits)) : '';
 }
 
