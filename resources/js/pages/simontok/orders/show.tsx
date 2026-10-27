@@ -168,6 +168,7 @@ export default function OrdersShow({
         number | null
     >(null);
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
+    const canViewInitialDocuments = canManageOrder || canApproveOrder;
     const [draftSaveState, setDraftSaveState] = useState<
         'saved' | 'pending' | 'saving' | 'error'
     >('saved');
@@ -1673,8 +1674,9 @@ export default function OrdersShow({
                     </form>
                 )}
 
-                {!orderSentToNotary && canManageOrder && (
+                {!orderSentToNotary && canViewInitialDocuments && (
                     <details
+                        id="kelengkapan-dokumen"
                         className="sim-panel group"
                         open={documentsOpen}
                         onToggle={(event) =>
@@ -1684,19 +1686,22 @@ export default function OrdersShow({
                         <summary className="sim-panel-header flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
                             <div>
                                 <h2 className="font-medium">
-                                    Kelengkapan dokumen awal
+                                    {canManageOrder
+                                        ? 'Kelengkapan dokumen awal'
+                                        : 'Dokumen order'}
                                 </h2>
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Upload setiap dokumen pada persyaratannya.
-                                    Checklist akan lengkap otomatis setelah
-                                    upload berhasil.
+                                    {canManageOrder
+                                        ? 'Upload setiap dokumen pada persyaratannya. Checklist akan lengkap otomatis setelah upload berhasil.'
+                                        : 'Periksa dokumen checklist dan dokumen pendukung sebelum memberikan approval.'}
                                 </p>
                             </div>
-                            <div className="text-sm text-muted-foreground">
-                                Siapkan dokumen agunan dan dokumen pendukung,
-                                lalu unggah semuanya sekaligus. PDF maksimal 10
-                                MB per file.
-                            </div>
+                            {canManageOrder && (
+                                <div className="text-sm text-muted-foreground">
+                                    Siapkan dokumen agunan dan dokumen
+                                    pendukung. PDF maksimal 10 MB per file.
+                                </div>
+                            )}
                             <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 md:mt-0.5" />
                         </summary>
                         <div className="divide-y">
@@ -1712,7 +1717,8 @@ export default function OrdersShow({
                                         {collateral.deskripsi_agunan ||
                                             'Kelengkapan dokumen untuk agunan ini.'}
                                     </div>
-                                    <div className="mt-3 flex flex-wrap gap-2">
+                                    {canManageOrder && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -1732,7 +1738,8 @@ export default function OrdersShow({
                                             <FilePlus2 className="size-4" />
                                             Tambah dokumen pendukung
                                         </Button>
-                                    </div>
+                                        </div>
+                                    )}
                                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                                         {collateral.checklists.map(
                                             (item: any) => {
@@ -1784,7 +1791,8 @@ export default function OrdersShow({
                                                                         )}
                                                                     </span>
                                                                 </div>
-                                                                <span className="flex shrink-0 items-center gap-1">
+                                                                {canManageOrder && (
+                                                                    <span className="flex shrink-0 items-center gap-1">
                                                                     <Button
                                                                         type="button"
                                                                         size="icon"
@@ -1843,9 +1851,10 @@ export default function OrdersShow({
                                                                     >
                                                                         <Trash2 className="size-4" />
                                                                     </Button>
-                                                                </span>
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                        ) : (
+                                                        ) : canManageOrder ? (
                                                             <Button
                                                                 type="button"
                                                                 variant="ghost"
@@ -1865,6 +1874,10 @@ export default function OrdersShow({
                                                                 Klik untuk input
                                                                 dokumen.
                                                             </Button>
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground">
+                                                                Belum ada file.
+                                                            </span>
                                                         )}
                                                     </div>
                                                 );
@@ -1912,7 +1925,8 @@ export default function OrdersShow({
                                                                     )}
                                                                 </span>
                                                             </div>
-                                                            <span className="flex shrink-0 items-center gap-1">
+                                                            {canManageOrder && (
+                                                                <span className="flex shrink-0 items-center gap-1">
                                                                 <Button
                                                                     type="button"
                                                                     size="icon"
@@ -1961,7 +1975,8 @@ export default function OrdersShow({
                                                                 >
                                                                     <Trash2 className="size-4" />
                                                                 </Button>
-                                                            </span>
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     ))}
                                             </div>
