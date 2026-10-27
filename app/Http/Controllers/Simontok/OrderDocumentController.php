@@ -109,7 +109,7 @@ class OrderDocumentController extends Controller
             }
         });
 
-        return back()->with('success', 'Seluruh dokumen agunan berhasil diunggah.');
+        return to_route('orders.show', $order)->with('success', 'Seluruh dokumen agunan berhasil diunggah.');
     }
 
     public function store(Request $request, Order $order): RedirectResponse

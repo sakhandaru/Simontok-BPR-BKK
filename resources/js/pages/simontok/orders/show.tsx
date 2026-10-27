@@ -403,6 +403,35 @@ export default function OrdersShow({
         null,
     );
 
+    useEffect(() => {
+        setBatchDocuments((current) => {
+            let changed = false;
+            const next = { ...current };
+
+            for (const collateral of order.collaterals ?? []) {
+                const collateralId = String(collateral.id);
+                const persistedChecklistIds = new Set(
+                    (collateral.checklists ?? [])
+                        .filter((item: any) => item.order_document)
+                        .map((item: any) => String(item.id)),
+                );
+                const records = current[collateralId] ?? [];
+                const remaining = records.filter(
+                    (record) =>
+                        record.kind !== 'agunan' ||
+                        !persistedChecklistIds.has(record.checklist_id),
+                );
+
+                if (remaining.length !== records.length) {
+                    next[collateralId] = remaining;
+                    changed = true;
+                }
+            }
+
+            return changed ? next : current;
+        });
+    }, [order.collaterals]);
+
     const submitUpload = (event?: FormEvent) => {
         event?.preventDefault();
         upload.post(`/orders/${order.id}/documents`, {
@@ -551,11 +580,6 @@ export default function OrdersShow({
             forceFormData: true,
             preserveState: true,
             preserveScroll: true,
-            onSuccess: () =>
-                setBatchDocuments((current) => ({
-                    ...current,
-                    [collateralId]: [],
-                })),
         });
     };
 
