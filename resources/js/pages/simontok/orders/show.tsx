@@ -2125,29 +2125,6 @@ export default function OrdersShow({
                                                 label="Tervalidasi"
                                                 tone="success"
                                             />
-                                        ) : canValidateDocuments ? (
-                                            <div className="flex shrink-0 gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() =>
-                                                        router.post(
-                                                            `/orders/${order.id}/documents/${document.id}/validate-final`,
-                                                            {},
-                                                            {
-                                                                preserveScroll: true,
-                                                                onSuccess: () =>
-                                                                    setProgressDocumentsPreview(
-                                                                        null,
-                                                                    ),
-                                                            },
-                                                        )
-                                                    }
-                                                >
-                                                    <FileCheck2 className="size-4" />
-                                                    Setujui
-                                                </Button>
-                                            </div>
                                         ) : (
                                             <SimStatusBadge
                                                 label="Menunggu validasi"
@@ -2158,6 +2135,43 @@ export default function OrdersShow({
                                 ),
                             )}
                         </div>
+                        {canValidateDocuments &&
+                            (progressDocumentsPreview ?? []).some(
+                                (document: any) => !document.validated_at,
+                            ) && (
+                                <div className="flex justify-end border-t pt-4">
+                                    <Button
+                                        onClick={() =>
+                                            router.post(
+                                                `/orders/${order.id}/documents/validate-final-batch`,
+                                                {
+                                                    document_ids: (
+                                                        progressDocumentsPreview ??
+                                                        []
+                                                    ).map(
+                                                        (document: any) =>
+                                                            document.id,
+                                                    ),
+                                                },
+                                                {
+                                                    preserveScroll: true,
+                                                    onSuccess: () => {
+                                                        setProgressDocumentsPreview(
+                                                            null,
+                                                        );
+                                                        setProgressDocumentPreview(
+                                                            null,
+                                                        );
+                                                    },
+                                                },
+                                            )
+                                        }
+                                    >
+                                        <FileCheck2 className="size-4" />
+                                        Setujui semua dokumen
+                                    </Button>
+                                </div>
+                            )}
                         {progressDocumentPreview && (
                             <div className="overflow-hidden rounded-md border bg-muted/20">
                                 <div className="border-b px-3 py-2 text-sm font-medium">

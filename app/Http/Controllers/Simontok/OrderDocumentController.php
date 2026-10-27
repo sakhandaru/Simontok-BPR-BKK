@@ -232,6 +232,68 @@ class OrderDocumentController extends Controller
         return back()->with('success', 'Dokumen final divalidasi.');
     }
 
+    public function validateFinalBatch(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorizeDocumentAccess($request, $order);
+
+        $data = $request->validate([
+            'document_ids' => ['required', 'array', 'min:1'],
+            'document_ids.*' => ['integer', 'distinct'],
+        ]);
+        $documents = $order->documents()->whereIn('id', $data['document_ids'])->get();
+
+        abort_unless(
+            $documents->count() === count($data['document_ids'])
+                && $documents->every(fn (OrderDocument $document) => $document->document_type === OrderDocumentType::Final),
+            422,
+            'Daftar dokumen final tidak valid.',
+        );
+
+        DB::transaction(function () use ($request, $order, $documents) {
+            $documents->each(fn (OrderDocument $document) => $document->update([
+                'validated_by' => $request->user()->id,
+                'validated_at' => now(),
+            ]));
+
+            foreach ($documents->pluck('order_collateral_id')->filter()->unique() as $collateralId) {
+                $collateralHasPendingFinal = $order->documents()
+                    ->where('order_collateral_id', $collateralId)
+                    ->where('document_type', OrderDocumentType::Final)
+                    ->whereNull('validated_at')
+                    ->exists();
+
+                if (! $collateralHasPendingFinal) {
+                    OrderCollateral::whereKey($collateralId)->update([
+                        'doc_status' => TrackBDocStatus::FinalDivalidasi,
+                    ]);
+                }
+            }
+
+            $allFinal = $order->collaterals()
+                ->where('doc_status', '!=', TrackBDocStatus::FinalDivalidasi->value)
+                ->doesntExist();
+
+            if ($allFinal) {
+                $before = $order->status;
+                $order->update(['status' => TrackAStatus::DokumenFinalDiunggah]);
+                $order->statusHistories()->create([
+                    'track' => 'A',
+                    'from_status' => $before->value,
+                    'to_status' => TrackAStatus::DokumenFinalDiunggah->value,
+                    'actor_type' => 'user',
+                    'actor_id' => $request->user()->id,
+                    'reason' => 'Semua dokumen final tervalidasi.',
+                ]);
+            }
+
+            Audit::record($request, 'documents', $order, 'validate_final', 'Seluruh dokumen final pada progres divalidasi sekaligus.', [
+                'document_ids' => $documents->pluck('id')->values()->all(),
+            ]);
+        });
+
+        return back()->with('success', 'Seluruh dokumen final berhasil divalidasi.');
+    }
+
     public function submitFinal(Request $request, Order $order): RedirectResponse
     {
         $this->authorizeDocumentAccess($request, $order);

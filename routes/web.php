@@ -40,6 +40,7 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('orders/{order}/documents/{document}', [OrderDocumentController::class, 'destroy'])->name('orders.documents.destroy');
     });
     Route::middleware('permission:documents.validate')->post('orders/{order}/documents/{document}/validate-final', [OrderDocumentController::class, 'validateFinal'])->name('orders.documents.validate-final');
+    Route::middleware('permission:documents.validate')->post('orders/{order}/documents/validate-final-batch', [OrderDocumentController::class, 'validateFinalBatch'])->name('orders.documents.validate-final-batch');
     Route::middleware('permission:documents.validate')->post('orders/{order}/documents/{document}/return-final-revision', [OrderDocumentController::class, 'returnFinalRevision'])->name('orders.documents.return-final-revision');
     Route::middleware('permission:handovers.manage')->post('orders/{order}/handovers', [OrderHandoverController::class, 'store'])->name('orders.handovers.store');
     Route::middleware('permission:payments.verify')->post('orders/{order}/payment-requests/{paymentRequest}/verify', [PaymentRequestController::class, 'verify'])->name('orders.payment-requests.verify');
