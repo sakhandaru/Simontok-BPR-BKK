@@ -328,7 +328,11 @@ class OrderController extends Controller
             ]);
         });
 
-        return to_route('orders.show', $order)->with('success', 'Order diperbarui.');
+        $response = to_route('orders.show', $order);
+
+        return $request->boolean('silent_save') || $request->header('X-Silent-Save') === 'true'
+            ? $response
+            : $response->with('success', 'Order diperbarui.');
     }
 
     public function send(Request $request, Order $order): RedirectResponse

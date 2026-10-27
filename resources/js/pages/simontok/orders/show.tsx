@@ -187,6 +187,7 @@ export default function OrdersShow({
             preserveScroll: true,
             preserveState: true,
             only: silent ? ['order'] : undefined,
+            headers: silent ? { 'X-Silent-Save': 'true' } : undefined,
             onSuccess: () => {
                 draft.setDefaults();
                 setDraftSaveState('saved');
