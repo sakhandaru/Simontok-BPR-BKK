@@ -92,6 +92,7 @@ export default function OrdersShow({
     paymentBlockers,
     canVerifyPayment,
     canUploadPaymentProof,
+    canApprovePayment,
     canValidateDocuments,
     canManageHandovers,
     canManageOrder,
@@ -115,6 +116,7 @@ export default function OrdersShow({
     paymentBlockers: string[];
     canVerifyPayment: boolean;
     canUploadPaymentProof: boolean;
+    canApprovePayment: boolean;
     canValidateDocuments: boolean;
     canManageHandovers: boolean;
     canManageOrder: boolean;
@@ -377,6 +379,10 @@ export default function OrdersShow({
         decision: 'verify',
         catatan_verifikasi: '',
     });
+    const paymentApproval = useForm({
+        decision: 'approve',
+        catatan_approver: '',
+    });
     const paymentProof = useForm({
         paid_at: '',
         nominal: order.payment_request?.nominal ?? order.nominal ?? '',
@@ -480,6 +486,14 @@ export default function OrdersShow({
         paymentProof.post(
             `/orders/${order.id}/payment-requests/${order.payment_request.id}/pay`,
             { forceFormData: true, preserveScroll: true },
+        );
+    };
+    const submitPaymentApproval = (event: FormEvent) => {
+        event.preventDefault();
+        if (!order.payment_request?.id) return;
+        paymentApproval.post(
+            `/orders/${order.id}/payment-requests/${order.payment_request.id}/approve`,
+            { preserveScroll: true },
         );
     };
 
@@ -861,6 +875,59 @@ export default function OrdersShow({
                                         >
                                             <Save className="size-4" />
                                             Simpan verifikasi
+                                        </Button>
+                                    </form>
+                                )}
+
+                                {canApprovePayment && (
+                                    <form
+                                        onSubmit={submitPaymentApproval}
+                                        className="sim-metric grid gap-3"
+                                    >
+                                        <div className="font-medium">
+                                            Persetujuan pembayaran
+                                        </div>
+                                        <SimSelect
+                                            value={paymentApproval.data.decision}
+                                            onChange={(value) =>
+                                                paymentApproval.setData(
+                                                    'decision',
+                                                    value,
+                                                )
+                                            }
+                                            options={[
+                                                {
+                                                    value: 'approve',
+                                                    label: 'Setujui pembayaran',
+                                                },
+                                                {
+                                                    value: 'reject',
+                                                    label: 'Tolak pembayaran',
+                                                },
+                                            ]}
+                                        />
+                                        <textarea
+                                            className="sim-input min-h-20 py-2"
+                                            value={
+                                                paymentApproval.data
+                                                    .catatan_approver
+                                            }
+                                            onChange={(event) =>
+                                                paymentApproval.setData(
+                                                    'catatan_approver',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Catatan persetujuan"
+                                        />
+                                        <Button
+                                            className="w-fit"
+                                            disabled={
+                                                paymentApproval.processing
+                                            }
+                                        >
+                                            <Save className="size-4" />
+                                            Simpan persetujuan
                                         </Button>
                                     </form>
                                 )}

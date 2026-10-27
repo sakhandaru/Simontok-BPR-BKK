@@ -241,7 +241,7 @@ class OrderController extends Controller
             'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
             'paymentBlockers' => $paymentBlockers,
             'canVerifyPayment' => $request->user()->hasPermission('payments.verify') && $order->paymentRequest?->status?->value === 'diajukan' && $paymentBlockers === [],
-            'canApprovePayment' => false,
+            'canApprovePayment' => $request->user()->hasPermission('payments.approve') && $order->paymentRequest?->status?->value === 'diverifikasi_admin' && $paymentBlockers === [],
             'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay') && $order->paymentRequest?->status?->value === 'disetujui' && $order->status === TrackAStatus::DokumenFisikDiterima,
             'canValidateDocuments' => $request->user()->hasPermission('documents.validate'),
             'canManageHandovers' => $request->user()->hasPermission('handovers.manage') && $order->status === TrackAStatus::DokumenFinalDiunggah,
