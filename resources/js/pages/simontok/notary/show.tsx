@@ -365,7 +365,7 @@ export default function NotaryOrdersShow({
                                                 e.target.value,
                                             )
                                         }
-                                        placeholder="Catatan notaris"
+                                        placeholder="Catatan notaris — tulis rekening tujuan pembayaran jika diperlukan"
                                     />
                                     <InputError
                                         message={

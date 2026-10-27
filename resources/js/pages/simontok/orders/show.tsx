@@ -777,6 +777,12 @@ export default function OrdersShow({
                                     }
                                 />
                                 <Info
+                                    label="Catatan notaris"
+                                    value={
+                                        order.payment_request?.catatan_notaris
+                                    }
+                                />
+                                <Info
                                     label="Diajukan"
                                     value={formatTimelineDate(
                                         order.payment_request?.requested_at,
