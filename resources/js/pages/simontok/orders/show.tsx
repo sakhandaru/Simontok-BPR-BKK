@@ -1556,10 +1556,12 @@ export default function OrdersShow({
                             />
                             <SimFileUpload
                                 value={handover.data.receipt}
+                                accept="application/pdf,image/jpeg,image/png"
+                                description="JPG, PNG, atau PDF · maksimal 10 MB"
                                 onChange={(file) =>
                                     handover.setData('receipt', file)
                                 }
-                                label="Pilih tanda terima"
+                                label="Pilih foto atau PDF tanda terima"
                             />
                             <textarea
                                 className="sim-input min-h-20 py-2"

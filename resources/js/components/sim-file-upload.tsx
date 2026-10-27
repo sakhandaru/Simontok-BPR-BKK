@@ -2,7 +2,7 @@ import { FileText, FileUp, Image as ImageIcon, X } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-export function SimFileUpload({ value, onChange, accept = 'application/pdf', label = 'Pilih file PDF', maxSizeMb = 10 }: { value?: File | null; onChange: (file: File | null) => void; accept?: string; label?: string; maxSizeMb?: number }) {
+export function SimFileUpload({ value, onChange, accept = 'application/pdf', label = 'Pilih file PDF', description, maxSizeMb = 10 }: { value?: File | null; onChange: (file: File | null) => void; accept?: string; label?: string; description?: string; maxSizeMb?: number }) {
     const id = useId();
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -25,7 +25,7 @@ export function SimFileUpload({ value, onChange, accept = 'application/pdf', lab
             <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">{value ? (isImage ? <ImageIcon className="size-4" /> : <FileText className="size-4" />) : <FileUp className="size-4" />}</span>
             <span className="min-w-0 flex-1 text-sm">
                 <span className="block truncate font-medium">{value?.name ?? label}</span>
-                <span className="block truncate text-xs text-muted-foreground">{value ? `${formatBytes(value.size)} - siap diunggah` : `PDF, maksimal ${maxSizeMb} MB per file`}</span>
+                <span className="block truncate text-xs text-muted-foreground">{value ? `${formatBytes(value.size)} - siap diunggah` : (description ?? `PDF, maksimal ${maxSizeMb} MB per file`)}</span>
             </span>
             {value && <button type="button" aria-label="Hapus file" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={(event) => { event.preventDefault(); onChange(null); }}><X className="size-4" /></button>}
             <input id={id} type="file" accept={accept} className="sr-only" onChange={(event) => {

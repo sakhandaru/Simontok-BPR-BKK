@@ -28,7 +28,7 @@ class OrderHandoverController extends Controller
             'receiver_name' => ['required', 'string', 'max:255'],
             'method' => ['required', Rule::in(array_map(fn (HandoverMethod $method) => $method->value, HandoverMethod::cases()))],
             'handed_over_at' => ['required', 'date'],
-            'receipt' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'receipt' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 
