@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { Edit3, RotateCcw, Search, UserPlus, X } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
@@ -71,6 +71,7 @@ export default function Users({
     const [formOpen, setFormOpen] = useState(false);
     const [accountType, setAccountType] = useState<AccountType>('sso');
     const filterInitialized = useRef(false);
+    const skipNextFilterRequest = useRef(false);
     const { sortedRows, sort, toggleSort } = useSimTableSort(
         users.data,
         'name',
@@ -129,11 +130,19 @@ export default function Users({
         setFormOpen(false);
     };
     const resetFilters = () => {
-        filterForm.setData({ search: '', type: '', branch_id: '', position_id: '', status: '' });
+        const emptyFilters = { search: '', type: '', branch_id: '', position_id: '', status: '' };
+        skipNextFilterRequest.current = true;
+        filterForm.setData(emptyFilters);
+        router.get('/users', emptyFilters, { preserveState: true, preserveScroll: true, replace: true });
     };
     useEffect(() => {
         if (!filterInitialized.current) {
             filterInitialized.current = true;
+            return;
+        }
+
+        if (skipNextFilterRequest.current) {
+            skipNextFilterRequest.current = false;
             return;
         }
 
@@ -541,7 +550,7 @@ function SelectField({
 }
 
 function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
-    return <div className="grid gap-2"><Label>{label}</Label><SimSelect value={value} onChange={onChange} placeholder="Pilih..." options={options} /></div>;
+    return <div className="min-w-0 grid gap-2"><Label>{label}</Label><SimSelect value={value} onChange={onChange} placeholder="Pilih..." options={options} /></div>;
 }
 Users.layout = {
     breadcrumbs: [{ title: 'Manajemen Pengguna', href: '/users' }],

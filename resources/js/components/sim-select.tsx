@@ -4,8 +4,8 @@ type SimSelectOption = { value: string; label: string };
 
 export function SimSelect({ value, onChange, options, placeholder = 'Pilih...' }: { value: string; onChange: (value: string) => void; options: SimSelectOption[]; placeholder?: string }) {
     return <Select value={value || undefined} onValueChange={(next) => onChange(next === '__empty__' ? '' : next)}>
-        <SelectTrigger className="w-full bg-background !pr-5">
-            <SelectValue placeholder={placeholder} />
+        <SelectTrigger className="min-w-0 w-full overflow-hidden bg-background !pr-5">
+            <SelectValue className="min-w-0 truncate" placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
             <SelectItem value="__empty__">{placeholder}</SelectItem>
