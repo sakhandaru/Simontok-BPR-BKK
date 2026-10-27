@@ -163,13 +163,10 @@ export default function OrdersShow({
     const revision = useForm({ reason: '' });
     const cancellation = useForm({ reason: '' });
     const covernoteRevision = useForm({ reason: '' });
-    const finalRevision = useForm({ reason: '' });
-    const [finalRevisionDocument, setFinalRevisionDocument] = useState<
-        number | null
-    >(null);
     const [progressDocumentsPreview, setProgressDocumentsPreview] = useState<
         any[] | null
     >(null);
+    const [progressDocumentPreview, setProgressDocumentPreview] = useState<any | null>(null);
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
     const canViewInitialDocuments = canManageOrder || canApproveOrder;
     const [draftSaveState, setDraftSaveState] = useState<
@@ -299,20 +296,6 @@ export default function OrdersShow({
             `/orders/${order.id}/collaterals/${collateralId}/covernote-extensions/${extensionId}/reject`,
             { reason },
             { preserveScroll: true },
-        );
-    };
-    const submitFinalRevision = (event: FormEvent) => {
-        event.preventDefault();
-        if (!finalRevisionDocument) return;
-        finalRevision.post(
-            `/orders/${order.id}/documents/${finalRevisionDocument}/return-final-revision`,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    finalRevision.reset();
-                    setFinalRevisionDocument(null);
-                },
-            },
         );
     };
     const setCollateral = (
@@ -1521,51 +1504,6 @@ export default function OrdersShow({
                                 </div>
                             )}
                         </div>
-                        {canValidateDocuments && finalRevisionDocument && (
-                            <form
-                                onSubmit={submitFinalRevision}
-                                className="border-t p-4"
-                            >
-                                <div className="font-medium">
-                                    Kembalikan dokumen final
-                                </div>
-                                <textarea
-                                    className="sim-input mt-3 min-h-20 py-2"
-                                    value={finalRevision.data.reason}
-                                    onChange={(event) =>
-                                        finalRevision.setData(
-                                            'reason',
-                                            event.target.value,
-                                        )
-                                    }
-                                    placeholder="Alasan perbaikan wajib diisi"
-                                />
-                                <InputError
-                                    message={finalRevision.errors.reason}
-                                />
-                                <div className="mt-3 flex gap-2">
-                                    <Button
-                                        type="submit"
-                                        variant="destructive"
-                                        disabled={
-                                            finalRevision.processing ||
-                                            !finalRevision.data.reason.trim()
-                                        }
-                                    >
-                                        Kirim revisi
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() =>
-                                            setFinalRevisionDocument(null)
-                                        }
-                                    >
-                                        Batal
-                                    </Button>
-                                </div>
-                            </form>
-                        )}
                     </details>
                 )}
 
@@ -2115,9 +2053,15 @@ export default function OrdersShow({
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() =>
-                                                            setProgressDocumentsPreview(
-                                                                finalDocuments,
-                                                            )
+                                                            (() => {
+                                                                setProgressDocumentsPreview(
+                                                                    finalDocuments,
+                                                                );
+                                                                setProgressDocumentPreview(
+                                                                    finalDocuments[0] ??
+                                                                        null,
+                                                                );
+                                                            })()
                                                         }
                                                     >
                                                         <Eye className="size-4" />
@@ -2143,9 +2087,12 @@ export default function OrdersShow({
 
                 <Dialog
                     open={Boolean(progressDocumentsPreview)}
-                    onOpenChange={(open) =>
-                        !open && setProgressDocumentsPreview(null)
-                    }
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setProgressDocumentsPreview(null);
+                            setProgressDocumentPreview(null);
+                        }
+                    }}
                 >
                     <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
@@ -2159,17 +2106,20 @@ export default function OrdersShow({
                                 (document: any) => (
                                     <div
                                         key={document.id}
-                                        className="flex items-center gap-3 rounded-md border p-3 text-sm"
+                                        className={`flex items-center gap-3 rounded-md border p-3 text-sm ${progressDocumentPreview?.id === document.id ? 'border-primary bg-primary/5' : ''}`}
                                     >
                                         <FileText className="size-4 shrink-0 text-muted-foreground" />
-                                        <a
-                                            href={`/orders/${order.id}/documents/${document.id}/preview`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="min-w-0 flex-1 truncate font-medium hover:underline"
+                                        <button
+                                            type="button"
+                                            className="min-w-0 flex-1 truncate text-left font-medium hover:underline"
+                                            onClick={() =>
+                                                setProgressDocumentPreview(
+                                                    document,
+                                                )
+                                            }
                                         >
                                             {document.original_name}
-                                        </a>
+                                        </button>
                                         {document.validated_at ? (
                                             <SimStatusBadge
                                                 label="Tervalidasi"
@@ -2197,20 +2147,6 @@ export default function OrdersShow({
                                                     <FileCheck2 className="size-4" />
                                                     Setujui
                                                 </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={() => {
-                                                        setFinalRevisionDocument(
-                                                            document.id,
-                                                        );
-                                                        setProgressDocumentsPreview(
-                                                            null,
-                                                        );
-                                                    }}
-                                                >
-                                                    Revisi
-                                                </Button>
                                             </div>
                                         ) : (
                                             <SimStatusBadge
@@ -2222,6 +2158,18 @@ export default function OrdersShow({
                                 ),
                             )}
                         </div>
+                        {progressDocumentPreview && (
+                            <div className="overflow-hidden rounded-md border bg-muted/20">
+                                <div className="border-b px-3 py-2 text-sm font-medium">
+                                    Preview: {progressDocumentPreview.original_name}
+                                </div>
+                                <iframe
+                                    title={`Preview ${progressDocumentPreview.original_name}`}
+                                    src={`/orders/${order.id}/documents/${progressDocumentPreview.id}/preview`}
+                                    className="h-[min(60vh,36rem)] w-full bg-white"
+                                />
+                            </div>
+                        )}
                     </DialogContent>
                 </Dialog>
 
