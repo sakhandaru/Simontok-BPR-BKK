@@ -332,24 +332,30 @@ export default function NotaryOrdersShow({
                                             )
                                         }
                                     />
-                                    <RupiahInput
-                                        min="1"
-                                        placeholder="Nominal"
-                                        value={invoice.data.nominal}
-                                        onChange={(value) =>
-                                            invoice.setData('nominal', value)
-                                        }
-                                    />
-                                    <Input
-                                        placeholder="Skema pembayaran"
-                                        value={invoice.data.skema_pembayaran}
-                                        onChange={(e) =>
-                                            invoice.setData(
-                                                'skema_pembayaran',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
+                                    <div className="grid gap-1">
+                                        <Label>Nominal jasa</Label>
+                                        <RupiahInput
+                                            min="1"
+                                            value={invoice.data.nominal}
+                                            readOnly
+                                            aria-readonly="true"
+                                            onChange={() => undefined}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Mengikuti nominal jasa pada order.
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <Label>Skema pembayaran</Label>
+                                        <Input
+                                            value={invoice.data.skema_pembayaran}
+                                            readOnly
+                                            aria-readonly="true"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Mengikuti skema pembayaran pada order.
+                                        </p>
+                                    </div>
                                     <textarea
                                         className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm"
                                         value={invoice.data.catatan_notaris}
