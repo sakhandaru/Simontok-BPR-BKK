@@ -318,11 +318,6 @@ export default function OrdersShow({
             },
         );
     };
-    const saveDraft = (event: FormEvent) => {
-        event.preventDefault();
-        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-        persistDraft(false);
-    };
     const setCollateral = (
         index: number,
         key: keyof CollateralDraft,
@@ -818,7 +813,6 @@ export default function OrdersShow({
                         jobTypes={jobTypes}
                         slaPolicies={slaPolicies}
                         setCollateral={setCollateral}
-                        onSubmit={saveDraft}
                         incompleteFields={incompleteFields}
                         saveState={draftSaveState}
                     />
@@ -2370,7 +2364,6 @@ function DraftOrderForm({
     jobTypes,
     slaPolicies,
     setCollateral,
-    onSubmit,
     incompleteFields,
     saveState,
 }: {
@@ -2384,12 +2377,11 @@ function DraftOrderForm({
         key: keyof CollateralDraft,
         value: string,
     ) => void;
-    onSubmit: (event: FormEvent) => void;
     incompleteFields: string[];
     saveState: 'saved' | 'pending' | 'saving' | 'error';
 }) {
     return (
-        <form onSubmit={onSubmit} className="sim-panel overflow-hidden">
+        <div className="sim-panel overflow-hidden">
             <div className="sim-panel-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h2 className="sim-panel-title">Lengkapi order</h2>
@@ -2408,14 +2400,6 @@ function DraftOrderForm({
                                 ? 'Gagal menyimpan'
                                 : 'Semua perubahan tersimpan'}
                     </span>
-                    <Button
-                        type="submit"
-                        variant="outline"
-                        disabled={draft.processing}
-                    >
-                        <Save className="size-4" />
-                        Simpan draft
-                    </Button>
                 </div>
             </div>
             {incompleteFields.length > 0 && (
@@ -2725,7 +2709,7 @@ function DraftOrderForm({
                     )}
                 </div>
             </div>
-        </form>
+        </div>
     );
 }
 
