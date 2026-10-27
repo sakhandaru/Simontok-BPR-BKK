@@ -17,7 +17,7 @@ import { SimPagination, type SimPaginationLink } from '@/components/sim-paginati
 type Notary = { id: number; name: string; email?: string; phone?: string; address?: string; is_active: boolean; agreement_type?: 'PKS' | 'MoU' | null; agreement_file_name?: string | null; pks_no?: string | null; pks_start?: string | null; pks_end?: string | null; partnership_status?: string; branches: Option[]; users?: { id: number; name: string; email: string; is_active: boolean }[] };
 
 export default function Notaries({ notaries, branches }: { notaries: { data: Notary[]; links: SimPaginationLink[] }; branches: Option[] }) {
-    const { data, setData, post, put, processing, reset, errors } = useForm({
+    const { data, setData, post, processing, reset, errors, transform } = useForm({
         name: '',
         email: '',
         phone: '',
@@ -41,7 +41,13 @@ export default function Notaries({ notaries, branches }: { notaries: { data: Not
         event.preventDefault();
         const options = { onSuccess: () => { reset(); setEditingId(null); setFormOpen(false); } };
         const requestOptions = { ...options, forceFormData: true };
-        editingId ? put(`/notaries/${editingId}`, requestOptions) : post('/notaries', requestOptions);
+        if (editingId) {
+            transform((formData) => ({ ...formData, _method: 'put' }));
+            post(`/notaries/${editingId}`, requestOptions);
+        } else {
+            transform((formData) => formData);
+            post('/notaries', requestOptions);
+        }
     };
 
     const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', address: notary.address ?? '', agreement_type: notary.agreement_type ?? 'PKS', pks_no: notary.pks_no ?? '', pks_start: notary.pks_start?.slice(0, 10) ?? '', pks_end: notary.pks_end?.slice(0, 10) ?? '', agreement_file: null, branch_ids: notary.branches.map((branch) => branch.id) }); setFormOpen(true); };
