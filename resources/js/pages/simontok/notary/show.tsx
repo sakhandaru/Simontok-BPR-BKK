@@ -40,6 +40,10 @@ export default function NotaryOrdersShow({
     canRequestAdditionalDocuments,
     canExtendCovernote,
     paymentBlockers,
+    agreement,
+    stepFees,
+    serviceFee,
+    canEditFees,
 }: {
     order: any;
     canReview: boolean;
@@ -52,11 +56,17 @@ export default function NotaryOrdersShow({
     canRequestAdditionalDocuments: boolean;
     canExtendCovernote: boolean;
     paymentBlockers: string[];
+    agreement: any | null;
+    stepFees: any[];
+    serviceFee: { main: number; steps: number; total: number };
+    canEditFees: boolean;
 }) {
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
     const [evidencePreview, setEvidencePreview] = useState<any | null>(null);
     const [finalDocumentsPreview, setFinalDocumentsPreview] = useState<any[] | null>(null);
+    const [agreementOpened, setAgreementOpened] = useState(Boolean(agreement?.acknowledged));
+    const [agreementConfirmed, setAgreementConfirmed] = useState(Boolean(agreement?.acknowledged));
     const progressOptions = useMemo(() => {
         return Object.fromEntries(
             order.collaterals.map((collateral: any) => [
@@ -78,10 +88,17 @@ export default function NotaryOrdersShow({
     });
     const invoice = useForm({
         invoice_no: '',
-        nominal: order.nominal ?? '',
+        nominal: serviceFee.total,
         skema_pembayaran: order.skema_pembayaran ?? '',
         catatan_notaris: '',
     });
+    const initialFees = useMemo(() => order.collaterals.flatMap((collateral: any) =>
+        (collateral.job_type?.steps ?? []).filter((step: any) => step.is_active !== false).map((step: any) => {
+            const saved = stepFees.find((fee: any) => fee.order_collateral_id === collateral.id && fee.job_type_step_id === step.id);
+            return { order_collateral_id: collateral.id, job_type_step_id: step.id, step_name: step.name, amount: Number(saved?.amount ?? 0) };
+        }),
+    ), [order.collaterals, stepFees]);
+    const fees = useForm({ fees: initialFees });
     const covernote = useForm({
         order_collateral_id: String(order.collaterals[0]?.id ?? ''),
         new_end: '',
@@ -126,6 +143,13 @@ export default function NotaryOrdersShow({
             {},
             { preserveScroll: true },
         );
+    };
+    const acknowledgeAgreement = () => {
+        router.post(`/notary/orders/${order.id}/agreement/acknowledge`, {}, { preserveScroll: true });
+    };
+    const submitStepFees = (event: FormEvent) => {
+        event.preventDefault();
+        fees.put(`/notary/orders/${order.id}/step-fees`, { preserveScroll: true });
     };
 
     const submitRevision = (event: FormEvent) => {
@@ -192,6 +216,7 @@ export default function NotaryOrdersShow({
         );
     const submitInvoice = (event: FormEvent) => {
         event.preventDefault();
+        invoice.transform((data) => ({ ...data, nominal: serviceFee.total }));
         invoice.post(`/notary/orders/${order.id}/payment-requests`, {
             preserveScroll: true,
         });
@@ -264,6 +289,32 @@ export default function NotaryOrdersShow({
                     />
                 </section>
 
+                <section className="sim-panel overflow-hidden">
+                    <div className="sim-panel-header">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h2 className="font-medium">PKS notaris</h2>
+                                <p className="mt-1 text-sm text-muted-foreground">Baca dan setujui PKS yang berlaku sebelum mengisi langkah dan biaya pekerjaan.</p>
+                            </div>
+                            {agreement && <span className="rounded-full border px-2.5 py-1 text-xs font-medium">Versi {agreement.version}</span>}
+                        </div>
+                    </div>
+                    <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-center">
+                        {agreement ? <>
+                            <div className="flex items-start gap-3"><FileText className="mt-0.5 size-5 text-primary" /><div><div className="font-medium">{agreement.original_name}</div><div className="mt-1 text-sm text-muted-foreground">{agreement.agreement_type ?? 'Perjanjian'} · Nomor {agreement.pks_no ?? '-'} · Berlaku {dateOnly(agreement.pks_start)} - {dateOnly(agreement.pks_end)}</div>{agreement.acknowledged && <div className="mt-2 text-xs text-emerald-600">PKS disetujui pada {agreement.acknowledged_at}.</div>}</div></div>
+                            <Button type="button" variant="outline" asChild onClick={() => setAgreementOpened(true)}><a href={`/notary/orders/${order.id}/agreement/preview`} target="_blank" rel="noreferrer"><Eye className="size-4" /> Buka preview</a></Button>
+                        </> : <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-300">PKS aktif belum tersedia. Hubungi Admin Legal sebelum melanjutkan.</div>}
+                        {agreement && canEditFees && !agreement.acknowledged && <div className="md:col-span-2 rounded-md border-t pt-4"><label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={agreementConfirmed} disabled={!agreementOpened} onChange={(event) => setAgreementConfirmed(event.target.checked)} /><span>Saya sudah membaca dan memahami PKS yang berlaku untuk order ini.</span></label><Button type="button" className="mt-3" disabled={!agreementOpened || !agreementConfirmed} onClick={acknowledgeAgreement}><Check className="size-4" /> Setujui PKS dan lanjutkan</Button></div>}
+                    </div>
+                </section>
+
+                {canEditFees && (
+                    <section className="sim-panel overflow-hidden">
+                        <div className="sim-panel-header"><h2 className="font-medium">Langkah dan biaya pekerjaan</h2><p className="mt-1 text-sm text-muted-foreground">Biaya di bawah ini adalah tambahan dari harga utama pekerjaan.</p></div>
+                        {!agreement?.acknowledged ? <div className="p-4 text-sm text-muted-foreground">Bagian ini akan aktif setelah PKS dibaca dan disetujui.</div> : <form onSubmit={submitStepFees} className="p-4"><div className="divide-y rounded-md border">{fees.data.fees.map((fee: any, index: number) => <div key={`${fee.order_collateral_id}-${fee.job_type_step_id}`} className="grid gap-3 p-3 md:grid-cols-[1fr_220px] md:items-center"><div><div className="font-medium">{fee.step_name}</div><div className="text-xs text-muted-foreground">{order.collaterals.find((item: any) => item.id === fee.order_collateral_id)?.job_type?.name ?? 'Pekerjaan'}</div></div><RupiahInput value={fee.amount} onChange={(value) => fees.setData('fees', fees.data.fees.map((item: any, itemIndex: number) => itemIndex === index ? { ...item, amount: value } : item))} /></div>)}</div><div className="mt-4 grid gap-2 border-t pt-4 text-sm sm:grid-cols-3"><Info label="Harga utama" value={money(serviceFee.main)} /><Info label="Tambahan langkah" value={money(fees.data.fees.reduce((sum: number, fee: any) => sum + Number(fee.amount || 0), 0))} /><Info label="Total sementara" value={money(serviceFee.main + fees.data.fees.reduce((sum: number, fee: any) => sum + Number(fee.amount || 0), 0))} /></div><Button className="mt-4" disabled={fees.processing}><Save className="size-4" /> Simpan biaya langkah</Button></form>}
+                    </section>
+                )}
+
                 {canViewDocuments && (
                     <section className="sim-panel overflow-hidden">
                         <div className="sim-panel-header">
@@ -333,16 +384,16 @@ export default function NotaryOrdersShow({
                                         }
                                     />
                                     <div className="grid gap-1">
-                                        <Label>Nominal jasa</Label>
+                                        <Label>Total jasa</Label>
                                         <RupiahInput
                                             min="1"
-                                            value={invoice.data.nominal}
+                                            value={serviceFee.total}
                                             readOnly
                                             aria-readonly="true"
                                             onChange={() => undefined}
                                         />
                                         <p className="text-xs text-muted-foreground">
-                                            Mengikuti nominal jasa pada order.
+                                            Harga utama ditambah seluruh biaya langkah pekerjaan.
                                         </p>
                                     </div>
                                     <div className="grid gap-1">

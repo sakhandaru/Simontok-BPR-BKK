@@ -61,15 +61,15 @@ type DocumentEditor = {
 };
 type CollateralDraft = {
     id?: string;
-    job_type_id: string;
     agunan_id: string;
+    nama_agunan: string;
     deskripsi_agunan: string;
     covernote_no: string;
     covernote_start: string;
     covernote_end: string;
-    sla_days: string;
-    sla_override_reason: string;
+    jobs: CollateralJobDraft[];
 };
+type CollateralJobDraft = { id?: string; job_type_id: string; sla_days: string; sla_override_reason: string };
 type OrderDraft = {
     branch_id: string;
     notary_id: string;
@@ -105,6 +105,7 @@ export default function OrdersShow({
     canSubmitApproval,
     canApproveOrder,
     branches,
+    branchLocked,
     notaries,
     jobTypes,
     slaPolicies,
@@ -129,6 +130,7 @@ export default function OrdersShow({
     canSubmitApproval: boolean;
     canApproveOrder: boolean;
     branches: { id: number; code: string; name: string }[];
+    branchLocked: boolean;
     notaries: { id: number; name: string }[];
     jobTypes: { id: number; code: string; name: string }[];
     slaPolicies: Record<string, { days: number; source: string }>;
@@ -147,17 +149,18 @@ export default function OrdersShow({
         collaterals:
             order.collaterals?.map((item: any) => ({
                 id: String(item.id ?? ''),
-                job_type_id: String(item.job_type_id ?? ''),
                 agunan_id: item.agunan_id ?? '',
+                nama_agunan: item.nama_agunan ?? item.deskripsi_agunan ?? item.agunan_id ?? '',
                 deskripsi_agunan: item.deskripsi_agunan ?? '',
                 covernote_no: item.covernote_no ?? '',
                 covernote_start: dateInput(item.covernote_start),
                 covernote_end: dateInput(item.covernote_end),
-                sla_days:
-                    item.sla_source === 'override' && item.sla_days
-                        ? String(item.sla_days)
-                        : '',
-                sla_override_reason: item.sla_override_reason ?? '',
+                jobs: (item.jobs?.length ? item.jobs : item.job_type_id ? [{ job_type_id: item.job_type_id, sla_days: item.sla_days, sla_source: item.sla_source, sla_override_reason: item.sla_override_reason }] : []).map((job: any) => ({
+                    id: String(job.id ?? ''),
+                    job_type_id: String(job.job_type_id ?? ''),
+                    sla_days: job.sla_source === 'override' && job.sla_days ? String(job.sla_days) : '',
+                    sla_override_reason: job.sla_override_reason ?? '',
+                })),
             })) ?? [],
     });
     const [revisionOpen, setRevisionOpen] = useState(false);
@@ -302,11 +305,24 @@ export default function OrdersShow({
     };
     const setCollateral = (
         index: number,
-        key: keyof CollateralDraft,
+        key: 'agunan_id' | 'nama_agunan' | 'deskripsi_agunan',
         value: string,
     ) => {
         const next = [...draft.data.collaterals];
         next[index] = { ...next[index], [key]: value };
+        draft.setData('collaterals', next);
+    };
+    const setJob = (collateralIndex: number, jobIndex: number, key: keyof CollateralJobDraft, value: string) => {
+        const next = [...draft.data.collaterals];
+        const jobs = [...next[collateralIndex].jobs];
+        jobs[jobIndex] = { ...jobs[jobIndex], [key]: value };
+        next[collateralIndex] = { ...next[collateralIndex], jobs };
+        draft.setData('collaterals', next);
+        draft.clearErrors();
+    };
+    const setCollateralJobs = (index: number, jobs: CollateralJobDraft[]) => {
+        const next = [...draft.data.collaterals];
+        next[index] = { ...next[index], jobs };
         draft.setData('collaterals', next);
     };
     const canSend = Boolean(
@@ -316,9 +332,7 @@ export default function OrdersShow({
         draft.data.no_rekening &&
         draft.data.tgl_realisasi &&
         draft.data.collaterals.length > 0 &&
-        draft.data.collaterals.every(
-            (item) => item.job_type_id && item.deskripsi_agunan,
-        ),
+        draft.data.collaterals.every((item) => item.nama_agunan && item.jobs.length > 0 && item.jobs.every((job) => job.job_type_id)),
     );
     const incompleteFields = [
         !draft.data.branch_id && 'Cabang',
@@ -328,17 +342,16 @@ export default function OrdersShow({
         !draft.data.tgl_realisasi && 'Tanggal akad',
         draft.data.collaterals.length === 0 && 'Minimal satu agunan',
         ...draft.data.collaterals.flatMap((item, index) => [
-            !item.job_type_id && `Jenis pekerjaan agunan ${index + 1}`,
-            !item.deskripsi_agunan && `Deskripsi agunan ${index + 1}`,
+            item.jobs.length === 0 && `Minimal satu pekerjaan agunan ${index + 1}`,
+            ...item.jobs.map((job, jobIndex) => !job.job_type_id && `Jenis pekerjaan ${jobIndex + 1} agunan ${index + 1}`),
+            !item.nama_agunan && `Nama agunan ${index + 1}`,
         ]),
         order.collaterals?.some((item: any) =>
             item.checklists?.some(
                 (checklist: any) => !checklist.is_checked || !checklist.order_document_id,
             ),
         ) && 'Dokumen checklist agunan',
-        draft.data.collaterals.some(
-            (item) => item.sla_days && !item.sla_override_reason,
-        ) && 'Alasan perubahan SLA',
+        draft.data.collaterals.some((item) => item.jobs.some((job) => job.sla_days && !job.sla_override_reason)) && 'Alasan perubahan SLA',
     ].filter(Boolean) as string[];
     const needsOrderRevision =
         statusValue(order.status) === 'perlu_perbaikan_order';
@@ -574,7 +587,11 @@ export default function OrdersShow({
                                 </Button>
                             )}
                             {canCloseOrder && (
-                                <Button type="button" onClick={closeOrder}>
+                                <Button
+                                    type="button"
+                                    onClick={closeOrder}
+                                    className="dark:border-[var(--brand-blue)] dark:bg-[var(--brand-blue)] dark:text-white dark:hover:border-[var(--brand-blue-end)] dark:hover:bg-[var(--brand-blue-end)]"
+                                >
                                     <CheckCircle2 className="size-4" />
                                     Tutup order
                                 </Button>
@@ -741,10 +758,13 @@ export default function OrdersShow({
                     <DraftOrderForm
                         draft={draft}
                         branches={branches}
+                        branchLocked={branchLocked}
                         notaries={notaries}
                         jobTypes={jobTypes}
                         slaPolicies={slaPolicies}
                         setCollateral={setCollateral}
+                        setJob={setJob}
+                        setCollateralJobs={setCollateralJobs}
                         incompleteFields={incompleteFields}
                         saveState={draftSaveState}
                     />
@@ -1059,10 +1079,10 @@ export default function OrdersShow({
                             >
                                 <div>
                                     <div className="font-medium">
-                                        {item.job_type?.name}
+                                        {item.nama_agunan || item.deskripsi_agunan || item.agunan_id || 'Agunan'}
                                     </div>
                                     <p className="mt-1 text-sm text-muted-foreground">
-                                        {item.deskripsi_agunan}
+                                        {item.deskripsi_agunan || 'Deskripsi agunan belum diisi.'}
                                     </p>
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         <SimStatusBadge
@@ -1091,30 +1111,17 @@ export default function OrdersShow({
                                 </div>
                                 <div className="text-sm text-muted-foreground">
                                     <div className="mb-3 rounded-md border bg-muted/20 p-3">
-                                        <div className="font-medium text-foreground">
-                                            SLA{' '}
-                                            {item.sla_source === 'override'
-                                                ? 'khusus'
-                                                : 'standar'}
+                                        <div className="font-medium text-foreground">Pekerjaan dan SLA</div>
+                                        <div className="mt-2 grid gap-2">
+                                            {(item.jobs?.length ? item.jobs : [item]).map((job: any, jobIndex: number) => (
+                                                <div key={job.id ?? jobIndex} className="border-t pt-2 first:border-t-0 first:pt-0">
+                                                    <div className="font-medium text-foreground">{job.job_type?.name ?? 'Pekerjaan'}</div>
+                                                    <div className="mt-1">{job.sla_days ? `${job.sla_days} hari` : 'Belum ditentukan'} · jatuh tempo {dateOnly(job.sla_due_at) || 'menunggu tanggal masuk notaris'}</div>
+                                                    {job.sla_source === 'override' && <div className="mt-1 text-xs">Alasan: {job.sla_override_reason || 'Menunggu alasan'}</div>}
+                                                    {job.sla_due_at && <div className="mt-1 text-xs font-medium text-foreground">{slaState(job.sla_due_at)}</div>}
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="mt-1">
-                                            {item.sla_days
-                                                ? `${item.sla_days} hari`
-                                                : 'Belum ditentukan'}{' '}
-                                            · jatuh tempo{' '}
-                                            {dateOnly(item.sla_due_at) ||
-                                                'menunggu tanggal masuk notaris'}
-                                        </div>
-                                        {item.sla_source === 'override' && (
-                                            <div className="mt-1 text-xs">
-                                                Alasan: {item.sla_override_reason || 'Menunggu alasan'}
-                                            </div>
-                                        )}
-                                        {item.sla_due_at && (
-                                            <div className="mt-1 text-xs font-medium text-foreground">
-                                                {slaState(item.sla_due_at)}
-                                            </div>
-                                        )}
                                     </div>
                                     {item.covernote_no || item.covernote_end ? (
                                         <>
@@ -1688,14 +1695,13 @@ export default function OrdersShow({
                             {order.collaterals.map((collateral: any) => (
                                 <div key={collateral.id} className="p-4">
                                     <div className="font-medium">
-                                        {collateral.job_type?.name ?? 'Agunan'}
+                                        {collateral.nama_agunan || collateral.job_type?.name || 'Agunan'}
                                         {collateral.agunan_id
                                             ? ` - ${collateral.agunan_id}`
                                             : ` - AGN-${collateral.id}`}
                                     </div>
                                     <div className="mt-1 text-sm text-muted-foreground">
-                                        {collateral.deskripsi_agunan ||
-                                            'Kelengkapan dokumen untuk agunan ini.'}
+                                        {collateral.deskripsi_agunan || 'Deskripsi agunan belum diisi.'}
                                     </div>
                                     {canManageOrder && (
                                         <div className="mt-3 flex flex-wrap gap-2">
@@ -2402,23 +2408,29 @@ function BatchFilePreview({
 function DraftOrderForm({
     draft,
     branches,
+    branchLocked,
     notaries,
     jobTypes,
     slaPolicies,
     setCollateral,
+    setJob,
+    setCollateralJobs,
     incompleteFields,
     saveState,
 }: {
     draft: any;
     branches: any[];
+    branchLocked: boolean;
     notaries: any[];
     jobTypes: any[];
     slaPolicies: Record<string, { days: number; source: string }>;
     setCollateral: (
         index: number,
-        key: keyof CollateralDraft,
+        key: 'agunan_id' | 'nama_agunan' | 'deskripsi_agunan',
         value: string,
     ) => void;
+    setJob: (collateralIndex: number, jobIndex: number, key: keyof CollateralJobDraft, value: string) => void;
+    setCollateralJobs: (index: number, jobs: CollateralJobDraft[]) => void;
     incompleteFields: string[];
     saveState: 'saved' | 'pending' | 'saving' | 'error';
 }) {
@@ -2465,7 +2477,13 @@ function DraftOrderForm({
                             label: `${item.code} - ${item.name}`,
                         }))}
                         placeholder="Pilih cabang"
+                        disabled={branchLocked}
                     />
+                    {branchLocked && (
+                        <p className="text-xs text-muted-foreground">
+                            Otomatis mengikuti cabang yang terdaftar pada akun Anda.
+                        </p>
+                    )}
                 </DraftField>
                 <DraftField
                     label="Notaris"
@@ -2581,7 +2599,6 @@ function DraftOrderForm({
                     </div>
                     <Button
                         type="button"
-                        variant="outline"
                         size="sm"
                         onClick={() =>
                             draft.setData('collaterals', [
@@ -2601,32 +2618,10 @@ function DraftOrderForm({
                                 key={index}
                                 className="grid gap-4 rounded-md border p-4 md:grid-cols-2"
                             >
-                                <DraftField
-                                    label="Jenis pekerjaan"
-                                    required
-                                    invalid={!item.job_type_id}
-                                    error={
-                                        draft.errors[
-                                            `collaterals.${index}.job_type_id`
-                                        ]
-                                    }
-                                >
-                                    <SimSelect
-                                        value={item.job_type_id}
-                                        onChange={(value) =>
-                                            setCollateral(
-                                                index,
-                                                'job_type_id',
-                                                value,
-                                            )
-                                        }
-                                        options={jobTypes.map((type) => ({
-                                            value: String(type.id),
-                                            label: type.name,
-                                        }))}
-                                        placeholder="Pilih jenis pekerjaan"
-                                    />
-                                </DraftField>
+                                <div className="md:col-span-2 border-b pb-3">
+                                    <h4 className="font-medium">Agunan {index + 1}</h4>
+                                    <p className="text-xs text-muted-foreground">Identitas agunan diisi terlebih dahulu, lalu tambahkan pekerjaan yang berlaku.</p>
+                                </div>
                                 <DraftField label="ID agunan">
                                     <Input
                                         value={item.agunan_id}
@@ -2639,10 +2634,11 @@ function DraftOrderForm({
                                         }
                                     />
                                 </DraftField>
+                                <DraftField label="Nama agunan" required invalid={!item.nama_agunan} error={draft.errors[`collaterals.${index}.nama_agunan`]}>
+                                    <Input value={item.nama_agunan} placeholder="Contoh: SHM Tanah Demak" onChange={(event) => setCollateral(index, 'nama_agunan', event.target.value)} />
+                                </DraftField>
                                 <DraftField
                                     label="Deskripsi agunan"
-                                    required
-                                    invalid={!item.deskripsi_agunan}
                                     error={
                                         draft.errors[
                                             `collaterals.${index}.deskripsi_agunan`
@@ -2650,7 +2646,7 @@ function DraftOrderForm({
                                     }
                                 >
                                     <textarea
-                                        className={`sim-input min-h-24 py-2 ${!item.deskripsi_agunan ? 'border-destructive/70 focus-visible:ring-destructive/30' : ''}`}
+                                        className="sim-input min-h-24 py-2"
                                         value={item.deskripsi_agunan}
                                         onChange={(event) =>
                                             setCollateral(
@@ -2661,69 +2657,31 @@ function DraftOrderForm({
                                         }
                                     />
                                 </DraftField>
-                                <DraftField
-                                    label="SLA order (hari)"
-                                    error={
-                                        draft.errors[
-                                            `collaterals.${index}.sla_days`
-                                        ]
-                                    }
-                                >
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        max={365}
-                                        value={item.sla_days}
-                                        placeholder={
-                                            slaPolicies[item.job_type_id]
-                                                ? String(
-                                                      slaPolicies[
-                                                          item.job_type_id
-                                                      ].days,
-                                                  )
-                                                : 'Otomatis dari kebijakan'
-                                        }
-                                        onChange={(event) =>
-                                            setCollateral(
-                                                index,
-                                                'sla_days',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        Kosongkan untuk memakai SLA standar. Isi
-                                        berbeda wajib disertai alasan.
-                                    </p>
-                                </DraftField>
-                                {item.sla_days &&
-                                    slaPolicies[item.job_type_id] &&
-                                    Number(item.sla_days) !==
-                                        slaPolicies[item.job_type_id].days && (
-                                        <DraftField
-                                            label="Alasan perubahan SLA"
-                                            error={
-                                                draft.errors[
-                                                    `collaterals.${index}.sla_override_reason`
-                                                ]
-                                            }
-                                        >
-                                            <textarea
-                                                className="sim-input min-h-20 py-2"
-                                                value={
-                                                    item.sla_override_reason
-                                                }
-                                                onChange={(event) =>
-                                                    setCollateral(
-                                                        index,
-                                                        'sla_override_reason',
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                placeholder="Jelaskan alasan SLA khusus"
-                                            />
-                                        </DraftField>
-                                    )}
+                                <div className="md:col-span-2 border-t pt-4">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <Label>Pekerjaan untuk agunan ini</Label>
+                                            <p className="text-xs text-muted-foreground">Satu agunan dapat memiliki lebih dari satu pekerjaan.</p>
+                                        </div>
+                                        <Button type="button" size="sm" onClick={() => setCollateralJobs(index, [...item.jobs, emptyCollateralJobDraft()])}>
+                                            <Plus className="size-4" />Tambah pekerjaan
+                                        </Button>
+                                    </div>
+                                    <div className="grid gap-3">
+                                        {item.jobs.map((job: CollateralJobDraft, jobIndex: number) => (
+                                            <div key={jobIndex} className="grid gap-3 rounded-md border bg-muted/20 p-3 md:grid-cols-2">
+                                                <DraftField label={`Pekerjaan ${jobIndex + 1}`} required invalid={!job.job_type_id && Boolean(draft.errors[`collaterals.${index}.jobs.${jobIndex}.job_type_id`])} error={job.job_type_id ? undefined : draft.errors[`collaterals.${index}.jobs.${jobIndex}.job_type_id`]}>
+                                                    <SimSelect value={job.job_type_id} onChange={(value) => setJob(index, jobIndex, 'job_type_id', value)} options={jobTypes.map((type) => ({ value: String(type.id), label: type.name }))} placeholder="Pilih jenis pekerjaan" />
+                                                </DraftField>
+                                                <DraftField label="SLA pekerjaan (hari)" error={draft.errors[`collaterals.${index}.jobs.${jobIndex}.sla_days`]}>
+                                                    <Input type="number" min={1} max={365} value={job.sla_days} placeholder={slaPolicies[job.job_type_id] ? String(slaPolicies[job.job_type_id].days) : 'Otomatis dari kebijakan'} onChange={(event) => setJob(index, jobIndex, 'sla_days', event.target.value)} />
+                                                </DraftField>
+                                                {job.sla_days && slaPolicies[job.job_type_id] && Number(job.sla_days) !== slaPolicies[job.job_type_id].days && <DraftField label="Alasan perubahan SLA" error={draft.errors[`collaterals.${index}.jobs.${jobIndex}.sla_override_reason`]}><textarea className="sim-input min-h-20 py-2" value={job.sla_override_reason} onChange={(event) => setJob(index, jobIndex, 'sla_override_reason', event.target.value)} placeholder="Jelaskan alasan SLA khusus" /></DraftField>}
+                                                {item.jobs.length > 1 && <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setCollateralJobs(index, item.jobs.filter((_, currentIndex) => currentIndex !== jobIndex))}><Trash2 className="size-4" />Hapus pekerjaan</Button>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                                 {draft.data.collaterals.length > 1 && (
                                     <Button
                                         type="button"
@@ -2787,15 +2745,18 @@ function dateInput(value?: string | null) {
 function emptyCollateralDraft(): CollateralDraft {
     return {
         id: '',
-        job_type_id: '',
         agunan_id: '',
+        nama_agunan: '',
         deskripsi_agunan: '',
         covernote_no: '',
         covernote_start: '',
         covernote_end: '',
-        sla_days: '',
-        sla_override_reason: '',
+        jobs: [emptyCollateralJobDraft()],
     };
+}
+
+function emptyCollateralJobDraft(): CollateralJobDraft {
+    return { id: '', job_type_id: '', sla_days: '', sla_override_reason: '' };
 }
 
 function money(value?: string | number | null) {
@@ -2988,20 +2949,24 @@ function OrderTrackingHero({ order }: { order: any }) {
                         })}
                     />
                 </div>
-                <div className="grid content-start gap-4 bg-zinc-950 p-4 text-white dark:bg-white dark:text-zinc-950">
+                <div className="grid content-start gap-4 border-t border-sidebar-border bg-sidebar p-4 text-sidebar-foreground lg:border-t-0 md:p-5">
                     <div>
-                        <h3 className="font-medium">Ringkasan order</h3>
-                        <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-                            Informasi utama order.
-                        </p>
+                        <h3 className="inline-flex items-center rounded-full border-[3px] border-[var(--brand-blue)] bg-[var(--brand-yellow-middle)] px-3 py-1 text-sm font-bold text-[var(--brand-blue)]">
+                            Ringkasan order
+                        </h3>
+                        <div className="mt-4 border-t-2 border-dashed border-sidebar-border pt-3">
+                            <div className="text-xs text-muted-foreground">
+                                Nomor order
+                            </div>
+                            <div className="mt-1 text-lg font-semibold tracking-tight">
+                                {order.order_no}
+                            </div>
+                            <div className="mt-1 text-sm text-muted-foreground">
+                                {order.customer_name} · {order.branch?.name ?? '-'}
+                            </div>
+                        </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                        <Info label="Nomor order" value={order.order_no} />
-                        <Info
-                            label="Nama nasabah"
-                            value={order.customer_name}
-                        />
-                        <Info label="Cabang" value={order.branch?.name} />
+                    <div className="grid gap-x-4 gap-y-4 border-t-2 border-dashed border-sidebar-border pt-4 sm:grid-cols-2 lg:grid-cols-1">
                         <Info label="Notaris" value={order.notary?.name} />
                         <Info
                             label="Nomor rekening"

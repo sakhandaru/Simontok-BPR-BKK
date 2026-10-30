@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Notary extends Model
@@ -13,7 +14,7 @@ class Notary extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'name', 'address', 'phone', 'email', 'sk_notary', 'sk_ppat',
+        'name', 'address', 'phone', 'email', 'bank_name', 'bank_account_number', 'bank_account_name', 'sk_notary', 'sk_ppat',
         'agreement_type', 'agreement_file_path', 'agreement_file_name',
         'pks_no', 'pks_start', 'pks_end', 'is_active', 'legacy_id',
     ];
@@ -40,6 +41,11 @@ class Notary extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function documents(): MorphMany
+    {
+        return $this->morphMany(DocumentArchive::class, 'documentable')->latest('version');
     }
 
     public function hasActivePartnership(): bool

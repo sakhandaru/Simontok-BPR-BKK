@@ -162,7 +162,6 @@ export default function Users({
                     <FilterSelect label="Status" value={filterForm.data.status} onChange={(value) => filterForm.setData('status', value)} options={[{ value: '', label: 'Semua status' }, { value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
                     <Button type="button" variant="outline" onClick={resetFilters}><RotateCcw className="size-4" />Reset</Button>
                 </div>
-                <SimPagination links={users.links} />
                 <div className="hidden md:block">
                     <SimTable minWidth="800px">
                         <SimTableHead>
@@ -242,7 +241,7 @@ export default function Users({
                                     <td className="px-4 py-3">
                                         {user.notary ? (
                                             <span className="text-xs text-muted-foreground">
-                                                Kelola di Kantor Notaris
+                                                Kelola di Notaris
                                             </span>
                                         ) : (
                                             <Button
@@ -323,7 +322,7 @@ export default function Users({
                             </div>
                             {user.notary ? (
                                 <div className="border-t border-border pt-3 text-center text-xs text-muted-foreground">
-                                    Kelola akun dari Kantor Notaris
+                                    Kelola akun dari menu Notaris
                                 </div>
                             ) : (
                                 <Button
@@ -340,6 +339,7 @@ export default function Users({
                         </article>
                     ))}
                 </div>
+                <SimPagination links={users.links} />
                 <Dialog
                     open={formOpen}
                     onOpenChange={(open) => {

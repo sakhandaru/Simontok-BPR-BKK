@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\OrderCollateral;
 use App\Models\OrderDocument;
 use App\Support\Audit;
+use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,9 @@ class OrderDocumentController extends Controller
                 $changes += ['version' => $document->version + 1, 'original_name' => $file->getClientOriginalName(), 'stored_name' => basename($path), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize(), 'uploaded_by' => $request->user()->id];
             }
             $document->update($changes);
+            if ($request->hasFile('file') && $document->order_collateral_id) {
+                DocumentArchiveService::archiveOrderDocument($request, $document);
+            }
             Audit::record($request, 'documents', $order, 'update', 'Dokumen diperbarui.', ['document_id' => $document->id]);
         });
         return back()->with('success', 'Dokumen diperbarui.');
@@ -105,6 +109,7 @@ class OrderDocumentController extends Controller
                 if ($isChecklist) {
                     $checklist->update(['order_document_id' => $document->id, 'is_checked' => true, 'checked_by' => $request->user()->id, 'checked_at' => now()]);
                 }
+                DocumentArchiveService::archiveOrderDocument($request, $document);
                 Audit::record($request, 'documents', $order, 'upload', 'Dokumen awal diunggah.', ['document_id' => $document->id, 'document_type' => $type->value, 'collateral_id' => $data['order_collateral_id']]);
             }
         });
@@ -175,6 +180,10 @@ class OrderDocumentController extends Controller
             if (! empty($data['order_checklist_id'])) {
                 $checklist = \App\Models\OrderChecklist::whereKey($data['order_checklist_id'])->where('order_id', $order->id)->firstOrFail();
                 $checklist->update(['order_document_id' => $document->id, 'is_checked' => true, 'checked_by' => $request->user()->id, 'checked_at' => now()]);
+            }
+
+            if ($document->order_collateral_id) {
+                DocumentArchiveService::archiveOrderDocument($request, $document);
             }
 
             $this->applyUploadStatus($request, $order, $data['order_collateral_id'] ?? null, $type);

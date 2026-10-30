@@ -10,9 +10,9 @@ use Illuminate\Support\Collection;
 
 class InAppNotification
 {
-    public static function forUser(User $user, string $title, string $message, ?string $linkUrl = null): void
+    public static function forUser(User $user, string $title, string $message, ?string $linkUrl = null, string $priority = 'normal'): void
     {
-        self::create('user', $user->id, $title, $message, $linkUrl);
+        self::create('user', $user->id, $title, $message, $linkUrl, $priority);
     }
 
     public static function forNotary(Order $order, string $title, string $message, ?string $linkUrl = null): void
@@ -41,7 +41,7 @@ class InAppNotification
     {
         User::where('branch_id', $order->branch_id)
             ->where('is_active', true)
-            ->whereHas('jobPosition.role', fn ($query) => $query->whereIn('code', ['kepala_cabang', 'kadiv_operasional']))
+            ->whereHas('jobPosition.role', fn ($query) => $query->where('code', 'kabid_ops_cabang'))
             ->get()
             ->each(fn (User $user) => self::forUser($user, $title, $message, $linkUrl ?? "/orders/{$order->id}"));
     }
@@ -62,7 +62,28 @@ class InAppNotification
             ->get();
     }
 
-    private static function create(string $recipientType, int $recipientId, string $title, string $message, ?string $linkUrl): void
+    public static function forOperationalActivity(Order $order, User $actor, string $description, string $action): void
+    {
+        $priority = self::priorityFor($action);
+        $recipients = User::query()
+            ->whereNull('notary_id')
+            ->where('is_active', true)
+            ->where('id', '!=', $actor->id)
+            ->where(function ($query) use ($order): void {
+                $query->whereHas('jobPosition.role', fn ($role) => $role->whereIn('code', ['admin_legal_pusat', 'kadiv_ops_pusat', 'direksi_pusat']))
+                    ->orWhere(function ($query) use ($order): void {
+                        $query->where('branch_id', $order->branch_id)
+                            ->whereHas('jobPosition.role', fn ($role) => $role->whereIn('code', ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang']));
+                    });
+            })
+            ->get();
+
+        foreach ($recipients as $recipient) {
+            self::create('user', $recipient->id, 'Aktivitas order '.$order->order_no, $description, "/orders/{$order->id}", $priority);
+        }
+    }
+
+    private static function create(string $recipientType, int $recipientId, string $title, string $message, ?string $linkUrl, string $priority = 'normal'): void
     {
         $notification = Notification::create([
             'recipient_type' => $recipientType,
@@ -70,6 +91,7 @@ class InAppNotification
             'title' => $title,
             'message' => $message,
             'link_url' => $linkUrl,
+            'priority' => $priority,
         ]);
 
         NotificationDelivery::create([
@@ -79,5 +101,20 @@ class InAppNotification
             'status' => 'pending',
             'next_attempt_at' => now(),
         ]);
+    }
+
+    private static function priorityFor(string $action): string
+    {
+        $action = strtolower($action);
+
+        if (str_contains($action, 'overdue') || str_contains($action, 'expired') || str_contains($action, 'reject') || str_contains($action, 'cancel')) {
+            return 'critical';
+        }
+
+        if (str_contains($action, 'create') || str_contains($action, 'submit') || str_contains($action, 'approve') || str_contains($action, 'validate') || str_contains($action, 'payment') || str_contains($action, 'handover') || str_contains($action, 'revision')) {
+            return 'important';
+        }
+
+        return 'normal';
     }
 }

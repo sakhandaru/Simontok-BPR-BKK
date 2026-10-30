@@ -49,7 +49,6 @@ export default function Branches({ branches, positions }: { branches: { data: Br
             <Head title="Kantor Cabang" />
             <div className="sim-workspace">
                 <SimPageHeader title="Kantor Cabang" description="Kelola kantor, alamat, dan lokasi layanan." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah kantor cabang</Button>} />
-                <SimPagination links={branches.links} />
                 <div className="hidden md:block"><SimTable minWidth="560px">
                 <SimTableHead><tr><SimTableSortHeader active={sort.key === 'code'} direction={sort.direction} onClick={() => toggleSort('code')}>Kode</SimTableSortHeader><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader className="text-right">Aksi</SimTableHeader></tr></SimTableHead><tbody>
                     {sortedRows.map((branch) => (
@@ -100,6 +99,7 @@ export default function Branches({ branches, positions }: { branches: { data: Br
                         </form>
                     </DialogContent>
                 </Dialog>
+                <SimPagination links={branches.links} />
             </div>
         </>
     );

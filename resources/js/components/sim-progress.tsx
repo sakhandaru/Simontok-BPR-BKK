@@ -12,7 +12,7 @@ export function SimProgress({ value, label, className }: { value: number; label?
                 </div>
             )}
             <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={safeValue}>
-                <div className="h-full rounded-full bg-foreground transition-[width]" style={{ width: `${safeValue}%` }} />
+                <div className="h-full rounded-full bg-[var(--status-info)] transition-[width]" style={{ width: `${safeValue}%` }} />
             </div>
         </div>
     );

@@ -10,8 +10,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrderCollateral extends Model
 {
+    protected static function booted(): void
+    {
+        static::created(function (OrderCollateral $collateral): void {
+            if ($collateral->job_type_id && ! $collateral->jobs()->exists()) {
+                $collateral->jobs()->create([
+                    'job_type_id' => $collateral->job_type_id,
+                    'sla_days' => $collateral->sla_days,
+                    'sla_source' => $collateral->sla_source ?? 'standard',
+                    'sla_override_reason' => $collateral->sla_override_reason,
+                    'sla_due_at' => $collateral->sla_due_at,
+                    'status' => $collateral->doc_status?->value ?? TrackBDocStatus::MenungguVerifikasi->value,
+                ]);
+            }
+        });
+    }
+
     protected $fillable = [
-        'order_id', 'job_type_id', 'agunan_id', 'deskripsi_agunan', 'legacy_id',
+        'order_id', 'job_type_id', 'agunan_id', 'nama_agunan', 'deskripsi_agunan', 'legacy_id',
         'doc_status', 'covernote_no', 'covernote_start', 'covernote_end',
         'covernote_file_path', 'covernote_status', 'extension_count', 'sla_due_at',
         'sla_days', 'sla_source', 'sla_override_reason',
@@ -37,6 +53,11 @@ class OrderCollateral extends Model
     public function jobType(): BelongsTo
     {
         return $this->belongsTo(JobType::class);
+    }
+
+    public function jobs(): HasMany
+    {
+        return $this->hasMany(OrderCollateralJob::class);
     }
 
     public function checklists(): HasMany

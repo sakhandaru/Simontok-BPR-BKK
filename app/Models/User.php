@@ -50,7 +50,7 @@ class User extends Authenticatable implements PasskeyUser
 
         $roleCode = JobPosition::with('role:id,code')->find($positionId)?->role?->code;
 
-        return in_array($roleCode, ['kepala_cabang', 'kadiv_operasional'], true) ? $roleCode : null;
+        return in_array($roleCode, ['pimpinan_cabang', 'kabid_ops_cabang'], true) ? $roleCode : null;
     }
 
     public function jobPosition(): BelongsTo
@@ -80,6 +80,41 @@ class User extends Authenticatable implements PasskeyUser
     public function roleCode(): ?string
     {
         return $this->role()?->code;
+    }
+
+    public function isCentralUser(): bool
+    {
+        return in_array($this->roleCode(), [
+            'direksi_pusat',
+            'kadiv_ops_pusat',
+            'admin_legal_pusat',
+            'auditor',
+            'it_admin',
+        ], true);
+    }
+
+    public function isBranchScopedUser(): bool
+    {
+        return in_array($this->roleCode(), [
+            'pimpinan_cabang',
+            'kabid_ops_cabang',
+            'admin_legal_cabang',
+        ], true) && $this->branch_id !== null;
+    }
+
+    public function hasGlobalReadScope(): bool
+    {
+        return $this->isCentralUser();
+    }
+
+    public function branchScopeId(): ?int
+    {
+        return $this->isBranchScopedUser() ? (int) $this->branch_id : null;
+    }
+
+    public function isReadOnlyBusinessRole(): bool
+    {
+        return in_array($this->roleCode(), ['direksi_pusat', 'pimpinan_cabang', 'auditor'], true);
     }
 
     public function isOperationallyActive(): bool

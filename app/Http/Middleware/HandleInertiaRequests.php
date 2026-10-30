@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Support\InAppNotification;
+use App\Models\Announcement;
+use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -37,13 +39,32 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
-        $unreadNotifications = $request->user()
+        $recentNotifications = $request->user()
             ? InAppNotification::unreadFor($request->user())
             : collect();
         $permissions = $user?->role()?->permissions()
             ->pluck('code')
             ->values()
             ->all() ?? [];
+        $announcements = $user && ! $user->notary_id && $user->roleCode() !== 'auditor'
+            ? Announcement::published()
+                ->whereDoesntHave('readers', fn ($query) => $query->whereKey($user->id))
+                ->with('creator:id,name')
+                ->orderByDesc('priority')
+                ->orderBy('published_at')
+                ->limit(5)
+                ->get()
+                ->map(fn (Announcement $announcement) => [
+                    'id' => $announcement->id,
+                    'title' => $announcement->title,
+                    'body' => $announcement->body,
+                    'link_url' => $announcement->link_url,
+                    'image_url' => $announcement->image_path ? asset('storage/'.$announcement->image_path) : null,
+                    'priority' => $announcement->priority,
+                    'published_at' => $announcement->published_at?->format('d M Y H:i'),
+                    'created_by' => $announcement->creator?->name ?? 'Sistem',
+                ])->values()->all()
+            : [];
 
         return [
             ...parent::share($request),
@@ -53,16 +74,26 @@ class HandleInertiaRequests extends Middleware
                 'role' => $user?->roleCode(),
                 'permissions' => $permissions,
             ],
+            'announcements' => $announcements,
+            'systemSettings' => $user ? [
+                'early_warning_enabled' => (bool) ((int) SystemSetting::value('early_warning_enabled', 1)),
+                'notification_poll_interval' => (int) SystemSetting::value('notification_poll_interval', 15),
+                'sound_priority' => SystemSetting::value('sound_priority', 'important'),
+                'quiet_hours_enabled' => (bool) ((int) SystemSetting::value('quiet_hours_enabled', 0)),
+                'quiet_start' => SystemSetting::value('quiet_start', '22:00'),
+                'quiet_end' => SystemSetting::value('quiet_end', '06:00'),
+            ] : null,
             'notifications' => fn () => $request->user() ? [
-                'unread_count' => $unreadNotifications->count(),
-                'items' => $unreadNotifications->map(fn ($notification) => [
+                'count' => $recentNotifications->count(),
+                'items' => $recentNotifications->map(fn ($notification) => [
                     'id' => $notification->id,
                     'title' => $notification->title,
                     'message' => $notification->message,
                     'link_url' => $notification->link_url,
                     'created_at' => $notification->created_at?->diffForHumans(),
+                    'priority' => $notification->priority,
                 ]),
-            ] : ['unread_count' => 0, 'items' => []],
+            ] : ['count' => 0, 'items' => []],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

@@ -83,7 +83,6 @@ class DashboardController extends Controller
                 ->join('notaries', 'notaries.id', '=', 'orders.notary_id')
                 ->groupBy('notaries.id', 'notaries.name')
                 ->orderByDesc('total_orders')
-                ->limit(6)
                 ->get()
                 ->map(fn ($item) => [
                     'id' => $item->id,
@@ -100,7 +99,6 @@ class DashboardController extends Controller
                 ->join('branches', 'branches.id', '=', 'orders.branch_id')
                 ->groupBy('branches.id', 'branches.code', 'branches.name')
                 ->orderByDesc('active_orders')
-                ->limit(6)
                 ->get()
                 ->map(fn ($item) => [
                     'id' => $item->id,

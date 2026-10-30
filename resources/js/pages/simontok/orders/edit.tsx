@@ -13,6 +13,7 @@ import type { Option } from '@/types';
 type CollateralForm = {
     job_type_id: string;
     agunan_id: string;
+    nama_agunan: string;
     deskripsi_agunan: string;
     covernote_no: string;
     covernote_start: string;
@@ -38,6 +39,7 @@ type OrderForm = {
 const emptyCollateral = (): CollateralForm => ({
     job_type_id: '',
     agunan_id: '',
+    nama_agunan: '',
     deskripsi_agunan: '',
     covernote_no: '',
     covernote_start: '',
@@ -63,6 +65,7 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes, slaPol
         collaterals: order.collaterals?.map((item: any) => ({
             job_type_id: String(item.job_type_id ?? ''),
             agunan_id: item.agunan_id ?? '',
+            nama_agunan: item.nama_agunan ?? item.deskripsi_agunan ?? item.agunan_id ?? '',
             deskripsi_agunan: item.deskripsi_agunan ?? '',
             covernote_no: item.covernote_no ?? '',
             covernote_start: dateOnly(item.covernote_start),
@@ -128,6 +131,7 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes, slaPol
                                 <SimSelect value={collateral.job_type_id} onChange={(value) => setCollateral(index, 'job_type_id', value)} options={jobTypes.map((item) => ({ value: String(item.id), label: item.name }))} placeholder="Pilih jenis" />
                             </Field>
                             <Field label="ID agunan"><Input value={collateral.agunan_id} onChange={(e) => setCollateral(index, 'agunan_id', e.target.value)} /></Field>
+                            <Field label="Nama agunan" error={errors[`collaterals.${index}.nama_agunan` as keyof typeof errors]}><Input value={collateral.nama_agunan} placeholder="Contoh: SHM Tanah Demak" onChange={(e) => setCollateral(index, 'nama_agunan', e.target.value)} /></Field>
                             <Field label="Deskripsi agunan">
                                 <textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.deskripsi_agunan} onChange={(e) => setCollateral(index, 'deskripsi_agunan', e.target.value)} />
                             </Field>

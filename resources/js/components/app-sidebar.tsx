@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, BarChart3, Bell, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Moon, RefreshCw, Scale, Sun, UserCheck, UserRoundCog, Users } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, BarChart3, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Megaphone, Moon, RefreshCw, Scale, Sun, UserCheck, UserRoundCog, Users, ListTodo, Settings2 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -25,25 +25,29 @@ const operationsNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     { title: 'Order', href: '/orders', icon: FileText },
+    { title: 'Antrian Kerja', href: '/work-queue', icon: ListTodo },
     { title: 'Laporan', href: '/reports', icon: BarChart3 },
+    { title: 'Monitoring Cabang', href: '/branch-monitoring', icon: Building2 },
 ];
 
 const referenceNavItems: NavItem[] = [
     { title: 'Kantor Cabang', href: '/branches', icon: Building2 },
-    { title: 'Kantor Notaris', href: '/notaries', icon: Scale },
+    { title: 'Notaris', href: '/notaries', icon: Scale },
     { title: 'Jenis Pekerjaan', href: '/job-types', icon: BriefcaseBusiness },
 ];
 
 const administrationNavItems: NavItem[] = [
+    { title: 'Arsip Dokumen', href: '/document-archives', icon: Archive },
+    { title: 'Siaran Operasional', href: '/announcements', icon: Megaphone },
     {
         title: 'Portal Notaris',
         href: '/notary/orders',
         icon: UserCheck,
     },
-    { title: 'Notifikasi', href: '/notifications', icon: Bell },
     { title: 'Audit Log', href: '/audit-logs', icon: ClipboardList },
     { title: 'Pengguna', href: '/users', icon: Users },
     { title: 'Role', href: '/roles', icon: KeyRound },
+    { title: 'Pengaturan Sistem', href: '/system-settings', icon: Settings2 },
 ];
 
 const footerNavItems: NavItem[] = [
@@ -62,12 +66,15 @@ function useVisibleItems(items: NavItem[], permission: string) {
 export function AppSidebar() {
     const { auth } = usePage<{ auth: { permissions?: string[] } }>().props;
     const can = (permission: string) => auth.permissions?.includes(permission) ?? false;
+    const canWorkQueue = ['orders.approve', 'documents.validate', 'covernotes.approve', 'payments.verify', 'payments.approve', 'handovers.manage', 'orders.manage'].some(can);
     const canGoBack = useCanGoBack();
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const operations = [
         ...(can('dashboard.view') ? [operationsNavItems[0]] : []),
         ...(can('orders.view') ? [operationsNavItems[1]] : []),
-        ...(can('reports.view') ? [operationsNavItems[2]] : []),
+        ...(canWorkQueue ? [operationsNavItems[2]] : []),
+        ...(can('reports.view') ? [operationsNavItems[3]] : []),
+        ...(can('branches.monitor') ? [operationsNavItems[4]] : []),
     ];
 
     return (
@@ -107,12 +114,20 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <NavMain items={operations} label="Operasional" />
-                <NavMain items={useVisibleItems(referenceNavItems, 'masters.manage')} label="Referensi" />
+                <NavMain items={referenceNavItems.filter((item) => {
+                    if (item.href === '/branches') return can('branches.manage');
+                    if (item.href === '/notaries') return can('notaries.manage');
+                    if (item.href === '/job-types') return can('job_types.manage');
+                    return false;
+                })} label="Referensi" />
                 <NavMain items={administrationNavItems.filter((item) => {
+                    if (item.href === '/document-archives') return can('documents.archive.view');
+                    if (item.href === '/announcements') return can('announcements.manage');
                     if (item.href === '/notary/orders') return can('notary.portal');
                     if (item.href === '/audit-logs') return can('audit.view');
                     if (item.href === '/users') return can('users.manage');
                     if (item.href === '/roles') return can('roles.manage');
+                    if (item.href === '/system-settings') return can('system.settings');
                     return false;
                 })} label="Administrasi" />
             </SidebarContent>

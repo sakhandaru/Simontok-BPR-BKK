@@ -19,34 +19,51 @@ class DemoFullDataSeeder extends Seeder
 {
     public function run(): void
     {
-        $branch = Branch::firstOrCreate(['code' => '001'], ['name' => 'Kantor Pusat Operasional', 'is_active' => true]);
-        $notaries = Notary::where('is_active', true)->take(4)->get();
-        if ($notaries->count() < 4) {
-            foreach (range($notaries->count() + 1, 4) as $index) {
-                $notaries->push(Notary::create([
-                    'name' => "Kantor Notaris Simulasi {$index}",
-                    'email' => "notaris{$index}@demo.local",
-                    'phone' => "024-00000{$index}",
-                    'address' => 'Semarang',
-                    'is_active' => true,
-                ]));
+        $branchNames = [
+            'KC. Kantor Pusat Operasional', 'KC. Kudus', 'KC. Demak', 'KC. Jepara',
+            'KC. Pati', 'KC. Rembang', 'KC. Semarang', 'KC. Grobogan',
+            'KC. Blora', 'KC. Purwodadi',
+        ];
+        $branches = collect($branchNames)->values()->map(function (string $name, int $index) {
+            return Branch::updateOrCreate(
+                ['code' => str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT)],
+                ['name' => $name, 'is_active' => true],
+            );
+        });
+        $notaries = Notary::where('is_active', true)->take(10)->get();
+        if ($notaries->count() < 10) {
+            foreach (range($notaries->count() + 1, 10) as $index) {
+                $notaries->push(Notary::updateOrCreate(
+                    ['email' => "notaris{$index}@demo.local"],
+                    [
+                        'name' => "Kantor Notaris Simulasi {$index}",
+                        'phone' => "024-0000".str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+                        'address' => 'Jawa Tengah',
+                        'is_active' => true,
+                    ],
+                ));
             }
         }
 
-        $notaries->each(fn (Notary $notary) => $branch->notaries()->syncWithoutDetaching([$notary->id => ['is_active' => true]]));
+        $branches->each(function (Branch $branch) use ($notaries) {
+            $notaries->each(fn (Notary $notary) => $branch->notaries()->syncWithoutDetaching([$notary->id => ['is_active' => true]]));
+        });
 
         $jobTypes = JobType::where('is_active', true)->take(6)->get();
         $admin = User::where('email', 'admin')->first() ?? User::first();
         $notaryUser = User::where('email', 'notaris')->first() ?? $admin;
         $manager = User::where('email', 'pimpinan')->first() ?? $admin;
 
-        $customers = [
+        $customers = array_merge([
             'Budi Santoso', 'Siti Aminah', 'Agus Waryanto', 'Dewi Lestari', 'Sri Wahyuni',
             'Ahmad Fauzi', 'Rina Kartika', 'Hendra Saputra', 'Nuryanto', 'Eka Prasetya',
             'Wahyu Nugroho', 'Tri Astuti', 'Mulyono', 'Fitri Handayani', 'Joko Susilo',
             'Nur Azizah', 'Slamet Riyadi', 'Endang Setyowati', 'Arif Rahman', 'Indah Permata',
             'Teguh Prakoso', 'Yuni Hapsari', 'Rudi Hartono', 'Maya Sari',
-        ];
+        ], array_map(
+            fn (int $index) => 'Nasabah Demo '.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+            range(25, 60),
+        ));
 
         $statuses = [
             TrackAStatus::Draft,
@@ -69,13 +86,14 @@ class DemoFullDataSeeder extends Seeder
         foreach ($customers as $index => $customer) {
             $status = $statuses[$index % count($statuses)];
             $orderNo = 'DEMO-'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT);
-            $createdAt = now()->subDays(42 - $index);
+            $createdAt = now()->subDays(90 - $index);
+            $orderBranch = $branches[$index % $branches->count()];
             $notary = $notaries[$index % $notaries->count()];
 
             $order = Order::updateOrCreate(
                 ['order_no' => $orderNo],
                 [
-                    'branch_id' => $branch->id,
+                    'branch_id' => $orderBranch->id,
                     'notary_id' => $notary->id,
                     'customer_name' => $customer,
                     'no_rekening' => '001'.str_pad((string) (135000000 + $index), 9, '0', STR_PAD_LEFT),
@@ -216,8 +234,8 @@ class DemoFullDataSeeder extends Seeder
 
     private function seedPatiNotaryDecisionOrders($notaries, $jobTypes, ?int $adminId): void
     {
-        $branch = Branch::firstOrCreate(['code' => 'PATI'], [
-            'name' => 'Kantor Cabang Pati',
+        $branch = Branch::updateOrCreate(['code' => '005'], [
+            'name' => 'KC. Pati',
             'is_active' => true,
         ]);
         $notary = $notaries->first();

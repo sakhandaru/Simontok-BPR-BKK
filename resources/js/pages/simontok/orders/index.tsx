@@ -11,6 +11,7 @@ import type { OrderListItem, Paginated } from '@/types';
 import { SimTableSortHeader } from '@/components/sim-table';
 import { SimTable } from '@/components/sim-table';
 import { useSimTableSort } from '@/components/sim-table';
+import { SimPagination } from '@/components/sim-pagination';
 
 type StatusOption = { value: string; label: string };
 type OrderItem = OrderListItem & {
@@ -198,13 +199,7 @@ export default function OrdersIndex({
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4">
                         <p className="text-xs text-muted-foreground">Menampilkan {orders.data.length} order pada halaman ini.</p>
-                        <div className="flex flex-wrap gap-2">
-                            {orders.links.map((link) => (
-                                <Button key={link.label} size="sm" variant={link.active ? 'default' : 'outline'} disabled={!link.url} asChild={Boolean(link.url)}>
-                                    {link.url ? <Link href={link.url} dangerouslySetInnerHTML={{ __html: link.label }} /> : <span dangerouslySetInnerHTML={{ __html: link.label }} />}
-                                </Button>
-                            ))}
-                        </div>
+                        <SimPagination links={orders.links} />
                     </div>
                 </section>
             </div>

@@ -7,57 +7,41 @@ use App\Models\Notification;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Http\JsonResponse;
 
 class NotificationController extends Controller
 {
-    public function index(Request $request): Response
-    {
-        return Inertia::render('simontok/notifications/index', [
-            'notifications' => $this->queryForUser($request)
-                ->latest('created_at')
-                ->paginate(15)
-                ->through(fn (Notification $notification) => [
-                    'id' => $notification->id,
-                    'title' => $notification->title,
-                    'message' => $notification->message,
-                    'link_url' => $notification->link_url,
-                    'is_read' => $notification->is_read,
-                    'created_at' => $notification->created_at?->format('d M Y H:i'),
-                    'read_at' => $notification->read_at?->format('d M Y H:i'),
-                ]),
-        ]);
-    }
-
-    public function markRead(Request $request, Notification $notification): RedirectResponse
+    public function markOpened(Request $request, Notification $notification): RedirectResponse
     {
         abort_unless($this->queryForUser($request)->whereKey($notification->id)->exists(), 403);
 
-        $notification->update([
-            'is_read' => true,
-            'read_at' => now(),
-        ]);
+        $notification->update(['is_read' => true, 'read_at' => now()]);
+        Audit::record($request, 'notifications', $notification, 'open', 'Notifikasi dibuka dari panel header.');
 
-        Audit::record($request, 'notifications', $notification, 'mark_read', 'Notifikasi ditandai sudah dibaca.');
-
-        return back()->with('success', 'Notifikasi ditandai sudah dibaca.');
+        return back();
     }
 
-    public function markAllRead(Request $request): RedirectResponse
+    public function poll(Request $request): JsonResponse
     {
-        $count = $this->queryForUser($request)
-            ->where('is_read', false)
-            ->update([
-                'is_read' => true,
-                'read_at' => now(),
+        $since = $request->date('since');
+
+        $notifications = $this->queryForUser($request)
+            ->when($since, fn ($query) => $query->where('created_at', '>', $since))
+            ->latest('created_at')
+            ->limit(20)
+            ->get()
+            ->reverse()
+            ->values()
+            ->map(fn (Notification $notification) => [
+                'id' => $notification->id,
+                'title' => $notification->title,
+                'message' => $notification->message,
+                'link_url' => $notification->link_url,
+                'priority' => $notification->priority,
+                'created_at' => $notification->created_at?->toIso8601String(),
             ]);
 
-        Audit::record($request, 'notifications', $request->user(), 'mark_all_read', 'Semua notifikasi ditandai sudah dibaca.', [
-            'count' => $count,
-        ]);
-
-        return back()->with('success', 'Semua notifikasi ditandai sudah dibaca.');
+        return response()->json(['notifications' => $notifications]);
     }
 
     private function queryForUser(Request $request)

@@ -6,6 +6,7 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { AnnouncementModal } from '@/components/announcement-modal';
 
 const appName = import.meta.env.VITE_APP_NAME || 'SIMONTOK';
 
@@ -17,6 +18,7 @@ const appName = import.meta.env.VITE_APP_NAME || 'SIMONTOK';
 const RootLayout = ({ children }: { children?: ReactNode }) => (
     <>
         {children}
+        <AnnouncementModal />
         <Toaster />
     </>
 );

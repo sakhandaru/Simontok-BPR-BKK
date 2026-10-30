@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\PaymentRequest;
 use App\Support\Audit;
+use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class PaymentRequestController extends Controller
     {
         $this->authorizeNotary($request, $order);
         $this->ensurePaymentPrerequisites($order);
+        abort_unless($order->notary_agreement_acknowledged_at, 422, 'PKS wajib dibaca dan disetujui sebelum invoice diajukan.');
 
         if ($order->paymentRequest()->exists()) {
             throw ValidationException::withMessages([
@@ -38,8 +40,9 @@ class PaymentRequestController extends Controller
             'catatan_notaris' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        if ($order->nominal !== null && (float) $data['nominal'] !== (float) $order->nominal) {
-            throw ValidationException::withMessages(['nominal' => 'Nominal invoice harus sama dengan nominal jasa pada order. Ajukan perubahan nominal terlebih dahulu.']);
+        $expectedNominal = $order->totalServiceFee();
+        if ((float) $data['nominal'] !== $expectedNominal) {
+            throw ValidationException::withMessages(['nominal' => 'Nominal invoice harus sama dengan harga utama ditambah seluruh biaya langkah pekerjaan.']);
         }
 
         if (filled($order->skema_pembayaran) && $data['skema_pembayaran'] !== $order->skema_pembayaran) {
@@ -174,7 +177,7 @@ class PaymentRequestController extends Controller
             $path = $request->file('bukti')?->store("payments/{$order->id}", 'local');
             $before = $paymentRequest->status;
 
-            $paymentRequest->payments()->create([
+            $payment = $paymentRequest->payments()->create([
                 'order_id' => $order->id,
                 'paid_at' => $data['paid_at'],
                 'nominal' => $data['nominal'],
@@ -182,6 +185,15 @@ class PaymentRequestController extends Controller
                 'uploaded_by' => $request->user()->id,
                 'catatan' => $data['catatan'] ?? null,
             ]);
+            if ($path) {
+                DocumentArchiveService::archiveFile($request, \App\Models\Order::class, $order->id, 'payment_proof', 'payment_'.$payment->id, 'bukti_pembayaran', 'Bukti pembayaran', basename($path), $path, $request->file('bukti')->getSize(), [
+                    'order_id' => $order->id,
+                    'payment_request_id' => $paymentRequest->id,
+                    'payment_id' => $payment->id,
+                    'paid_at' => $payment->paid_at?->toDateString(),
+                    'nominal' => $payment->nominal,
+                ], 'Bukti pembayaran diunggah.');
+            }
 
             $paymentRequest->update([
                 'status' => TrackDPaymentStatus::Dibayar,

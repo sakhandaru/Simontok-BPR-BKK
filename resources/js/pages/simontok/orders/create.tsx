@@ -1,37 +1,39 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, FilePlus2 } from 'lucide-react';
+import { ArrowLeft, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { FormEvent, type ReactNode } from 'react';
 import InputError from '@/components/input-error';
-import { SimPageHeader } from '@/components/sim-page-header';
+import { RupiahInput } from '@/components/rupiah-input';
 import { SimSelect } from '@/components/sim-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type Option = { id: number; code?: string; name: string };
+type CollateralForm = { job_type_id: string; agunan_id: string; deskripsi_agunan: string; sla_days: string; sla_override_reason: string };
+type OrderForm = { branch_id: string; notary_id: string; customer_name: string; no_rekening: string; tgl_masuk_notaris: string; tgl_realisasi: string; plafon: string; nominal: string; skema_pembayaran: string; keterangan: string; collaterals: CollateralForm[] };
 
-export default function OrdersCreate({ branches, notaries, defaultBranchId, branchLocked }: { branches: Option[]; notaries: Option[]; defaultBranchId: number | null; branchLocked: boolean }) {
-    const { data, setData, post, processing, errors } = useForm({ branch_id: defaultBranchId ? String(defaultBranchId) : '', notary_id: '', customer_name: '', no_rekening: '', tgl_masuk_notaris: '' });
+const emptyCollateral = (): CollateralForm => ({ job_type_id: '', agunan_id: '', deskripsi_agunan: '', sla_days: '', sla_override_reason: '' });
+
+export default function OrdersCreate({ branches, notaries, jobTypes, slaPolicies, defaultBranchId, branchLocked }: { branches: Option[]; notaries: Option[]; jobTypes: Option[]; slaPolicies: Record<string, { days: number; source: string }>; defaultBranchId: number | null; branchLocked: boolean }) {
+    const { data, setData, post, processing, errors } = useForm<OrderForm>({ branch_id: defaultBranchId ? String(defaultBranchId) : '', notary_id: '', customer_name: '', no_rekening: '', tgl_masuk_notaris: '', tgl_realisasi: '', plafon: '', nominal: '', skema_pembayaran: '', keterangan: '', collaterals: [emptyCollateral()] });
     const submit = (event: FormEvent) => { event.preventDefault(); post('/orders'); };
+    const setCollateral = (index: number, key: keyof CollateralForm, value: string) => { const next = [...data.collaterals]; next[index] = { ...next[index], [key]: value }; setData('collaterals', next); };
 
-    return <><Head title="Buat order" /><div className="sim-workspace">
-        <SimPageHeader title="Buat order" description="Buat draft order dengan identitas minimum, lalu lengkapi datanya di halaman detail." actions={<Button variant="outline" asChild><Link href="/orders"><ArrowLeft className="size-4" />Kembali</Link></Button>} />
-        <form onSubmit={submit} className="sim-panel max-w-3xl">
-            <div className="sim-panel-header"><h2 className="sim-panel-title">Mulai order</h2><p className="sim-panel-subtitle">Pilih tujuan order terlebih dahulu. Data kredit, agunan, dan dokumen diisi setelah draft dibuat.</p></div>
-            <div className="grid gap-4 p-4 md:grid-cols-2">
-                <Field label="Cabang" error={errors.branch_id}><SimSelect value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={branches.map((item) => ({ value: String(item.id), label: `${item.code} - ${item.name}` }))} placeholder="Pilih cabang" disabled={branchLocked} />{branchLocked && <p className="text-xs text-muted-foreground">Otomatis mengikuti cabang yang terdaftar pada akun Anda.</p>}</Field>
-                <Field label="Notaris" error={errors.notary_id}><SimSelect value={data.notary_id} onChange={(value) => setData('notary_id', value)} options={notaries.map((item) => ({ value: String(item.id), label: item.name }))} placeholder="Pilih notaris" /></Field>
-                <Field label="Nama nasabah" error={errors.customer_name}><Input value={data.customer_name} onChange={(event) => setData('customer_name', event.target.value)} /></Field>
-                <Field label="No rekening" error={errors.no_rekening}><Input value={data.no_rekening} onChange={(event) => setData('no_rekening', event.target.value)} /></Field>
-                <Field label="Tanggal masuk notaris" error={errors.tgl_masuk_notaris}><Input type="date" value={data.tgl_masuk_notaris} onChange={(event) => setData('tgl_masuk_notaris', event.target.value)} /><p className="text-xs text-muted-foreground">Menjadi titik awal perhitungan SLA setiap agunan.</p></Field>
-            </div>
-            <div className="flex justify-end border-t p-4"><Button disabled={processing}><FilePlus2 className="size-4" />Buat draft order</Button></div>
-        </form>
-    </div></>;
+    return <><Head title="Buat order" /><form onSubmit={submit} className="flex h-full flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><h1 className="text-2xl font-semibold">Buat order</h1><p className="mt-1 text-sm text-muted-foreground">Lengkapi data order dalam satu form. Order akan tersimpan sebagai draft.</p></div><div className="flex gap-2"><Button variant="outline" asChild><Link href="/orders"><ArrowLeft className="size-4" />Kembali</Link></Button><Button type="submit" disabled={processing}><FilePlus2 className="size-4" />Simpan draft</Button></div></div>
+        <section className="grid gap-4 rounded-lg border p-4 md:grid-cols-2"><div className="md:col-span-2"><h2 className="font-medium">Identitas order</h2><p className="mt-1 text-sm text-muted-foreground">Tentukan cabang, notaris rekanan, dan data nasabah.</p></div>
+            <Field label="Cabang" error={errors.branch_id}><SimSelect value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={branches.map((item) => ({ value: String(item.id), label: `${item.code} - ${item.name}` }))} placeholder="Pilih cabang" disabled={branchLocked} />{branchLocked && <p className="text-xs text-muted-foreground">Otomatis mengikuti cabang yang terdaftar pada akun Anda.</p>}</Field>
+            <Field label="Notaris" error={errors.notary_id}><SimSelect value={data.notary_id} onChange={(value) => setData('notary_id', value)} options={notaries.map((item) => ({ value: String(item.id), label: item.name }))} placeholder="Pilih notaris" /></Field>
+            <Field label="Nama nasabah" error={errors.customer_name}><Input value={data.customer_name} onChange={(e) => setData('customer_name', e.target.value)} /></Field><Field label="No rekening" error={errors.no_rekening}><Input value={data.no_rekening} onChange={(e) => setData('no_rekening', e.target.value)} /></Field>
+            <Field label="Tanggal akad" error={errors.tgl_realisasi}><Input type="date" value={data.tgl_realisasi} onChange={(e) => setData('tgl_realisasi', e.target.value)} /></Field><Field label="Tanggal masuk notaris" error={errors.tgl_masuk_notaris}><Input type="date" value={data.tgl_masuk_notaris} onChange={(e) => setData('tgl_masuk_notaris', e.target.value)} /><p className="text-xs text-muted-foreground">Menjadi titik awal perhitungan SLA setiap agunan.</p></Field>
+            <Field label="Plafon"><RupiahInput value={data.plafon} onChange={(value) => setData('plafon', value)} /></Field><Field label="Nominal jasa"><RupiahInput value={data.nominal} onChange={(value) => setData('nominal', value)} /></Field><Field label="Skema pembayaran"><Input value={data.skema_pembayaran} onChange={(e) => setData('skema_pembayaran', e.target.value)} placeholder="Contoh: Transfer penuh" /></Field><Field label="Keterangan"><textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={data.keterangan} onChange={(e) => setData('keterangan', e.target.value)} /></Field>
+        </section>
+        <section className="flex flex-col gap-4 rounded-lg border p-4"><div className="flex items-center justify-between gap-3"><div><h2 className="font-medium">Agunan</h2><p className="mt-1 text-sm text-muted-foreground">Tambahkan jenis pekerjaan dan detail setiap agunan.</p></div><Button type="button" size="sm" onClick={() => setData('collaterals', [...data.collaterals, emptyCollateral()])}><Plus className="size-4" />Tambah agunan</Button></div>
+            {data.collaterals.map((collateral, index) => <div key={index} className="grid gap-4 border-t pt-4 md:grid-cols-2"><Field label="Jenis pekerjaan" error={errors[`collaterals.${index}.job_type_id` as keyof typeof errors]}><SimSelect value={collateral.job_type_id} onChange={(value) => setCollateral(index, 'job_type_id', value)} options={jobTypes.map((item) => ({ value: String(item.id), label: item.name }))} placeholder="Pilih jenis pekerjaan" /></Field><Field label="ID agunan" error={errors[`collaterals.${index}.agunan_id` as keyof typeof errors]}><Input value={collateral.agunan_id} onChange={(e) => setCollateral(index, 'agunan_id', e.target.value)} /></Field><Field label="Deskripsi agunan" error={errors[`collaterals.${index}.deskripsi_agunan` as keyof typeof errors]}><textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.deskripsi_agunan} onChange={(e) => setCollateral(index, 'deskripsi_agunan', e.target.value)} /></Field><Field label="SLA order (hari)" error={errors[`collaterals.${index}.sla_days` as keyof typeof errors]}><Input type="number" min={1} max={365} value={collateral.sla_days} placeholder={slaPolicies[collateral.job_type_id] ? String(slaPolicies[collateral.job_type_id].days) : 'Otomatis'} onChange={(e) => setCollateral(index, 'sla_days', e.target.value)} /></Field>{collateral.sla_days && slaPolicies[collateral.job_type_id] && Number(collateral.sla_days) !== slaPolicies[collateral.job_type_id].days && <Field label="Alasan perubahan SLA" error={errors[`collaterals.${index}.sla_override_reason` as keyof typeof errors]}><textarea className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.sla_override_reason} onChange={(e) => setCollateral(index, 'sla_override_reason', e.target.value)} /></Field>}{data.collaterals.length > 1 && <Button type="button" variant="outline" size="sm" className="md:w-fit" onClick={() => setData('collaterals', data.collaterals.filter((_, i) => i !== index))}><Trash2 className="size-4" />Hapus agunan</Button>}</div>)}
+        </section>
+    </form></>;
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
-    return <div className="grid gap-2"><Label>{label}</Label>{children}<InputError message={error} /></div>;
-}
+function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) { return <div className="grid gap-2"><Label>{label}</Label>{children}<InputError message={error} /></div>; }
 
 OrdersCreate.layout = { breadcrumbs: [{ title: 'Order', href: '/orders' }, { title: 'Buat', href: '/orders/create' }] };

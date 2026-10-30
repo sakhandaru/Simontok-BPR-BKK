@@ -21,7 +21,7 @@ class BranchController extends Controller
         return Inertia::render('simontok/masters/branches', [
             'branches' => Branch::query()
                 ->with(['users' => fn ($query) => $query->whereNull('notary_id')->with('jobPosition.role:id,code,name')->orderBy('name')])
-                ->latest()->paginate(15)->withQueryString()->through(fn (Branch $branch) => [
+            ->latest()->paginate(10)->withQueryString()->through(fn (Branch $branch) => [
                     ...$branch->only(['id', 'code', 'name', 'address', 'latitude', 'longitude', 'is_active']),
                     'users' => $branch->users->map(fn (User $user) => [
                         'id' => $user->id,
@@ -34,7 +34,7 @@ class BranchController extends Controller
                     ])->values()->all(),
                 ]),
             'positions' => JobPosition::with('role:id,code,name')
-                ->whereHas('role', fn ($query) => $query->whereNotIn('code', ['notaris', 'it_admin']))
+                ->whereHas('role', fn ($query) => $query->whereIn('code', ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang']))
                 ->orderBy('name')->get(['id', 'code', 'name', 'role_id']),
         ]);
     }
@@ -92,7 +92,7 @@ class BranchController extends Controller
     {
         $position = JobPosition::with('role:id,code')->findOrFail($positionId);
 
-        if (in_array($position->role?->code, ['notaris', 'it_admin'], true)) {
+        if (! in_array($position->role?->code, ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang'], true)) {
             throw ValidationException::withMessages([
                 'job_position_id' => 'Posisi ini tidak dapat dikelola sebagai akun internal cabang.',
             ]);
@@ -150,7 +150,7 @@ class BranchController extends Controller
             ->exists();
 
         if ($exists) {
-            $label = $slot === 'kepala_cabang' ? 'Pimpinan Cabang' : 'Kadiv Operasional';
+            $label = $slot === 'pimpinan_cabang' ? 'Pimpinan Cabang' : 'Kabid Operasional';
             throw ValidationException::withMessages([
                 'job_position_id' => "Cabang ini sudah memiliki {$label} aktif.",
             ]);

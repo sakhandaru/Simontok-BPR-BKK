@@ -14,6 +14,7 @@ class Notification extends Model
         'title',
         'message',
         'link_url',
+        'priority',
         'is_read',
         'read_at',
         'created_at',

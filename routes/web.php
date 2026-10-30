@@ -1,8 +1,11 @@
 <?php
 
 use App\Http\Controllers\Simontok\AuditLogController;
+use App\Http\Controllers\Simontok\AnnouncementController;
 use App\Http\Controllers\Simontok\BranchController;
+use App\Http\Controllers\Simontok\BranchMonitoringController;
 use App\Http\Controllers\Simontok\CovernoteController;
+use App\Http\Controllers\Simontok\DocumentArchiveController;
 use App\Http\Controllers\Simontok\DocumentRequestController;
 use App\Http\Controllers\Simontok\DashboardController;
 use App\Http\Controllers\Simontok\JobTypeController;
@@ -17,6 +20,8 @@ use App\Http\Controllers\Simontok\PaymentRequestController;
 use App\Http\Controllers\Simontok\ReportController;
 use App\Http\Controllers\Simontok\RoleController;
 use App\Http\Controllers\Simontok\UserController;
+use App\Http\Controllers\Simontok\SystemSettingController;
+use App\Http\Controllers\Simontok\WorkQueueController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -72,15 +77,29 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('orders', OrderController::class)->only(['edit', 'update']);
     });
     Route::middleware('permission:reports.view')->get('reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::middleware('permission:orders.view')->get('work-queue', WorkQueueController::class)->name('work-queue.index');
+    Route::middleware('permission:branches.monitor')->get('branch-monitoring', BranchMonitoringController::class)->name('branch-monitoring.index');
+    Route::middleware('permission:system.settings')->group(function () {
+        Route::get('system-settings', [SystemSettingController::class, 'index'])->name('system-settings.index');
+        Route::put('system-settings', [SystemSettingController::class, 'update'])->name('system-settings.update');
+    });
     Route::middleware('permission:audit.view')->get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
-    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
-    Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::get('notifications/poll', [NotificationController::class, 'poll'])->name('notifications.poll');
+    Route::post('notifications/{notification}/open', [NotificationController::class, 'markOpened'])->name('notifications.open');
+    Route::middleware('permission:announcements.manage')->group(function () {
+        Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
+        Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
+        Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
+    });
+    Route::post('announcements/{announcement}/read', [AnnouncementController::class, 'markRead'])->name('announcements.read');
     Route::middleware('permission:notary.portal')->group(function () {
         Route::get('notary/orders', [NotaryPortalController::class, 'index'])->name('notary.orders.index');
         Route::get('notary/orders/{order}', [NotaryPortalController::class, 'show'])->name('notary.orders.show');
+        Route::get('notary/orders/{order}/agreement/preview', [NotaryPortalController::class, 'agreementPreview'])->name('notary.orders.agreement.preview');
         Route::middleware('permission:notary.actions')->group(function () {
             Route::post('notary/orders/{order}/accept-documents', [NotaryPortalController::class, 'acceptDocuments'])->name('notary.orders.accept-documents');
+            Route::post('notary/orders/{order}/agreement/acknowledge', [NotaryPortalController::class, 'acknowledgeAgreement'])->name('notary.orders.agreement.acknowledge');
+            Route::put('notary/orders/{order}/step-fees', [NotaryPortalController::class, 'saveStepFees'])->name('notary.orders.step-fees.update');
             Route::post('notary/orders/{order}/covernote', [NotaryPortalController::class, 'submitCovernote'])->name('notary.orders.covernote.store');
             Route::post('notary/orders/{order}/request-revision', [NotaryPortalController::class, 'requestRevision'])->name('notary.orders.request-revision');
             Route::post('notary/orders/{order}/reject', [NotaryPortalController::class, 'reject'])->name('notary.orders.reject');
@@ -102,14 +121,24 @@ Route::middleware(['auth'])->group(function () {
         Route::post('orders/{order}/collaterals/{collateral}/covernote-extensions/{extension}/approve', [CovernoteController::class, 'approveExtension'])->name('orders.collaterals.covernote-extensions.approve');
         Route::post('orders/{order}/collaterals/{collateral}/covernote-extensions/{extension}/reject', [CovernoteController::class, 'rejectExtension'])->name('orders.collaterals.covernote-extensions.reject');
     });
-    Route::middleware('permission:masters.manage')->group(function () {
+    Route::middleware('permission:documents.archive.view')->group(function () {
+        Route::get('document-archives', [DocumentArchiveController::class, 'index'])->name('document-archives.index');
+        Route::get('document-archives/{version}/preview', [DocumentArchiveController::class, 'preview'])->name('document-archives.preview');
+        Route::get('document-archives/{version}/download', [DocumentArchiveController::class, 'download'])->name('document-archives.download');
+        Route::get('document-archives/{version}/versions', [DocumentArchiveController::class, 'versions'])->name('document-archives.versions');
+    });
+    Route::middleware('permission:branches.manage')->group(function () {
         Route::resource('branches', BranchController::class)->only(['index', 'store', 'update']);
         Route::post('branches/{branch}/internal-account', [BranchController::class, 'createInternalAccount'])->name('branches.internal-account.store');
         Route::put('branches/{branch}/internal-account/{user}', [BranchController::class, 'updateInternalAccount'])->name('branches.internal-account.update');
+    });
+    Route::middleware('permission:notaries.manage')->group(function () {
         Route::resource('notaries', NotaryController::class)->only(['index', 'store', 'update']);
         Route::post('notaries/{notary}/portal-account', [NotaryController::class, 'createPortalAccount'])->name('notaries.portal-account.store');
         Route::put('notaries/{notary}/portal-account/{user}', [NotaryController::class, 'updatePortalAccount'])->name('notaries.portal-account.update');
         Route::get('notaries/{notary}/agreement/preview', [NotaryController::class, 'previewAgreement'])->name('notaries.agreement.preview');
+    });
+    Route::middleware('permission:job_types.manage')->group(function () {
         Route::resource('job-types', JobTypeController::class)->only(['index', 'store', 'update']);
     });
     Route::middleware('permission:users.manage')->group(function () { Route::resource('users', UserController::class)->only(['index', 'store', 'update']); });

@@ -48,11 +48,22 @@ class DatabaseSeeder extends Seeder
             ['code' => 'payments.approve', 'name' => 'Setujui pembayaran', 'module' => 'payments'],
             ['code' => 'payments.pay', 'name' => 'Catat pembayaran', 'module' => 'payments'],
             ['code' => 'masters.manage', 'name' => 'Kelola master data', 'module' => 'masters'],
+            ['code' => 'branches.view', 'name' => 'Lihat kantor cabang', 'module' => 'masters'],
+            ['code' => 'branches.manage', 'name' => 'Kelola kantor cabang', 'module' => 'masters'],
+            ['code' => 'notaries.view', 'name' => 'Lihat notaris rekanan', 'module' => 'masters'],
+            ['code' => 'notaries.manage', 'name' => 'Kelola notaris rekanan', 'module' => 'masters'],
+            ['code' => 'job_types.view', 'name' => 'Lihat jenis pekerjaan', 'module' => 'masters'],
+            ['code' => 'job_types.manage', 'name' => 'Kelola jenis pekerjaan', 'module' => 'masters'],
+            ['code' => 'documents.view', 'name' => 'Lihat dokumen', 'module' => 'documents'],
+            ['code' => 'documents.archive.view', 'name' => 'Lihat arsip dokumen', 'module' => 'documents'],
             ['code' => 'users.manage', 'name' => 'Kelola pengguna', 'module' => 'administration'],
             ['code' => 'roles.manage', 'name' => 'Kelola role', 'module' => 'administration'],
             ['code' => 'notary.portal', 'name' => 'Akses portal notaris', 'module' => 'notary'],
             ['code' => 'notary.actions', 'name' => 'Jalankan aksi portal notaris', 'module' => 'notary'],
             ['code' => 'audit.view', 'name' => 'Lihat audit log', 'module' => 'audit'],
+            ['code' => 'announcements.manage', 'name' => 'Kelola siaran operasional', 'module' => 'announcements'],
+            ['code' => 'branches.monitor', 'name' => 'Monitoring cabang', 'module' => 'reports'],
+            ['code' => 'system.settings', 'name' => 'Pengaturan sistem', 'module' => 'administration'],
         ])->mapWithKeys(fn (array $permission) => [
             $permission['code'] => Permission::updateOrCreate(
                 ['code' => $permission['code']],
@@ -68,12 +79,15 @@ class DatabaseSeeder extends Seeder
         Role::whereIn('code', ['keuangan', 'manajemen'])->delete();
 
         $roles = collect([
-            ['code' => 'legal_admin', 'name' => 'Admin Legal', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.pay', 'tracking.view', 'reports.view']],
+            ['code' => 'direksi_pusat', 'name' => 'Direksi Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view', 'branches.monitor', 'documents.archive.view', 'announcements.manage']],
+            ['code' => 'kadiv_ops_pusat', 'name' => 'Kadiv Operasional Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'documents.view', 'documents.validate', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view', 'branches.monitor', 'documents.archive.view', 'announcements.manage']],
+            ['code' => 'admin_legal_pusat', 'name' => 'Admin Legal Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.approve', 'payments.pay', 'tracking.view', 'reports.view', 'branches.view', 'branches.manage', 'branches.monitor', 'notaries.view', 'notaries.manage', 'job_types.view', 'job_types.manage', 'documents.archive.view', 'announcements.manage', 'audit.view']],
+            ['code' => 'pimpinan_cabang', 'name' => 'Pimpinan Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view']],
+            ['code' => 'kabid_ops_cabang', 'name' => 'Kabid Operasional Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'documents.view', 'documents.validate', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view']],
+            ['code' => 'admin_legal_cabang', 'name' => 'Admin Legal Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.pay', 'tracking.view', 'reports.view']],
             ['code' => 'notaris', 'name' => 'Notaris', 'permissions' => ['dashboard.view', 'tracking.view', 'notary.portal', 'notary.actions']],
-            ['code' => 'kepala_cabang', 'name' => 'Pimpinan Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'orders.cancel', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view']],
-            ['code' => 'kadiv_operasional', 'name' => 'Kadiv Operasional Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'orders.cancel', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view']],
             ['code' => 'it_admin', 'name' => 'IT Administrator', 'permissions' => []],
-            ['code' => 'auditor', 'name' => 'SKAI/Auditor', 'permissions' => ['dashboard.view', 'orders.view', 'tracking.view', 'reports.view', 'audit.view']],
+            ['code' => 'auditor', 'name' => 'Auditor / OJK', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view', 'branches.monitor', 'audit.view', 'documents.archive.view']],
         ])->mapWithKeys(function (array $role) use ($permissions) {
             $model = Role::updateOrCreate(
                 ['code' => $role['code']],
@@ -89,7 +103,7 @@ class DatabaseSeeder extends Seeder
 
         $branch = Branch::updateOrCreate(
             ['code' => '001'],
-            ['name' => 'Kantor Pusat Operasional', 'is_active' => true]
+            ['name' => 'KC. Kantor Pusat Operasional', 'is_active' => true]
         );
 
         $notary = Notary::updateOrCreate(
@@ -160,18 +174,33 @@ class DatabaseSeeder extends Seeder
         }
 
         JobPosition::updateOrCreate(
-            ['code' => 'LEGAL_ADMIN'],
-            ['name' => 'Staf Legal/Admin Kredit', 'role_id' => $roles['legal_admin']->id]
+            ['code' => 'DIREKSI_PUSAT'],
+            ['name' => 'Direksi Pusat', 'role_id' => $roles['direksi_pusat']->id]
+        );
+
+        JobPosition::updateOrCreate(
+            ['code' => 'KADIV_OPS_PUSAT'],
+            ['name' => 'Kadiv Operasional Pusat', 'role_id' => $roles['kadiv_ops_pusat']->id]
+        );
+
+        JobPosition::updateOrCreate(
+            ['code' => 'LEGAL_ADMIN_PUSAT'],
+            ['name' => 'Admin Legal Pusat', 'role_id' => $roles['admin_legal_pusat']->id]
+        );
+
+        JobPosition::updateOrCreate(
+            ['code' => 'LEGAL_ADMIN_CABANG'],
+            ['name' => 'Admin Legal Cabang', 'role_id' => $roles['admin_legal_cabang']->id]
         );
 
         JobPosition::updateOrCreate(
             ['code' => 'PIMPINAN_CABANG'],
-            ['name' => 'Pimpinan Cabang', 'role_id' => $roles['kepala_cabang']->id]
+            ['name' => 'Pimpinan Cabang', 'role_id' => $roles['pimpinan_cabang']->id]
         );
 
         JobPosition::updateOrCreate(
-            ['code' => 'KADIV_OPERASIONAL'],
-            ['name' => 'Kadiv Operasional Cabang', 'role_id' => $roles['kadiv_operasional']->id]
+            ['code' => 'KABID_OPS_CABANG'],
+            ['name' => 'Kabid Operasional Cabang', 'role_id' => $roles['kabid_ops_cabang']->id]
         );
 
         JobPosition::updateOrCreate(
@@ -191,9 +220,9 @@ class DatabaseSeeder extends Seeder
 
         collect([
             ['login' => 'admin', 'name' => 'Administrator', 'position' => 'IT_ADMIN'],
-            ['login' => 'legal', 'name' => 'Staf Legal', 'position' => 'LEGAL_ADMIN'],
+            ['login' => 'legal', 'name' => 'Admin Legal Pusat', 'position' => 'LEGAL_ADMIN_PUSAT'],
             ['login' => 'pimpinan', 'name' => 'Pimpinan Cabang', 'position' => 'PIMPINAN_CABANG'],
-            ['login' => 'kadiv', 'name' => 'Kadiv Operasional Cabang', 'position' => 'KADIV_OPERASIONAL'],
+            ['login' => 'kadiv', 'name' => 'Kabid Operasional Cabang', 'position' => 'KABID_OPS_CABANG'],
             ['login' => 'it', 'name' => 'IT Admin', 'position' => 'IT_ADMIN'],
             ['login' => 'auditor', 'name' => 'Auditor', 'position' => 'AUDITOR'],
         ])->each(fn (array $user) => User::updateOrCreate([
@@ -201,7 +230,7 @@ class DatabaseSeeder extends Seeder
         ], [
             'name' => $user['name'],
             'password' => $seedPassword,
-            'branch_id' => $branch->id,
+            'branch_id' => in_array($user['position'], ['PIMPINAN_CABANG', 'KABID_OPS_CABANG'], true) ? $branch->id : null,
             'job_position_id' => JobPosition::where('code', $user['position'])->value('id'),
             'notary_id' => null,
             'is_active' => true,

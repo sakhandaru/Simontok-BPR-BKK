@@ -9,6 +9,7 @@ use App\Enums\TrackCCovernoteStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Support\Audit;
+use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,6 +47,14 @@ class OrderHandoverController extends Controller
                 'maker_id' => $request->user()->id,
                 'made_at' => now(),
             ]);
+            if ($path) {
+                DocumentArchiveService::archiveFile($request, \App\Models\OrderCollateral::class, $handover->order_collateral_id, 'handover_receipt', 'handover_'.$handover->id, 'serah_terima', 'Tanda terima dokumen', basename($path), $path, $request->file('receipt')->getSize(), [
+                    'order_id' => $order->id,
+                    'handover_id' => $handover->id,
+                    'handed_over_at' => $handover->handed_over_at?->toDateString(),
+                    'receiver_name' => $handover->receiver_name,
+                ], 'Tanda terima serah terima diunggah.');
+            }
 
             $collateral = $order->collaterals()->findOrFail($data['order_collateral_id']);
             $collateral->update(['covernote_status' => TrackCCovernoteStatus::DigantiSertifikat]);

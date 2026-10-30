@@ -10,6 +10,7 @@ use App\Models\Branch;
 use App\Models\Notary;
 use App\Models\Order;
 use App\Models\OrderCollateral;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -19,6 +20,7 @@ class ReportController extends Controller
 {
     public function index(Request $request): Response
     {
+        $user = $request->user();
         $filters = $request->validate([
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
@@ -33,6 +35,14 @@ class ReportController extends Controller
             ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date));
 
         $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+        $totalOrders = (clone $orders)->count();
+        $completedOrders = (clone $orders)->where('status', TrackAStatus::Selesai->value)->count();
+        $finalValidated = OrderCollateral::where('doc_status', TrackBDocStatus::FinalDivalidasi->value)
+            ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))
+            ->count();
+        $finalDocuments = OrderCollateral::whereIn('doc_status', [TrackBDocStatus::FinalDiunggah->value, TrackBDocStatus::FinalDivalidasi->value])
+            ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))
+            ->count();
 
         return Inertia::render('simontok/reports/index', [
             'filters' => [
@@ -41,13 +51,27 @@ class ReportController extends Controller
                 'date_from' => $filters['date_from'] ?? '',
                 'date_to' => $filters['date_to'] ?? '',
             ],
-            'branches' => Branch::orderBy('name')->get(['id', 'code', 'name']),
-            'notaries' => Notary::orderBy('name')->get(['id', 'name']),
+            'branches' => Branch::when($user->branchScopeId(), fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
+            'notaries' => Notary::when($user->branchScopeId(), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
             'summary' => [
-                'total_orders' => (clone $orders)->count(),
+                'total_orders' => $totalOrders,
                 'active_orders' => (clone $orders)->whereNotIn('status', $closedStatuses)->count(),
                 'completed_orders' => (clone $orders)->where('status', TrackAStatus::Selesai->value)->count(),
                 'risk_orders' => (clone $orders)->where('risk_flag', true)->count(),
+            ],
+            'reportKpis' => [
+                'completion_rate' => $totalOrders > 0 ? (int) round(($completedOrders / $totalOrders) * 100) : 0,
+                'validation_rate' => $finalDocuments > 0 ? (int) round(($finalValidated / $finalDocuments) * 100) : 0,
+                'covernote_attention' => OrderCollateral::whereIn('covernote_status', [TrackCCovernoteStatus::Kedaluwarsa->value, TrackCCovernoteStatus::MendekatiJatuhTempo->value])
+                    ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))
+                    ->count(),
+                'overdue_sla' => OrderCollateral::whereNotNull('sla_due_at')
+                    ->where('sla_due_at', '<', now())
+                    ->whereHas('order', function ($query) use ($filters, $closedStatuses, $user) {
+                        $this->applyOrderFilters($query, $filters, $user);
+                        $query->whereNotIn('status', $closedStatuses);
+                    })
+                    ->count(),
             ],
             'byBranch' => (clone $orders)
                 ->select('branches.code', 'branches.name')
@@ -57,7 +81,7 @@ class ReportController extends Controller
                 ->join('branches', 'branches.id', '=', 'orders.branch_id')
                 ->groupBy('branches.code', 'branches.name')
                 ->orderBy('branches.code')
-                ->get(),
+                ->paginate(10)->withQueryString(),
             'byNotary' => (clone $orders)
                 ->select('notaries.name')
                 ->selectRaw('COUNT(orders.id) as total_orders')
@@ -66,11 +90,10 @@ class ReportController extends Controller
                 ->join('notaries', 'notaries.id', '=', 'orders.notary_id')
                 ->groupBy('notaries.name')
                 ->orderByDesc('total_orders')
-                ->limit(20)
-                ->get(),
+                ->paginate(10)->withQueryString(),
             'covernoteReport' => OrderCollateral::query()
                 ->select('covernote_status', DB::raw('COUNT(*) as total'))
-                ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters))
+                ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))
                 ->groupBy('covernote_status')
                 ->get()
                 ->map(function ($item) {
@@ -88,9 +111,9 @@ class ReportController extends Controller
                 ->with(['branch:id,code,name', 'notary:id,name'])
                 ->whereNotIn('status', $closedStatuses)
                 ->latest()
-                ->limit(20)
-                ->get(['id', 'order_no', 'branch_id', 'notary_id', 'customer_name', 'no_rekening', 'status', 'risk_flag', 'created_at'])
-                ->map(fn (Order $order) => [
+                ->paginate(10, ['id', 'order_no', 'branch_id', 'notary_id', 'customer_name', 'no_rekening', 'status', 'risk_flag', 'created_at'])
+                ->withQueryString()
+                ->through(fn (Order $order) => [
                     'id' => $order->id,
                     'order_no' => $order->order_no,
                     'customer_name' => $order->customer_name,
@@ -102,15 +125,16 @@ class ReportController extends Controller
                     'created_at' => $order->created_at?->format('d M Y'),
                 ]),
             'documentValidation' => [
-                'final_validated' => OrderCollateral::where('doc_status', TrackBDocStatus::FinalDivalidasi->value)->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters))->count(),
-                'final_uploaded' => OrderCollateral::where('doc_status', TrackBDocStatus::FinalDiunggah->value)->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters))->count(),
+                'final_validated' => OrderCollateral::where('doc_status', TrackBDocStatus::FinalDivalidasi->value)->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))->count(),
+                'final_uploaded' => OrderCollateral::where('doc_status', TrackBDocStatus::FinalDiunggah->value)->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))->count(),
             ],
         ]);
     }
 
-    private function applyOrderFilters($query, array $filters): void
+    private function applyOrderFilters($query, array $filters, User $user): void
     {
         $query
+            ->visibleTo($user)
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))
             ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))

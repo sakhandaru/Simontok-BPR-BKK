@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderCollateral;
 use App\Support\Audit;
+use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -101,6 +102,14 @@ class CovernoteController extends Controller
                 'covernote_status' => TrackCCovernoteStatus::Aktif,
                 'extension_count' => $collateral->extension_count + 1,
             ]);
+            if ($extension->file_path) {
+                DocumentArchiveService::archiveFile($request, OrderCollateral::class, $collateral->id, 'covernote', 'covernote', 'covernote', 'Covernote perpanjangan', basename($extension->file_path), $extension->file_path, Storage::disk('local')->size($extension->file_path), [
+                    'order_id' => $order->id,
+                    'collateral_id' => $collateral->id,
+                    'extension_id' => $extension->id,
+                    'covernote_end' => $extension->new_end?->toDateString(),
+                ], 'Perpanjangan covernote disetujui.');
+            }
             $order->update(['risk_flag' => $order->collaterals()->where('covernote_status', TrackCCovernoteStatus::Kedaluwarsa->value)->exists()]);
             Audit::record($request, 'covernotes', $order, 'approve_extension', 'Perpanjangan covernote disetujui Admin Legal.', ['extension_id' => $extension->id]);
             InAppNotification::forNotary($order, 'Perpanjangan covernote disetujui', "Perpanjangan covernote order {$order->order_no} disetujui Admin Legal.");

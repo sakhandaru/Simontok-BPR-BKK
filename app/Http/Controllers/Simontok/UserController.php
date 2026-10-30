@@ -133,7 +133,7 @@ class UserController extends Controller
             : null;
         $roleCode = $position?->role?->code;
 
-        if (in_array($roleCode, ['kepala_cabang', 'kadiv_operasional', 'legal_admin'], true)) {
+        if (in_array($roleCode, ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang'], true)) {
             validator($data, [
                 'branch_id' => ['required', 'integer', 'exists:branches,id'],
             ], [
@@ -141,7 +141,7 @@ class UserController extends Controller
             ])->validate();
         }
 
-        if ($roleCode === 'it_admin' && ! empty($data['branch_id'])) {
+        if (in_array($roleCode, ['it_admin', 'direksi_pusat', 'kadiv_ops_pusat', 'admin_legal_pusat', 'auditor'], true) && ! empty($data['branch_id'])) {
             throw ValidationException::withMessages([
                 'branch_id' => 'Admin IT tidak perlu dibatasi ke cabang tertentu.',
             ]);
@@ -149,7 +149,7 @@ class UserController extends Controller
 
         if ($roleCode === 'notaris') {
             throw ValidationException::withMessages([
-                'job_position_id' => 'Akun portal notaris dibuat dari menu Kantor Notaris.',
+                'job_position_id' => 'Akun portal notaris dibuat dari menu Notaris.',
             ]);
         }
     }
@@ -169,7 +169,7 @@ class UserController extends Controller
             ->exists();
 
         if ($exists) {
-            $label = $slot === 'kepala_cabang' ? 'Pimpinan Cabang' : 'Kadiv Operasional';
+            $label = $slot === 'pimpinan_cabang' ? 'Pimpinan Cabang' : 'Kabid Operasional';
             throw ValidationException::withMessages([
                 'job_position_id' => "Cabang ini sudah memiliki {$label} aktif.",
             ]);

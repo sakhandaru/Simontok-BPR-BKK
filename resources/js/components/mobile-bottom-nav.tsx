@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, Bell, Ellipsis, FileText, LayoutGrid, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Ellipsis, FileText, LayoutGrid, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useCanGoBack } from '@/hooks/use-can-go-back';
@@ -12,7 +12,6 @@ export function MobileBottomNav() {
     const items = [
         can('dashboard.view') && { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
         can('orders.view') && { label: 'Order', href: '/orders', icon: FileText },
-        can('notifications.view') && { label: 'Notifikasi', href: '/notifications', icon: Bell },
     ].filter(Boolean) as { label: string; href: string; icon: typeof LayoutGrid }[];
 
     return <div className="fixed bottom-4 left-1/2 z-50 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 lg:hidden">

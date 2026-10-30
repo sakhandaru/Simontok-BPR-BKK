@@ -10,7 +10,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderCollateral;
 use App\Models\OrderProgress;
+use App\Models\DocumentArchive;
+use App\Models\OrderStepFee;
+use App\Models\Notary;
 use App\Support\Audit;
+use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +59,9 @@ class NotaryPortalController extends Controller
 
         $order->load([
             'branch:id,code,name',
+            'notary:id,name,agreement_type,agreement_file_path,agreement_file_name',
+            'notaryAgreement:id,original_name,version,file_path,file_size,metadata,created_at',
+            'stepFees:id,order_id,order_collateral_id,job_type_step_id,step_name,amount',
             'collaterals.jobType.steps:id,job_type_id,name,sort_order',
             'collaterals.checklists.documentChecklist:id,name',
             'collaterals.checklists.orderDocument:id,display_name,original_name,file_size,version,order_collateral_id',
@@ -74,7 +81,19 @@ class NotaryPortalController extends Controller
         ]);
 
         $paymentBlockers = $this->paymentBlockers($order);
+        if (! $order->notary_agreement_acknowledged_at) {
+            $paymentBlockers[] = 'PKS notaris harus dibaca dan disetujui sebelum invoice diajukan.';
+        }
         $canAct = $this->canAct($request);
+        $canEditFees = $request->user()?->roleCode() === 'notaris' && $canAct;
+        $agreement = $order->notaryAgreement ?: DocumentArchive::query()
+            ->where('documentable_type', Notary::class)
+            ->where('documentable_id', $order->notary_id)
+            ->where('document_type', 'notary_agreement')
+            ->where('status', 'active')
+            ->latest('version')
+            ->first();
+        $stepFees = $order->stepFees->keyBy(fn (OrderStepFee $fee) => $fee->order_collateral_id.'-'.$fee->job_type_step_id);
         $initialDocumentsComplete = $order->collaterals->isNotEmpty()
             && $order->collaterals->every(fn ($collateral) => $collateral->checklists->isNotEmpty()
                 && $collateral->checklists->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id));
@@ -117,7 +136,7 @@ class NotaryPortalController extends Controller
             ], true),
             'initialDocumentsComplete' => $initialDocumentsComplete,
             'canViewDocuments' => $canViewDocuments,
-            'canRequestInvoice' => $canAct && in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true) && $order->paymentRequest === null && $paymentBlockers === [],
+            'canRequestInvoice' => $canAct && (bool) $order->notary_agreement_acknowledged_at && in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true) && $order->paymentRequest === null && $paymentBlockers === [],
             'canAddProgress' => $canAddProgress,
             'needsCovernote' => $canAct && $missingCovernote && ! in_array($order->status, [TrackAStatus::MenungguVerifikasiNotaris, TrackAStatus::PerbaikanDokumen, TrackAStatus::PerluPengalihanNotaris], true),
             'canRequestAdditionalDocuments' => $canAct && $covernoteApprovedStage,
@@ -125,7 +144,104 @@ class NotaryPortalController extends Controller
             'canExtendCovernote' => $canExtendCovernote,
             'isMonitor' => $request->user()?->roleCode() === 'it_admin',
             'paymentBlockers' => $paymentBlockers,
+            'agreement' => $agreement ? [
+                'id' => $agreement->id,
+                'version' => $agreement->version,
+                'original_name' => $agreement->original_name,
+                'file_size' => $agreement->file_size,
+                'agreement_type' => data_get($agreement->metadata, 'agreement_type'),
+                'pks_no' => data_get($agreement->metadata, 'pks_no'),
+                'pks_start' => data_get($agreement->metadata, 'pks_start'),
+                'pks_end' => data_get($agreement->metadata, 'pks_end'),
+                'acknowledged' => (bool) $order->notary_agreement_acknowledged_at,
+                'acknowledged_at' => $order->notary_agreement_acknowledged_at?->format('d M Y H:i'),
+            ] : null,
+            'stepFees' => $stepFees->map(fn (OrderStepFee $fee) => [
+                'order_collateral_id' => $fee->order_collateral_id,
+                'job_type_step_id' => $fee->job_type_step_id,
+                'step_name' => $fee->step_name,
+                'amount' => (float) $fee->amount,
+            ])->values()->all(),
+            'serviceFee' => [
+                'main' => (float) ($order->nominal ?? 0),
+                'steps' => (float) $order->stepFees->sum('amount'),
+                'total' => (float) ($order->nominal ?? 0) + (float) $order->stepFees->sum('amount'),
+            ],
+            'canEditFees' => $canEditFees,
         ]);
+    }
+
+    public function agreementPreview(Request $request, Order $order): BinaryFileResponse
+    {
+        $this->authorizeOrder($request, $order);
+        $agreement = $order->notaryAgreement ?: DocumentArchive::query()
+            ->where('documentable_type', Notary::class)
+            ->where('documentable_id', $order->notary_id)
+            ->where('document_type', 'notary_agreement')
+            ->where('status', 'active')
+            ->latest('version')
+            ->firstOrFail();
+        abort_unless(Storage::disk($agreement->storage_disk)->exists($agreement->file_path), 404);
+
+        return response()->file(Storage::disk($agreement->storage_disk)->path($agreement->file_path), [
+            'Content-Disposition' => 'inline; filename="'.addslashes($agreement->original_name).'"',
+        ]);
+    }
+
+    public function acknowledgeAgreement(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorizeOrder($request, $order);
+        abort_unless($request->user()?->roleCode() === 'notaris' && $this->canAct($request), 403);
+        $agreement = DocumentArchive::query()
+            ->where('documentable_type', Notary::class)
+            ->where('documentable_id', $order->notary_id)
+            ->where('document_type', 'notary_agreement')
+            ->where('status', 'active')
+            ->latest('version')
+            ->firstOrFail();
+
+        $order->update([
+            'notary_agreement_archive_id' => $order->notary_agreement_archive_id ?: $agreement->id,
+            'notary_agreement_acknowledged_at' => now(),
+            'notary_agreement_acknowledged_by' => $request->user()->id,
+        ]);
+        Audit::record($request, 'notary_portal', $order, 'acknowledge_agreement', 'Notaris menyetujui PKS yang berlaku sebelum mengisi biaya langkah pekerjaan.', [
+            'agreement_archive_id' => $agreement->id,
+            'agreement_version' => $agreement->version,
+        ]);
+
+        return back()->with('success', 'PKS disetujui. Langkah dan biaya pekerjaan sekarang dapat diisi.');
+    }
+
+    public function saveStepFees(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorizeOrder($request, $order);
+        abort_unless($request->user()?->roleCode() === 'notaris' && $this->canAct($request), 403);
+        abort_unless($order->notary_agreement_acknowledged_at, 422, 'Baca dan setujui PKS terlebih dahulu.');
+        $data = $request->validate([
+            'fees' => ['required', 'array', 'min:1'],
+            'fees.*.order_collateral_id' => ['required', 'integer'],
+            'fees.*.job_type_step_id' => ['required', 'integer'],
+            'fees.*.amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        DB::transaction(function () use ($request, $order, $data): void {
+            foreach ($data['fees'] as $fee) {
+                $collateral = $order->collaterals()->with('jobType.steps')->findOrFail($fee['order_collateral_id']);
+                $step = $collateral->jobType->steps->firstWhere('id', (int) $fee['job_type_step_id']);
+                abort_unless($step && $step->is_active, 422, 'Langkah pekerjaan tidak valid untuk agunan ini.');
+                OrderStepFee::updateOrCreate(
+                    ['order_collateral_id' => $collateral->id, 'job_type_step_id' => $step->id],
+                    ['order_id' => $order->id, 'step_name' => $step->name, 'amount' => $fee['amount'], 'entered_by' => $request->user()->id],
+                );
+            }
+            Audit::record($request, 'payments', $order, 'update_step_fees', 'Notaris memperbarui biaya tambahan per langkah pekerjaan.', [
+                'step_fee_total' => $order->stepFees()->sum('amount'),
+                'service_fee_total' => (float) ($order->nominal ?? 0) + (float) $order->stepFees()->sum('amount'),
+            ]);
+        });
+
+        return back()->with('success', 'Biaya langkah pekerjaan disimpan.');
     }
 
     public function progressEvidence(Request $request, Order $order, OrderProgress $progress): BinaryFileResponse
@@ -202,6 +318,13 @@ class NotaryPortalController extends Controller
                 'covernote_file_path' => $path,
                 'covernote_status' => TrackCCovernoteStatus::Aktif,
             ]);
+            DocumentArchiveService::archiveFile($request, OrderCollateral::class, $collateral->id, 'covernote', 'covernote', 'covernote', 'Covernote', basename($path), $path, $request->file('file')->getSize(), [
+                'order_id' => $order->id,
+                'collateral_id' => $collateral->id,
+                'covernote_no' => $data['covernote_no'],
+                'covernote_start' => $data['covernote_start'],
+                'covernote_end' => $data['covernote_end'],
+            ], 'Covernote diajukan.');
             $before = $order->status;
             $order->update([
                 'komitmen_penyelesaian' => $data['komitmen_penyelesaian'],
@@ -222,7 +345,7 @@ class NotaryPortalController extends Controller
         abort_unless($request->user()->hasPermission('covernotes.approve'), 403);
         abort_unless(in_array($order->status, [TrackAStatus::MenungguApprovalCovernote, TrackAStatus::MenungguApprovalCovernoteKepalaCabang], true), 422);
         if ($order->status === TrackAStatus::MenungguApprovalCovernoteKepalaCabang) {
-            abort_unless(in_array($request->user()->roleCode(), ['kepala_cabang', 'kadiv_operasional'], true), 403);
+            abort_unless(in_array($request->user()->roleCode(), ['kabid_ops_cabang', 'kadiv_ops_pusat'], true), 403);
         }
         $order->update(['status' => TrackAStatus::CovernoteDisetujui, 'covernote_approved_at' => now(), 'covernote_approved_by' => $request->user()->id]);
         $this->recordStatus($request, $order, 'A', TrackAStatus::MenungguApprovalCovernote->value, TrackAStatus::CovernoteDisetujui->value, 'Covernote disetujui.');
@@ -234,7 +357,7 @@ class NotaryPortalController extends Controller
     public function escalateCovernote(Request $request, Order $order): RedirectResponse
     {
         $this->authorizeOrder($request, $order);
-        abort_unless($request->user()->roleCode() === 'legal_admin', 403);
+        abort_unless(in_array($request->user()->roleCode(), ['admin_legal_pusat', 'admin_legal_cabang'], true), 403);
         abort_unless($order->status === TrackAStatus::MenungguApprovalCovernote, 422);
         $order->update(['status' => TrackAStatus::MenungguApprovalCovernoteKepalaCabang]);
         $this->recordStatus($request, $order, 'A', TrackAStatus::MenungguApprovalCovernote->value, TrackAStatus::MenungguApprovalCovernoteKepalaCabang->value, 'Admin Legal meminta approval Kepala Cabang.');
@@ -426,6 +549,7 @@ class NotaryPortalController extends Controller
                         'uploaded_by' => $request->user()->id,
                     ]);
                     $documentIds[] = $document->id;
+                    DocumentArchiveService::archiveOrderDocument($request, $document);
                 }
                 $collateral->update(['doc_status' => TrackBDocStatus::FinalDiunggah]);
                 $allFinalDocumentsUploaded = $order->collaterals()

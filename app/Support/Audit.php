@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\AuditLog;
+use App\Models\Order;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
@@ -28,6 +29,10 @@ class Audit
             'user_agent' => $request->userAgent(),
             'payload' => $payload,
         ]);
+
+        if ($entity instanceof Order && in_array($module, ['orders', 'documents', 'covernotes', 'payments', 'handover', 'notary_portal'], true) && $user) {
+            InAppNotification::forOperationalActivity($entity, $user, $description, $action);
+        }
     }
 
     public static function security(Request $request, string $action, string $description, ?Model $actor = null, array $payload = []): void

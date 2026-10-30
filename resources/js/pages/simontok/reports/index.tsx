@@ -3,7 +3,6 @@ import {
     AlertTriangle,
     Building2,
     CalendarDays,
-    CheckCircle2,
     FileCheck2,
     FileText,
     Filter,
@@ -15,18 +14,21 @@ import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SimPageHeader } from '@/components/sim-page-header';
+import { SimKpiCard } from '@/components/sim-kpi-card';
 import { SimSelect } from '@/components/sim-select';
 import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 import { SimTable } from '@/components/sim-table';
+import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 
 type Option = { id: number; code?: string; name: string };
 type ReportTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+type PaginatedRows<T> = { data: T[]; links: SimPaginationLink[] };
 
 export default function ReportsIndex({
     filters,
     branches,
     notaries,
-    summary,
+    reportKpis,
     byBranch,
     byNotary,
     covernoteReport,
@@ -41,27 +43,27 @@ export default function ReportsIndex({
     };
     branches: Option[];
     notaries: Option[];
-    summary: {
-        total_orders: number;
-        active_orders: number;
-        completed_orders: number;
-        risk_orders: number;
+    reportKpis: {
+        completion_rate: number;
+        validation_rate: number;
+        covernote_attention: number;
+        overdue_sla: number;
     };
-    byBranch: {
+    byBranch: PaginatedRows<{
         code: string;
         name: string;
         total_orders: number;
         completed_orders: number;
         risk_orders: number;
-    }[];
-    byNotary: {
+    }>;
+    byNotary: PaginatedRows<{
         name: string;
         total_orders: number;
         completed_orders: number;
         risk_orders: number;
-    }[];
+    }>;
     covernoteReport: { status: string; total: number }[];
-    outstandingOrders: {
+    outstandingOrders: PaginatedRows<{
         id: number;
         order_no: string;
         customer_name: string;
@@ -71,7 +73,7 @@ export default function ReportsIndex({
         status: string;
         risk_flag: boolean;
         created_at: string;
-    }[];
+    }>;
     documentValidation: { final_validated: number; final_uploaded: number };
 }) {
     const { data, setData } = useForm(filters);
@@ -90,34 +92,42 @@ export default function ReportsIndex({
                     description="Ringkasan pekerjaan notaris berdasarkan posisi, risiko, covernote, dan dokumen."
                 />
 
-                <section className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
-                    <ReportKpi
-                        label="Total pekerjaan"
-                        value={summary.total_orders}
-                        note="Seluruh pekerjaan pada periode terpilih"
+                <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                    <SimKpiCard
+                        label="Penyelesaian"
+                        value={`${reportKpis.completion_rate}%`}
+                        note="Order selesai dari total periode terpilih"
                         icon={FileText}
-                        tone="info"
-                    />
-                    <ReportKpi
-                        label="Masih berjalan"
-                        value={summary.active_orders}
-                        note="Belum masuk status penutupan"
-                        icon={CalendarDays}
-                        tone="neutral"
-                    />
-                    <ReportKpi
-                        label="Sudah selesai"
-                        value={summary.completed_orders}
-                        note="Order yang sudah ditutup"
-                        icon={CheckCircle2}
                         tone="success"
+                        href="/orders?status=selesai"
+                        linkLabel="Buka order selesai"
                     />
-                    <ReportKpi
-                        label="Perlu perhatian"
-                        value={summary.risk_orders}
-                        note="Membutuhkan tindak lanjut"
+                    <SimKpiCard
+                        label="Validasi final"
+                        value={`${reportKpis.validation_rate}%`}
+                        note="Dokumen final yang sudah tervalidasi"
+                        icon={FileCheck2}
+                        tone="success"
+                        href="/orders?doc=final_divalidasi"
+                        linkLabel="Buka dokumen final tervalidasi"
+                    />
+                    <SimKpiCard
+                        label="Covernote perhatian"
+                        value={reportKpis.covernote_attention}
+                        note="Kedaluwarsa atau mendekati jatuh tempo"
+                        icon={CalendarDays}
+                        tone="warning"
+                        href="/orders?covernote=expired"
+                        linkLabel="Buka covernote perlu perhatian"
+                    />
+                    <SimKpiCard
+                        label="SLA terlambat"
+                        value={reportKpis.overdue_sla}
+                        note="Order melewati batas SLA"
                         icon={AlertTriangle}
                         tone="danger"
+                        href="/orders?sla=overdue"
+                        linkLabel="Buka SLA terlambat"
                     />
                 </section>
 
@@ -203,7 +213,7 @@ export default function ReportsIndex({
 
                 <div className="grid items-start gap-4 xl:grid-cols-12">
                     <ReportPanel
-                        className="xl:col-span-7"
+                        className="xl:col-span-7 xl:h-full"
                         title="Covernote"
                         subtitle="Posisi covernote pada agunan yang masuk dalam laporan."
                         icon={FileCheck2}
@@ -211,11 +221,11 @@ export default function ReportsIndex({
                         {covernoteReport.length === 0 ? (
                             <EmptyReport message="Belum ada data covernote pada cakupan ini." />
                         ) : (
-                            <div className="divide-y divide-border">
+                            <div className="flex flex-1 flex-col divide-y divide-border">
                                 {covernoteReport.map((item) => (
                                     <div
                                         key={item.status}
-                                        className="flex items-center justify-between gap-3 px-4 py-3"
+                                        className="flex flex-1 items-center justify-between gap-3 px-4 py-3"
                                     >
                                         <SimStatusBadge
                                             label={covernoteStatusLabel(
@@ -237,27 +247,31 @@ export default function ReportsIndex({
                     </ReportPanel>
 
                     <ReportPanel
-                        className="xl:col-span-5"
+                        className="xl:col-span-5 xl:h-full"
                         title="Dokumen final"
                         subtitle="Perbandingan dokumen yang diunggah dan divalidasi."
                         icon={FileCheck2}
                     >
-                        <div className="grid grid-cols-2 gap-3 p-4">
-                            <ReportMetric
-                                label="Diunggah"
-                                value={documentValidation.final_uploaded}
-                                tone="info"
-                            />
-                            <ReportMetric
-                                label="Divalidasi"
-                                value={documentValidation.final_validated}
-                                tone="success"
-                            />
+                        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] divide-y divide-border">
+                            <div className="flex min-h-0 items-center justify-between gap-4 px-4 py-3">
+                                <div>
+                                    <div className="text-sm text-muted-foreground">Diunggah</div>
+                                    <div className="mt-1 text-xs text-muted-foreground">Dokumen final yang masuk</div>
+                                </div>
+                                <div className="text-2xl font-semibold tabular-nums text-[var(--status-info)]">{documentValidation.final_uploaded}</div>
+                            </div>
+                            <div className="flex min-h-0 items-center justify-between gap-4 px-4 py-3">
+                                <div>
+                                    <div className="text-sm text-muted-foreground">Divalidasi</div>
+                                    <div className="mt-1 text-xs text-muted-foreground">Dokumen final yang lolos pemeriksaan</div>
+                                </div>
+                                <div className="text-2xl font-semibold tabular-nums text-[var(--track-success)]">{documentValidation.final_validated}</div>
+                            </div>
                         </div>
                     </ReportPanel>
 
                     <ReportPanel
-                        className="xl:col-span-6"
+                        className="xl:col-span-6 xl:h-[32rem]"
                         title="Per cabang"
                         subtitle="Beban, penyelesaian, dan risiko per cabang."
                         icon={Building2}
@@ -270,7 +284,7 @@ export default function ReportsIndex({
                     </ReportPanel>
 
                     <ReportPanel
-                        className="xl:col-span-6"
+                        className="xl:col-span-6 xl:h-[32rem]"
                         title="Per notaris"
                         subtitle="Beban, penyelesaian, dan risiko per notaris."
                         icon={Users}
@@ -304,14 +318,14 @@ export default function ReportsIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {outstandingOrders.length === 0 ? (
+                                    {outstandingOrders.data.length === 0 ? (
                                         <tr>
                                             <td colSpan={6}>
                                                 <EmptyReport message="Tidak ada pekerjaan yang masih berjalan." />
                                             </td>
                                         </tr>
                                     ) : (
-                                        outstandingOrders.map((order) => (
+                                        outstandingOrders.data.map((order) => (
                                             <tr
                                                 key={order.id}
                                                 className={`border-t align-top ${order.risk_flag ? 'border-l-2 border-l-[var(--status-danger)]' : ''}`}
@@ -381,10 +395,10 @@ export default function ReportsIndex({
                             </table>
                         </SimTable>
                         <div className="space-y-3 p-3 md:hidden">
-                            {outstandingOrders.length === 0 ? (
+                            {outstandingOrders.data.length === 0 ? (
                                 <EmptyReport message="Tidak ada pekerjaan yang masih berjalan." />
                             ) : (
-                                outstandingOrders.map((order) => (
+                                outstandingOrders.data.map((order) => (
                                     <article
                                         key={order.id}
                                         className={`space-y-4 border border-border bg-card p-4 ${order.risk_flag ? 'border-l-2 border-l-[var(--status-danger)]' : ''}`}
@@ -439,46 +453,11 @@ export default function ReportsIndex({
                                 ))
                             )}
                         </div>
+                        <SimPagination links={outstandingOrders.links} />
                     </ReportPanel>
                 </div>
             </div>
         </>
-    );
-}
-
-function ReportKpi({
-    label,
-    value,
-    note,
-    icon: Icon,
-    tone,
-}: {
-    label: string;
-    value: number;
-    note: string;
-    icon: LucideIcon;
-    tone: ReportTone;
-}) {
-    const toneClass = toneText(tone);
-    return (
-        <div className="sim-metric flex min-w-0 flex-col p-3 text-left sm:p-4">
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <p className="text-[13px] leading-5 font-medium text-muted-foreground">
-                        {label}
-                    </p>
-                    <p
-                        className={`mt-2 text-xl font-semibold tabular-nums sm:text-2xl ${toneClass}`}
-                    >
-                        {value}
-                    </p>
-                </div>
-                <Icon className="size-4 shrink-0 text-muted-foreground" />
-            </div>
-            <p className="mt-2 line-clamp-2 text-[13px] leading-5 text-muted-foreground">
-                {note}
-            </p>
-        </div>
     );
 }
 
@@ -496,7 +475,7 @@ function ReportPanel({
     children: ReactNode;
 }) {
     return (
-        <section className={`sim-panel min-w-0 overflow-hidden ${className}`}>
+        <section className={`sim-panel flex min-h-0 min-w-0 flex-col overflow-hidden ${className}`}>
             <div className="flex items-start gap-3 border-b bg-muted/30 px-4 py-3 md:px-5">
                 <Icon
                     className="mt-0.5 size-4 shrink-0 text-muted-foreground"
@@ -521,15 +500,15 @@ function DistributionTable({
     firstLabel,
     firstValue,
 }: {
-    rows: any[];
+    rows: PaginatedRows<any>;
     firstLabel: string;
     firstValue: (row: any) => string;
 }) {
-    if (rows.length === 0)
+    if (rows.data.length === 0)
         return <EmptyReport message="Belum ada data pada cakupan ini." />;
     return (
         <>
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden max-h-[26rem] overflow-auto md:block">
                 <table className="sim-table min-w-[520px]">
                     <thead className="bg-muted/20 text-left text-xs text-muted-foreground">
                         <tr>
@@ -540,7 +519,7 @@ function DistributionTable({
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.map((row) => (
+                        {rows.data.map((row) => (
                             <tr key={firstValue(row)} className="border-t">
                                 <td className="font-medium">
                                     {firstValue(row)}
@@ -561,8 +540,8 @@ function DistributionTable({
                     </tbody>
                 </table>
             </div>
-            <div className="space-y-3 p-3 md:hidden">
-                {rows.map((row) => (
+            <div className="max-h-[26rem] space-y-3 overflow-y-auto p-3 md:hidden">
+                {rows.data.map((row) => (
                     <article
                         key={firstValue(row)}
                         className="border border-border bg-card p-3.5"
@@ -589,6 +568,7 @@ function DistributionTable({
                     </article>
                 ))}
             </div>
+            <SimPagination links={rows.links} />
         </>
     );
 }

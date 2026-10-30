@@ -16,8 +16,10 @@ class Order extends Model
 
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
-        if (in_array($user->roleCode(), ['kepala_cabang', 'kadiv_operasional'], true) && $user->branch_id) {
-            $query->where('branch_id', $user->branch_id);
+        if ($user->branchScopeId() !== null) {
+            $query->where('branch_id', $user->branchScopeId());
+        } elseif ($user->notary_id) {
+            $query->where('notary_id', $user->notary_id);
         }
 
         return $query;
@@ -25,8 +27,8 @@ class Order extends Model
 
     public function isVisibleTo(User $user): bool
     {
-        return ! (in_array($user->roleCode(), ['kepala_cabang', 'kadiv_operasional'], true) && $user->branch_id)
-            || $this->branch_id === $user->branch_id;
+        return ($user->branchScopeId() === null || $this->branch_id === $user->branchScopeId())
+            && (! $user->notary_id || $this->notary_id === $user->notary_id);
     }
 
     protected $fillable = [
@@ -111,6 +113,26 @@ class Order extends Model
     public function paymentRequest(): HasOne
     {
         return $this->hasOne(PaymentRequest::class);
+    }
+
+    public function stepFees(): HasMany
+    {
+        return $this->hasMany(OrderStepFee::class);
+    }
+
+    public function notaryAgreement(): BelongsTo
+    {
+        return $this->belongsTo(DocumentArchive::class, 'notary_agreement_archive_id');
+    }
+
+    public function stepFeesTotal(): float
+    {
+        return (float) $this->stepFees()->sum('amount');
+    }
+
+    public function totalServiceFee(): float
+    {
+        return (float) ($this->nominal ?? 0) + $this->stepFeesTotal();
     }
 
     public function payments(): HasMany

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { SimEmptyState } from '@/components/sim-empty-state';
 import { SimPageHeader } from '@/components/sim-page-header';
+import { SimKpiCard } from '@/components/sim-kpi-card';
 import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
@@ -113,7 +114,6 @@ export default function Dashboard({
 
     const workflowTotal = workflow.reduce((sum, row) => sum + row.value, 0);
     const statusTotal = statusDistribution.reduce((sum, row) => sum + row.total, 0);
-    const pipelineMax = Math.max(...workflow.map((row) => row.value), 1);
     const funnelMax = Math.max(...analytics.paymentFunnel.map((row) => row.total), 1);
     const statusMax = Math.max(...statusDistribution.map((row) => row.total), 1);
     const trendHasData = analytics.weeklyTrend.some((row) => row.incoming > 0 || row.completed > 0 || row.risk > 0);
@@ -158,7 +158,7 @@ export default function Dashboard({
 
                 <div className="grid grid-cols-1 items-start gap-3 sm:gap-4 lg:grid-cols-12">
                     <div className="col-span-full grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-12">
-                    <KpiCard
+                    <SimKpiCard
                         className="lg:col-span-3"
                         label="Order aktif"
                         icon={Activity}
@@ -168,9 +168,9 @@ export default function Dashboard({
                         linkLabel="buka daftar order aktif"
                     >
                         <DeltaChip delta={deltas.active} period={deltas.period} tone="neutral" />
-                    </KpiCard>
+                    </SimKpiCard>
 
-                    <KpiCard
+                    <SimKpiCard
                         className="lg:col-span-3"
                         label="Perlu perhatian"
                         icon={AlertTriangle}
@@ -184,9 +184,9 @@ export default function Dashboard({
                         ) : (
                             <Chip tone="success">SLA aman</Chip>
                         )}
-                    </KpiCard>
+                    </SimKpiCard>
 
-                    <KpiCard
+                    <SimKpiCard
                         className="lg:col-span-3"
                         label="Order selesai"
                         icon={CheckCircle2}
@@ -203,9 +203,9 @@ export default function Dashboard({
                                 </LineChart>
                             </ChartContainer>
                         </div>
-                    </KpiCard>
+                    </SimKpiCard>
 
-                    <KpiCard
+                    <SimKpiCard
                         className="lg:col-span-3"
                         label="Dokumen final tervalidasi"
                         icon={FileCheck2}
@@ -219,7 +219,7 @@ export default function Dashboard({
                         ) : (
                             <Chip tone="success">Semua tervalidasi</Chip>
                         )}
-                    </KpiCard>
+                    </SimKpiCard>
                     </div>
 
                     {/* Antrian tindakan: fokus kerja hari ini */}
@@ -338,14 +338,15 @@ export default function Dashboard({
                         ) : (
                             <div>
                                 {workflow.map((row) => {
+                                    const percentage = workflowTotal > 0 ? Math.round((row.value / workflowTotal) * 100) : 0;
                                     const bar = (
                                         <>
                                             <div className="flex items-center justify-between gap-3 text-sm">
                                                 <span className="truncate font-medium">{row.label}</span>
-                                                <span className="tabular-nums">{fmt(row.value)}</span>
+                                                <span className="tabular-nums">{fmt(row.value)} · {percentage}%</span>
                                             </div>
                                             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                                                <div className={cn('h-full rounded-full', row.key === 'selesai' ? 'bg-[var(--track-success)]' : 'bg-foreground/60')} style={{ width: `${(row.value / pipelineMax) * 100}%` }} />
+                                                <div className={cn('h-full rounded-full', row.key === 'selesai' ? 'bg-[var(--track-success)]' : 'bg-foreground/60')} style={{ width: `${percentage}%` }} />
                                             </div>
                                         </>
                                     );
@@ -463,7 +464,7 @@ export default function Dashboard({
                     </Panel>
 
                     <Panel
-                        className="self-start lg:col-span-4"
+                        className="lg:col-span-4 lg:h-full"
                         title="Performa cabang"
                         subtitle="Beban dan risiko, enam cabang teratas."
                         action={
@@ -479,11 +480,11 @@ export default function Dashboard({
                             <SimEmptyState title="Belum ada data cabang" description="Data muncul setelah ada order yang tercatat." />
                         ) : (
                             <div className="max-h-[26rem] overflow-y-auto">
-                                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-3 border-b border-border bg-muted/30 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                     <span>Cabang</span>
-                                    <span className="w-10 text-right">Total</span>
-                                    <span className="w-10 text-right">Aktif</span>
-                                    <span className="w-10 text-right">Risiko</span>
+                                    <span className="w-14 whitespace-nowrap text-right">Total</span>
+                                    <span className="w-14 whitespace-nowrap text-right">Aktif</span>
+                                    <span className="w-14 whitespace-nowrap text-right">Risiko</span>
                                 </div>
                                 {branchMonitoring.map((row) => {
                                     const body = (
@@ -491,17 +492,17 @@ export default function Dashboard({
                                             <span className="min-w-0 text-sm font-medium leading-5">
                                                 {row.name} <span className="font-normal text-muted-foreground">({row.code})</span>
                                             </span>
-                                            <span className="w-10 text-right text-sm tabular-nums">{fmt(row.total_orders)}</span>
-                                            <span className="w-10 text-right text-sm tabular-nums">{fmt(row.active_orders)}</span>
-                                            <span className={cn('w-10 text-right text-sm tabular-nums', row.risk_orders > 0 && 'font-medium text-[var(--status-danger)]')}>{fmt(row.risk_orders)}</span>
+                                            <span className="w-14 text-right text-sm tabular-nums">{fmt(row.total_orders)}</span>
+                                            <span className="w-14 text-right text-sm tabular-nums">{fmt(row.active_orders)}</span>
+                                            <span className={cn('w-14 text-right text-sm tabular-nums', row.risk_orders > 0 && 'font-medium text-[var(--status-danger)]')}>{fmt(row.risk_orders)}</span>
                                         </>
                                     );
                                     return canReports ? (
-                                        <Link key={row.id} href={`/reports?branch_id=${row.id}`} className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 border-b border-border px-4 py-2.5 transition-colors last:border-b-0 hover:bg-muted/30">
+                                        <Link key={row.id} href={`/reports?branch_id=${row.id}`} className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border px-4 py-2.5 transition-colors last:border-b-0 hover:bg-muted/30">
                                             {body}
                                         </Link>
                                     ) : (
-                                        <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 border-b border-border px-4 py-2.5 last:border-b-0">
+                                        <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border px-4 py-2.5 last:border-b-0">
                                             {body}
                                         </div>
                                     );
@@ -511,7 +512,7 @@ export default function Dashboard({
                     </Panel>
 
                     <Panel
-                        className="self-start lg:col-span-4"
+                        className="lg:col-span-4 lg:h-full"
                         title="Performa notaris"
                         subtitle="Beban dan hasil, enam notaris teratas."
                         action={
@@ -527,27 +528,27 @@ export default function Dashboard({
                             <SimEmptyState title="Belum ada data notaris" description="Data muncul setelah ada order yang tercatat." />
                         ) : (
                             <div className="max-h-[26rem] overflow-y-auto">
-                                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-2 border-b border-border bg-muted/30 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-3 border-b border-border bg-muted/30 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                     <span>Notaris</span>
-                                    <span className="w-10 text-right">Total</span>
-                                    <span className="w-10 text-right">Selesai</span>
-                                    <span className="w-10 text-right">Risiko</span>
+                                    <span className="w-14 whitespace-nowrap text-right">Total</span>
+                                    <span className="w-14 whitespace-nowrap text-right">Selesai</span>
+                                    <span className="w-14 whitespace-nowrap text-right">Risiko</span>
                                 </div>
                                 {notaryPerformance.map((row) => {
                                     const body = (
                                         <>
                                             <span className="min-w-0 text-sm font-medium leading-5">{row.name}</span>
-                                            <span className="w-10 text-right text-sm tabular-nums">{fmt(row.total_orders)}</span>
-                                            <span className="w-10 text-right text-sm tabular-nums">{fmt(row.completed_orders)}</span>
-                                            <span className={cn('w-10 text-right text-sm tabular-nums', row.risk_orders > 0 && 'font-medium text-[var(--status-danger)]')}>{fmt(row.risk_orders)}</span>
+                                            <span className="w-14 text-right text-sm tabular-nums">{fmt(row.total_orders)}</span>
+                                            <span className="w-14 text-right text-sm tabular-nums">{fmt(row.completed_orders)}</span>
+                                            <span className={cn('w-14 text-right text-sm tabular-nums', row.risk_orders > 0 && 'font-medium text-[var(--status-danger)]')}>{fmt(row.risk_orders)}</span>
                                         </>
                                     );
                                     return canReports ? (
-                                        <Link key={row.id} href={`/reports?notary_id=${row.id}`} className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 border-b border-border px-4 py-2.5 transition-colors last:border-b-0 hover:bg-muted/30">
+                                        <Link key={row.id} href={`/reports?notary_id=${row.id}`} className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border px-4 py-2.5 transition-colors last:border-b-0 hover:bg-muted/30">
                                             {body}
                                         </Link>
                                     ) : (
-                                        <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 border-b border-border px-4 py-2.5 last:border-b-0">
+                                        <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b border-border px-4 py-2.5 last:border-b-0">
                                             {body}
                                         </div>
                                     );
@@ -556,7 +557,7 @@ export default function Dashboard({
                         )}
                     </Panel>
 
-                    <Panel className="lg:col-span-4" title="Distribusi status order" subtitle="Jumlah order menurut status terkini.">
+                    <Panel className="lg:col-span-4 lg:h-full" title="Distribusi status order" subtitle="Jumlah order menurut status terkini.">
                         {statusTotal === 0 ? (
                             <SimEmptyState title="Belum ada order" description="Distribusi status terisi setelah order pertama dibuat." />
                         ) : (
@@ -674,54 +675,6 @@ function DeltaChip({ delta, period, tone }: { delta: Delta; period: string; tone
                 {text}
             </span>
         </Chip>
-    );
-}
-
-function KpiCard({
-    label,
-    icon: Icon,
-    value,
-    note,
-    href,
-    linkLabel,
-    children,
-    className,
-}: {
-    label: string;
-    icon: typeof Activity;
-    value: string;
-    note: string;
-    href?: string;
-    linkLabel: string;
-    children?: React.ReactNode;
-    className?: string;
-}) {
-    const body = (
-        <>
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <p className="text-[13px] font-medium leading-5 text-muted-foreground">{label}</p>
-            <p className="mt-2 text-xl font-semibold tabular-nums sm:text-2xl">{value}</p>
-                </div>
-                <Icon className="size-4 shrink-0 text-muted-foreground" />
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">{children}</div>
-            <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-muted-foreground sm:mt-2">{note}</p>
-            {href && (
-                <p className="mt-3 hidden items-center gap-1 text-[13px] font-medium text-muted-foreground sm:flex">
-                    Buka daftar
-                    <ArrowRight className="size-3.5" />
-                </p>
-            )}
-        </>
-    );
-    const classes = cn('sim-metric flex min-w-0 flex-col p-3 text-left sm:p-4', className);
-    return href ? (
-        <Link href={href} aria-label={linkLabel} className={classes}>
-            {body}
-        </Link>
-    ) : (
-        <div className={classes}>{body}</div>
     );
 }
 
