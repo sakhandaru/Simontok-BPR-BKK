@@ -48,3 +48,11 @@ void createInertiaApp({
 
 // This will set light / dark mode on load...
 initializeTheme();
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+            // PWA remains optional; the web application continues normally.
+        });
+    });
+}

@@ -27,7 +27,9 @@ class UserController extends Controller
             'status' => ['nullable', Rule::in(['active', 'inactive'])],
         ]);
 
+        $user = $request->user();
         $users = User::with(['jobPosition.role', 'branch', 'notary'])
+            ->when($user->isBranchScopedUser(), fn ($query) => $query->where('branch_id', $user->branchScopeId())->whereNull('notary_id'))
             ->when(($filters['type'] ?? null) === 'internal', fn ($query) => $query->whereNull('notary_id'))
             ->when(($filters['type'] ?? null) === 'notary', fn ($query) => $query->whereNotNull('notary_id'))
             ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->where('branch_id', $branchId))
@@ -47,7 +49,8 @@ class UserController extends Controller
             'users' => $users,
             'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'positions' => JobPosition::with('role:id,code,name')
-                ->whereHas('role', fn ($query) => $query->where('code', '!=', 'notaris'))
+                ->whereHas('role', fn ($query) => $query->where('code', '!=', 'notaris')
+                    ->when($user->isBranchScopedUser(), fn ($roleQuery) => $roleQuery->whereIn('code', ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang'])))
                 ->orderBy('name')->get(['id', 'code', 'name', 'role_id']),
             'filters' => [
                 'search' => $filters['search'] ?? '',
@@ -63,7 +66,7 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'name' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['nullable', 'string', 'max:255', 'unique:users,email'],
             'sso_employee_id' => ['nullable', 'string', 'max:50', 'unique:users,sso_employee_id'],
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
@@ -71,6 +74,8 @@ class UserController extends Controller
             'notary_id' => ['prohibited'],
             'is_active' => ['boolean'],
         ]);
+
+        $data = $this->restrictBranchScope($request, $data);
 
         $this->validateOrganizationalAssignment($data);
         $this->validateUniqueBranchLeadership($data);
@@ -91,9 +96,10 @@ class UserController extends Controller
 
     public function update(Request $request, User $user): RedirectResponse
     {
+        $this->authorizeManagedUser($request, $user);
         $data = $request->validate([
             'name' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'email' => ['nullable', 'string', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'sso_employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users', 'sso_employee_id')->ignore($user->id)],
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id')) && ! $user->sso_employee_id), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
@@ -101,6 +107,8 @@ class UserController extends Controller
             'notary_id' => ['prohibited'],
             'is_active' => ['boolean'],
         ]);
+
+        $data = $this->restrictBranchScope($request, $data);
 
         $assignment = array_merge([
             'branch_id' => $user->branch_id,
@@ -152,6 +160,29 @@ class UserController extends Controller
                 'job_position_id' => 'Akun portal notaris dibuat dari menu Notaris.',
             ]);
         }
+    }
+
+    private function authorizeManagedUser(Request $request, User $user): void
+    {
+        $actor = $request->user();
+        if ($actor->isBranchScopedUser()) {
+            abort_unless($user->branch_id === $actor->branchScopeId() && $user->notary_id === null, 403);
+        }
+    }
+
+    private function restrictBranchScope(Request $request, array $data): array
+    {
+        $actor = $request->user();
+        if (! $actor->isBranchScopedUser()) {
+            return $data;
+        }
+
+        if (filled($data['branch_id'] ?? null) && (int) $data['branch_id'] !== $actor->branchScopeId()) {
+            throw ValidationException::withMessages(['branch_id' => 'Admin Legal Cabang hanya dapat mengelola user di cabangnya sendiri.']);
+        }
+
+        $data['branch_id'] = $actor->branchScopeId();
+        return $data;
     }
 
     private function validateUniqueBranchLeadership(array $data, ?int $exceptUserId = null): void

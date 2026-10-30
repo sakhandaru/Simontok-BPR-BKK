@@ -1,0 +1,27 @@
+{
+    "name": "SIMONTOK",
+    "short_name": "SIMONTOK",
+    "description": "Monitoring pekerjaan notaris BPR BKK",
+    "id": "/",
+    "start_url": "/dashboard",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#111111",
+    "theme_color": "#111111",
+    "lang": "id-ID",
+    "icons": [
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "166x166",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ]
+}

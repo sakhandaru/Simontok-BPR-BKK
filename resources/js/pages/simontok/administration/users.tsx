@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Edit3, RotateCcw, Search, X } from 'lucide-react';
+import { Edit3, Plus, RotateCcw, Search, X } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import { SimPageHeader } from '@/components/sim-page-header';
@@ -57,7 +57,7 @@ export default function Users({
     positions: Option[];
     filters: { search: string; type: string; branch_id: string; position_id: string; status: string };
 }) {
-    const { data, setData, put, processing, reset, errors } = useForm({
+    const { data, setData, post, put, processing, reset, errors } = useForm({
         name: '',
         email: '',
         sso_employee_id: '',
@@ -88,8 +88,6 @@ export default function Users({
     const branchHidden = selectedRole === 'IT Administrator';
     const submit = (event: FormEvent) => {
         event.preventDefault();
-        if (!editingId) return;
-
         const options = {
             onSuccess: () => {
                 reset();
@@ -97,7 +95,11 @@ export default function Users({
                 setFormOpen(false);
             },
         };
-        put(`/users/${editingId}`, options);
+        if (editingId) {
+            put(`/users/${editingId}`, options);
+        } else {
+            post('/users', options);
+        }
     };
     const editUser = (user: User) => {
         if (user.notary) return;
@@ -122,6 +124,12 @@ export default function Users({
         setEditingId(null);
         setAccountType('sso');
         setFormOpen(false);
+    };
+    const addUser = () => {
+        reset();
+        setEditingId(null);
+        setAccountType('sso');
+        setFormOpen(true);
     };
     const resetFilters = () => {
         const emptyFilters = { search: '', type: '', branch_id: '', position_id: '', status: '' };
@@ -153,6 +161,7 @@ export default function Users({
                 <SimPageHeader
                     title="Manajemen Pengguna"
                     description="Direktori akses global untuk akun internal dan portal notaris."
+                    actions={<Button type="button" onClick={addUser}><Plus className="size-4" /> Tambah pengguna</Button>}
                 />
                 <div className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto] md:items-end">
                     <div className="grid gap-2"><Label htmlFor="user-search">Cari pengguna</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="user-search" className="pl-9" value={filterForm.data.search} onChange={(event) => filterForm.setData('search', event.target.value)} placeholder="Nama, ID SSO, email" /></div></div>
@@ -348,8 +357,8 @@ export default function Users({
                 >
                     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                         <DialogHeader>
-                            <DialogTitle>
-                                Edit pengguna
+                                <DialogTitle>
+                                {editingId ? 'Edit pengguna' : 'Tambah pengguna'}
                             </DialogTitle>
                             <DialogDescription>
                                 Atur identitas, posisi, unit, dan akun pengguna.
@@ -473,8 +482,8 @@ export default function Users({
                                     Batal
                                 </Button>
                                 <Button type="submit" disabled={processing}>
-                                    <Edit3 className="size-4" />
-                                    Simpan perubahan
+                                    {editingId ? <Edit3 className="size-4" /> : <Plus className="size-4" />}
+                                    {editingId ? 'Simpan perubahan' : 'Tambah pengguna'}
                                 </Button>
                             </DialogFooter>
                         </form>

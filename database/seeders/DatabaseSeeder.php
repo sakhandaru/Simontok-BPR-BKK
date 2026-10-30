@@ -81,10 +81,10 @@ class DatabaseSeeder extends Seeder
         $roles = collect([
             ['code' => 'direksi_pusat', 'name' => 'Direksi Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view', 'branches.monitor', 'documents.archive.view', 'announcements.manage']],
             ['code' => 'kadiv_ops_pusat', 'name' => 'Kadiv Operasional Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'documents.view', 'documents.validate', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view', 'branches.monitor', 'documents.archive.view', 'announcements.manage']],
-            ['code' => 'admin_legal_pusat', 'name' => 'Admin Legal Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.approve', 'payments.pay', 'tracking.view', 'reports.view', 'branches.view', 'branches.manage', 'branches.monitor', 'notaries.view', 'notaries.manage', 'job_types.view', 'job_types.manage', 'documents.archive.view', 'announcements.manage', 'audit.view']],
+            ['code' => 'admin_legal_pusat', 'name' => 'Admin Legal Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.approve', 'payments.pay', 'tracking.view', 'reports.view', 'branches.view', 'branches.manage', 'branches.monitor', 'notaries.view', 'notaries.manage', 'job_types.view', 'job_types.manage', 'documents.archive.view', 'announcements.manage', 'audit.view', 'users.manage']],
             ['code' => 'pimpinan_cabang', 'name' => 'Pimpinan Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view']],
             ['code' => 'kabid_ops_cabang', 'name' => 'Kabid Operasional Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'documents.view', 'documents.validate', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view']],
-            ['code' => 'admin_legal_cabang', 'name' => 'Admin Legal Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.pay', 'tracking.view', 'reports.view']],
+            ['code' => 'admin_legal_cabang', 'name' => 'Admin Legal Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.pay', 'tracking.view', 'reports.view', 'users.manage']],
             ['code' => 'notaris', 'name' => 'Notaris', 'permissions' => ['dashboard.view', 'tracking.view', 'notary.portal', 'notary.actions']],
             ['code' => 'it_admin', 'name' => 'IT Administrator', 'permissions' => []],
             ['code' => 'auditor', 'name' => 'Auditor / OJK', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view', 'branches.monitor', 'audit.view', 'documents.archive.view']],
@@ -220,7 +220,10 @@ class DatabaseSeeder extends Seeder
 
         collect([
             ['login' => 'admin', 'name' => 'Administrator', 'position' => 'IT_ADMIN'],
+            ['login' => 'direksi', 'name' => 'Direksi Pusat', 'position' => 'DIREKSI_PUSAT'],
+            ['login' => 'kadiv_pusat', 'name' => 'Kadiv Operasional Pusat', 'position' => 'KADIV_OPS_PUSAT'],
             ['login' => 'legal', 'name' => 'Admin Legal Pusat', 'position' => 'LEGAL_ADMIN_PUSAT'],
+            ['login' => 'legal_cabang', 'name' => 'Admin Legal Cabang', 'position' => 'LEGAL_ADMIN_CABANG'],
             ['login' => 'pimpinan', 'name' => 'Pimpinan Cabang', 'position' => 'PIMPINAN_CABANG'],
             ['login' => 'kadiv', 'name' => 'Kabid Operasional Cabang', 'position' => 'KABID_OPS_CABANG'],
             ['login' => 'it', 'name' => 'IT Admin', 'position' => 'IT_ADMIN'],
@@ -230,7 +233,7 @@ class DatabaseSeeder extends Seeder
         ], [
             'name' => $user['name'],
             'password' => $seedPassword,
-            'branch_id' => in_array($user['position'], ['PIMPINAN_CABANG', 'KABID_OPS_CABANG'], true) ? $branch->id : null,
+            'branch_id' => in_array($user['position'], ['PIMPINAN_CABANG', 'KABID_OPS_CABANG', 'LEGAL_ADMIN_CABANG'], true) ? $branch->id : null,
             'job_position_id' => JobPosition::where('code', $user['position'])->value('id'),
             'notary_id' => null,
             'is_active' => true,
@@ -247,7 +250,9 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        if (! app()->isProduction() && filter_var(env('SEED_DEMO_DATA', true), FILTER_VALIDATE_BOOLEAN)) {
+        // Data demo hanya dibuat jika diaktifkan secara eksplisit. Ini aman untuk
+        // staging dengan APP_ENV=production tanpa mengisi demo secara tidak sengaja.
+        if (filter_var(env('SEED_DEMO_DATA', false), FILTER_VALIDATE_BOOLEAN)) {
             $this->call(DemoFullDataSeeder::class);
         }
     }
