@@ -2,6 +2,7 @@ const CACHE_NAME = 'simontok-shell-v1';
 const SHELL = [
     '/offline.html',
     '/favicon.svg',
+    '/logo_web.svg',
     '/apple-touch-icon.png',
 ];
 
