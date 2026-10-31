@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { Edit3, Plus, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
@@ -7,17 +7,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SimPageHeader } from '@/components/sim-page-header';
 import { SimStatusBadge } from '@/components/sim-status-badge';
+import { SimSelect } from '@/components/sim-select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
+import { SimTableToolbar } from '@/components/sim-table-toolbar';
 
 type JobType = { id: number; code: string; name: string; is_active: boolean; sla_days?: number | null; steps: { id: number; name: string; sort_order: number }[] };
 
-export default function JobTypes({ jobTypes }: { jobTypes: { data: JobType[]; links: SimPaginationLink[] } }) {
+export default function JobTypes({ jobTypes, filters }: { jobTypes: { data: JobType[]; links: SimPaginationLink[] }; filters: { search: string; status: string } }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({ code: '', name: '', steps: '', sla_days: '', is_active: true });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const { sortedRows, sort, toggleSort } = useSimTableSort(jobTypes.data, 'name');
+    const [search, setSearch] = useState(filters.search);
+    const [status, setStatus] = useState(filters.status);
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -33,6 +37,9 @@ export default function JobTypes({ jobTypes }: { jobTypes: { data: JobType[]; li
             <Head title="Jenis Pekerjaan" />
             <div className="sim-workspace">
                 <SimPageHeader title="Jenis pekerjaan" description="Kelola jenis pengikatan dan alur proses per jenis." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah jenis</Button>} />
+                <SimTableToolbar search={search} searchPlaceholder="Kode atau nama jenis pekerjaan" onSearchChange={setSearch} onSubmit={() => router.get('/job-types', { search, status }, { preserveState: true, replace: true })} onReset={() => { setSearch(''); setStatus(''); router.get('/job-types'); }}>
+                    <SimSelect value={status} onChange={setStatus} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} placeholder="Semua status" />
+                </SimTableToolbar>
                 <SimPagination links={jobTypes.links} />
                 <div className="hidden md:block"><SimTable minWidth="760px">
                             <SimTableHead><tr><SimTableSortHeader active={sort.key === 'code'} direction={sort.direction} onClick={() => toggleSort('code')}>Kode</SimTableSortHeader><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('sla_days')}>SLA default</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('steps')}>Langkah</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>

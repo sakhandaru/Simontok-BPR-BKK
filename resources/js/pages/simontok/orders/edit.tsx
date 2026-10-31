@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SimSelect } from '@/components/sim-select';
+import { SimCreatableCombobox } from '@/components/sim-creatable-combobox';
+import { saveCollateralType } from '@/lib/collateral-types';
+import { savePaymentScheme } from '@/lib/payment-schemes';
 import type { Option } from '@/types';
 
 type CollateralForm = {
@@ -15,6 +18,7 @@ type CollateralForm = {
     agunan_id: string;
     nama_agunan: string;
     deskripsi_agunan: string;
+    deskripsi_pekerjaan: string;
     covernote_no: string;
     covernote_start: string;
     covernote_end: string;
@@ -41,6 +45,7 @@ const emptyCollateral = (): CollateralForm => ({
     agunan_id: '',
     nama_agunan: '',
     deskripsi_agunan: '',
+    deskripsi_pekerjaan: '',
     covernote_no: '',
     covernote_start: '',
     covernote_end: '',
@@ -50,7 +55,7 @@ const emptyCollateral = (): CollateralForm => ({
 
 const dateOnly = (value?: string | null) => value?.slice(0, 10) ?? '';
 
-export default function OrdersEdit({ order, branches, notaries, jobTypes, slaPolicies }: { order: any; branches: Option[]; notaries: Option[]; jobTypes: Option[]; slaPolicies: Record<string, { days: number; source: string }> }) {
+export default function OrdersEdit({ order, branches, notaries, jobTypes, collateralTypes, paymentSchemes, slaPolicies }: { order: any; branches: Option[]; notaries: Option[]; jobTypes: Option[]; collateralTypes: string[]; paymentSchemes: string[]; slaPolicies: Record<string, { days: number; source: string }> }) {
     const { data, setData, put, processing, errors } = useForm<OrderForm>({
         branch_id: String(order.branch_id ?? ''),
         notary_id: String(order.notary_id ?? ''),
@@ -67,6 +72,7 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes, slaPol
             agunan_id: item.agunan_id ?? '',
             nama_agunan: item.nama_agunan ?? item.deskripsi_agunan ?? item.agunan_id ?? '',
             deskripsi_agunan: item.deskripsi_agunan ?? '',
+            deskripsi_pekerjaan: item.jobs?.[0]?.deskripsi_pekerjaan ?? '',
             covernote_no: item.covernote_no ?? '',
             covernote_start: dateOnly(item.covernote_start),
             covernote_end: dateOnly(item.covernote_end),
@@ -114,7 +120,7 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes, slaPol
                     <Field label="Tanggal masuk notaris" error={errors.tgl_masuk_notaris}><Input type="date" value={data.tgl_masuk_notaris} onChange={(e) => setData('tgl_masuk_notaris', e.target.value)} /></Field>
                     <Field label="Plafon"><RupiahInput value={data.plafon} onChange={(value) => setData('plafon', value)} /></Field>
                     <Field label="Nominal jasa"><RupiahInput value={data.nominal} onChange={(value) => setData('nominal', value)} /></Field>
-                    <Field label="Skema pembayaran"><Input list="payment-schemes-edit" value={data.skema_pembayaran} onChange={(e) => setData('skema_pembayaran', e.target.value)} placeholder="Pilih atau ketik skema" /><datalist id="payment-schemes-edit"><option value="Transfer penuh" /><option value="Lainnya" /></datalist></Field>
+                    <Field label="Skema pembayaran"><SimCreatableCombobox id="payment-schemes-edit" value={data.skema_pembayaran} options={paymentSchemes} placeholder="Pilih atau ketik skema" emptyLabel="Ketik skema pembayaran baru." onAdd={savePaymentScheme} onChange={(value) => setData('skema_pembayaran', value)} /></Field>
                 </section>
 
                 <section className="flex flex-col gap-4 rounded-lg border p-4">
@@ -131,9 +137,12 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes, slaPol
                                 <SimSelect value={collateral.job_type_id} onChange={(value) => setCollateral(index, 'job_type_id', value)} options={jobTypes.map((item) => ({ value: String(item.id), label: item.name }))} placeholder="Pilih jenis" />
                             </Field>
                             <Field label="ID agunan"><Input value={collateral.agunan_id} onChange={(e) => setCollateral(index, 'agunan_id', e.target.value)} /></Field>
-                            <Field label="Nama agunan" error={errors[`collaterals.${index}.nama_agunan` as keyof typeof errors]}><Input value={collateral.nama_agunan} placeholder="Contoh: SHM Tanah Demak" onChange={(e) => setCollateral(index, 'nama_agunan', e.target.value)} /></Field>
+                            <Field label="Jenis agunan" error={errors[`collaterals.${index}.nama_agunan` as keyof typeof errors]}><SimCreatableCombobox id={`collateral-type-edit-${index}`} value={collateral.nama_agunan} options={collateralTypes} placeholder="Pilih atau ketik jenis agunan" emptyLabel="Belum ada pilihan jenis agunan." onAdd={saveCollateralType} onChange={(value) => setCollateral(index, 'nama_agunan', value)} /></Field>
                             <Field label="Deskripsi agunan">
                                 <textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.deskripsi_agunan} onChange={(e) => setCollateral(index, 'deskripsi_agunan', e.target.value)} />
+                            </Field>
+                            <Field label="Deskripsi pekerjaan" error={errors[`collaterals.${index}.deskripsi_pekerjaan` as keyof typeof errors]}>
+                                <textarea className="min-h-24 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.deskripsi_pekerjaan} onChange={(e) => setCollateral(index, 'deskripsi_pekerjaan', e.target.value)} placeholder="Jelaskan pekerjaan yang diminta" />
                             </Field>
                             <Field label="SLA order (hari)" error={errors[`collaterals.${index}.sla_days` as keyof typeof errors]}><Input type="number" min={1} max={365} value={collateral.sla_days} placeholder={slaPolicies[collateral.job_type_id] ? String(slaPolicies[collateral.job_type_id].days) : 'Otomatis'} onChange={(e) => setCollateral(index, 'sla_days', e.target.value)} /></Field>
                             {collateral.sla_days && slaPolicies[collateral.job_type_id] && Number(collateral.sla_days) !== slaPolicies[collateral.job_type_id].days && <Field label="Alasan perubahan SLA" error={errors[`collaterals.${index}.sla_override_reason` as keyof typeof errors]}><textarea className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm" value={collateral.sla_override_reason} onChange={(e) => setCollateral(index, 'sla_override_reason', e.target.value)} /></Field>}

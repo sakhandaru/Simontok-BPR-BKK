@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { Edit3, Plus, UserPlus, UsersRound, X } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import InputError from '@/components/input-error';
@@ -13,12 +13,13 @@ import { SimStatusBadge } from '@/components/sim-status-badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
+import { SimTableToolbar } from '@/components/sim-table-toolbar';
 
 type Position = { id: number; code?: string; name: string; role?: { code?: string; name: string } };
 type BranchUser = { id: number; name: string; email: string; sso_employee_id?: string | null; is_active: boolean; job_position?: Position | null; role?: { code?: string; name: string } | null };
 type Branch = { id: number; code: string; name: string; address?: string | null; latitude?: string | null; longitude?: string | null; is_active: boolean; users?: BranchUser[] };
 
-export default function Branches({ branches, positions }: { branches: { data: Branch[]; links: SimPaginationLink[] }; positions: Position[] }) {
+export default function Branches({ branches, positions, filters }: { branches: { data: Branch[]; links: SimPaginationLink[] }; positions: Position[]; filters: { search: string; status: string } }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({ code: '', name: '', address: '', is_active: true });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
@@ -27,6 +28,8 @@ export default function Branches({ branches, positions }: { branches: { data: Br
     const [accountBranch, setAccountBranch] = useState<Branch | null>(null);
     const [editingUser, setEditingUser] = useState<BranchUser | null>(null);
     const [userFormOpen, setUserFormOpen] = useState(false);
+    const [search, setSearch] = useState(filters.search);
+    const [status, setStatus] = useState(filters.status);
     const internalForm = useForm({ sso_employee_id: '', job_position_id: '', is_active: true });
 
     const submit = (event: FormEvent) => {
@@ -49,6 +52,9 @@ export default function Branches({ branches, positions }: { branches: { data: Br
             <Head title="Kantor Cabang" />
             <div className="sim-workspace">
                 <SimPageHeader title="Kantor Cabang" description="Kelola kantor, alamat, dan lokasi layanan." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah kantor cabang</Button>} />
+                <SimTableToolbar search={search} searchPlaceholder="Kode, nama, atau alamat cabang" onSearchChange={setSearch} onSubmit={() => router.get('/branches', { search, status }, { preserveState: true, replace: true })} onReset={() => { setSearch(''); setStatus(''); router.get('/branches'); }}>
+                    <SimSelect value={status} onChange={setStatus} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} placeholder="Semua status" />
+                </SimTableToolbar>
                 <div className="hidden md:block"><SimTable minWidth="560px">
                 <SimTableHead><tr><SimTableSortHeader active={sort.key === 'code'} direction={sort.direction} onClick={() => toggleSort('code')}>Kode</SimTableSortHeader><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader className="text-right">Aksi</SimTableHeader></tr></SimTableHead><tbody>
                     {sortedRows.map((branch) => (

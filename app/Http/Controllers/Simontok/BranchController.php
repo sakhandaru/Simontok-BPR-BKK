@@ -16,11 +16,19 @@ use Inertia\Response;
 
 class BranchController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:active,inactive'],
+        ]);
+
         return Inertia::render('simontok/masters/branches', [
             'branches' => Branch::query()
                 ->with(['users' => fn ($query) => $query->whereNull('notary_id')->with('jobPosition.role:id,code,name')->orderBy('name')])
+            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")->orWhere('address', 'like', "%{$search}%")))
+            ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
+            ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
             ->latest()->paginate(10)->withQueryString()->through(fn (Branch $branch) => [
                     ...$branch->only(['id', 'code', 'name', 'address', 'latitude', 'longitude', 'is_active']),
                     'users' => $branch->users->map(fn (User $user) => [
@@ -33,6 +41,10 @@ class BranchController extends Controller
                         'role' => $user->jobPosition?->role?->only(['code', 'name']),
                     ])->values()->all(),
                 ]),
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'status' => $filters['status'] ?? '',
+            ],
             'positions' => JobPosition::with('role:id,code,name')
                 ->whereHas('role', fn ($query) => $query->whereIn('code', ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang']))
                 ->orderBy('name')->get(['id', 'code', 'name', 'role_id']),

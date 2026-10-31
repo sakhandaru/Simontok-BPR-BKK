@@ -103,7 +103,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                     Navigation menu
                                 </SheetTitle>
                                 <SheetHeader className="flex justify-start text-left">
-                                    <img src="/logo_web.svg" alt="SIMONTOK" className="h-auto w-36 object-contain object-left" />
+                                    <img src="/logo_web2.svg" alt="SIMONTOK" className="h-auto w-36 object-contain object-left" />
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">

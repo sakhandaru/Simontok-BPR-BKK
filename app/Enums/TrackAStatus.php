@@ -12,6 +12,7 @@ enum TrackAStatus: string
     case MenungguVerifikasiNotaris = 'menunggu_verifikasi_notaris';
     case PerbaikanDokumen = 'perbaikan_dokumen';
     case PerluPengalihanNotaris = 'perlu_pengalihan_notaris';
+    case PersiapanPekerjaan = 'persiapan_pekerjaan';
     case MenungguApprovalCovernote = 'menunggu_approval_covernote';
     case MenungguApprovalCovernoteKepalaCabang = 'menunggu_approval_covernote_kepala_cabang';
     case PerbaikanCovernote = 'perbaikan_covernote';
@@ -38,9 +39,10 @@ enum TrackAStatus: string
             self::MenungguVerifikasiNotaris => 'Menunggu verifikasi notaris',
             self::PerbaikanDokumen => 'Perbaikan dokumen',
             self::PerluPengalihanNotaris => 'Perlu pengalihan notaris',
-            self::MenungguApprovalCovernote => 'Menunggu approval covernote',
-            self::MenungguApprovalCovernoteKepalaCabang => 'Menunggu approval covernote Kepala Cabang',
-            self::PerbaikanCovernote => 'Perbaikan covernote',
+            self::PersiapanPekerjaan => 'Persiapan pekerjaan notaris',
+            self::MenungguApprovalCovernote => 'Menunggu approval biaya & covernote',
+            self::MenungguApprovalCovernoteKepalaCabang => 'Menunggu approval biaya & covernote Kepala Cabang',
+            self::PerbaikanCovernote => 'Perbaikan biaya & covernote',
             self::CovernoteDisetujui => 'Covernote disetujui',
             self::DokumenValid => 'Dokumen valid',
             self::ProsesAkta => 'Proses akta',

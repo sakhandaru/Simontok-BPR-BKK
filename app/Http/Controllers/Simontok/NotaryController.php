@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Simontok;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\BankName;
 use App\Models\JobPosition;
 use App\Models\Notary;
 use App\Models\DocumentArchive;
@@ -18,26 +19,31 @@ use Inertia\Response;
 
 class NotaryController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:active,inactive'],
+        ]);
+
         return Inertia::render('simontok/masters/notaries', [
             'branches' => Branch::orderBy('name')->get(['id', 'code', 'name']),
-            'bankNames' => Notary::query()
-                ->whereNotNull('bank_name')
-                ->where('bank_name', '<>', '')
-                ->select('bank_name')
-                ->distinct()
-                ->orderBy('bank_name')
-                ->pluck('bank_name')
-                ->values(),
+            'bankNames' => BankName::query()->orderBy('name')->pluck('name')->values(),
             'notaries' => Notary::query()
                 ->with(['branches:id,code,name', 'users:id,notary_id,name,email,is_active'])
+                ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%")))
+                ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
+                ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
                 ->latest()
                 ->paginate(10)->withQueryString()
                 ->through(fn (Notary $notary) => [
                     ...$notary->toArray(),
                     'partnership_status' => $notary->partnershipStatus(),
                 ]),
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'status' => $filters['status'] ?? '',
+            ],
         ]);
     }
 
@@ -65,6 +71,17 @@ class NotaryController extends Controller
         ]);
 
         return back()->with('success', 'Akun portal notaris berhasil dibuat.');
+    }
+
+    public function storeBankName(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+        ]);
+
+        $this->rememberBankName($data['name']);
+
+        return back()->with('success', 'Nama bank ditambahkan ke pilihan.');
     }
 
     public function updatePortalAccount(Request $request, Notary $notary, User $user): RedirectResponse
@@ -131,6 +148,7 @@ class NotaryController extends Controller
             ...$agreement,
             'is_active' => true,
         ]);
+        $this->rememberBankName($data['bank_name'] ?? null);
         $notary->branches()->syncWithPivotValues($data['branch_ids'] ?? [], ['is_active' => true]);
 
         if ($notary->agreement_file_path) {
@@ -176,6 +194,7 @@ class NotaryController extends Controller
             ...collect($data)->only(['name', 'email', 'phone', 'bank_name', 'bank_account_number', 'bank_account_name', 'address', 'is_active', 'agreement_type', 'pks_no', 'pks_start', 'pks_end'])->all(),
             ...$agreement,
         ]);
+        $this->rememberBankName($data['bank_name'] ?? null);
         $notary->branches()->syncWithPivotValues($data['branch_ids'] ?? [], ['is_active' => true]);
 
         if ($hasNewAgreementFile) {
@@ -197,6 +216,15 @@ class NotaryController extends Controller
         return response()->file(Storage::disk('local')->path($notary->agreement_file_path), [
             'Content-Disposition' => 'inline; filename="'.addslashes($notary->agreement_file_name ?: 'perjanjian-notaris.pdf').'"',
         ]);
+    }
+
+    private function rememberBankName(?string $name): void
+    {
+        $name = trim((string) $name);
+
+        if ($name !== '') {
+            BankName::query()->firstOrCreate(['name' => $name]);
+        }
     }
 
     private function agreementData(Request $request, array $data, ?Notary $notary = null): array

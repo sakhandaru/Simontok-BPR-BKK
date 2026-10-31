@@ -17,7 +17,7 @@ export default function AuthSimpleLayout({
                             className="flex min-h-11 w-full items-center justify-center font-medium"
                         >
                             <img
-                                src="/logo_web.svg"
+                                src="/logo_web2.svg"
                                 alt="SIMONTOK"
                                 className="h-auto w-[min(100%,15rem)] object-contain"
                             />

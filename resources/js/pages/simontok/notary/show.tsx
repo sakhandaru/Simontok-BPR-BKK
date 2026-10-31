@@ -35,15 +35,13 @@ export default function NotaryOrdersShow({
     canViewDocuments,
     canRequestInvoice,
     canAddProgress,
-    needsCovernote,
     canSubmitFinal,
     canRequestAdditionalDocuments,
     canExtendCovernote,
     paymentBlockers,
     agreement,
-    stepFees,
     serviceFee,
-    canEditFees,
+    stepFees,
 }: {
     order: any;
     canReview: boolean;
@@ -51,30 +49,28 @@ export default function NotaryOrdersShow({
     canViewDocuments: boolean;
     canRequestInvoice: boolean;
     canAddProgress: boolean;
-    needsCovernote: boolean;
     canSubmitFinal: boolean;
     canRequestAdditionalDocuments: boolean;
     canExtendCovernote: boolean;
     paymentBlockers: string[];
     agreement: any | null;
-    stepFees: any[];
     serviceFee: { main: number; steps: number; total: number };
-    canEditFees: boolean;
+    stepFees: any[];
 }) {
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
     const [evidencePreview, setEvidencePreview] = useState<any | null>(null);
     const [finalDocumentsPreview, setFinalDocumentsPreview] = useState<any[] | null>(null);
-    const [agreementOpened, setAgreementOpened] = useState(Boolean(agreement?.acknowledged));
-    const [agreementConfirmed, setAgreementConfirmed] = useState(Boolean(agreement?.acknowledged));
     const progressOptions = useMemo(() => {
         return Object.fromEntries(
             order.collaterals.map((collateral: any) => [
                 collateral.id,
-                collateral.job_type?.steps?.map((step: any) => step.name) ?? [],
+                (stepFees.filter((fee: any) => fee.order_collateral_id === collateral.id).length
+                    ? stepFees.filter((fee: any) => fee.order_collateral_id === collateral.id).map((fee: any) => fee.step_name)
+                    : collateral.job_type?.steps?.map((step: any) => step.name)) ?? [],
             ]),
         );
-    }, [order.collaterals]);
+    }, [order.collaterals, stepFees]);
 
     const revision = useForm({ order_collateral_id: '', alasan: '' });
     const reject = useForm({ reason: '' });
@@ -92,25 +88,10 @@ export default function NotaryOrdersShow({
         skema_pembayaran: order.skema_pembayaran ?? '',
         catatan_notaris: '',
     });
-    const initialFees = useMemo(() => order.collaterals.flatMap((collateral: any) =>
-        (collateral.job_type?.steps ?? []).filter((step: any) => step.is_active !== false).map((step: any) => {
-            const saved = stepFees.find((fee: any) => fee.order_collateral_id === collateral.id && fee.job_type_step_id === step.id);
-            return { order_collateral_id: collateral.id, job_type_step_id: step.id, step_name: step.name, amount: Number(saved?.amount ?? 0) };
-        }),
-    ), [order.collaterals, stepFees]);
-    const fees = useForm({ fees: initialFees });
     const covernote = useForm({
         order_collateral_id: String(order.collaterals[0]?.id ?? ''),
         new_end: '',
         catatan: '',
-        file: null as File | null,
-    });
-    const covernoteSubmission = useForm({
-        order_collateral_id: '',
-        covernote_no: '',
-        covernote_start: '',
-        covernote_end: '',
-        komitmen_penyelesaian: '',
         file: null as File | null,
     });
     const documentRequest = useForm({
@@ -129,11 +110,13 @@ export default function NotaryOrdersShow({
             (collateral.checklists ?? [])
                 .filter(
                     (checklist: any) =>
-                        !checklist.is_checked || !checklist.order_document,
+                        checklist.document_checklist?.is_active !== false &&
+                        checklist.document_checklist?.is_required !== false &&
+                        (!checklist.is_checked || !checklist.order_document),
                 )
                 .map(
                     (checklist: any) =>
-                        `${collateral.job_type?.name ?? 'Agunan'} - ${checklist.document_checklist?.name ?? 'Dokumen checklist'}`,
+                        `${collateral.nama_agunan || collateral.job_type?.name || 'Agunan'} - ${checklist.document_checklist?.name ?? 'Dokumen checklist'}`,
                 ),
     );
 
@@ -143,13 +126,6 @@ export default function NotaryOrdersShow({
             {},
             { preserveScroll: true },
         );
-    };
-    const acknowledgeAgreement = () => {
-        router.post(`/notary/orders/${order.id}/agreement/acknowledge`, {}, { preserveScroll: true });
-    };
-    const submitStepFees = (event: FormEvent) => {
-        event.preventDefault();
-        fees.put(`/notary/orders/${order.id}/step-fees`, { preserveScroll: true });
     };
 
     const submitRevision = (event: FormEvent) => {
@@ -232,14 +208,6 @@ export default function NotaryOrdersShow({
             },
         );
     };
-    const submitInitialCovernote = (event: FormEvent) => {
-        event.preventDefault();
-        covernoteSubmission.post(`/notary/orders/${order.id}/covernote`, {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => covernoteSubmission.reset(),
-        });
-    };
     const submitDocumentRequest = (event: FormEvent) => {
         event.preventDefault();
         documentRequest.post(`/notary/orders/${order.id}/document-requests`, {
@@ -302,18 +270,10 @@ export default function NotaryOrdersShow({
                     <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-center">
                         {agreement ? <>
                             <div className="flex items-start gap-3"><FileText className="mt-0.5 size-5 text-primary" /><div><div className="font-medium">{agreement.original_name}</div><div className="mt-1 text-sm text-muted-foreground">{agreement.agreement_type ?? 'Perjanjian'} · Nomor {agreement.pks_no ?? '-'} · Berlaku {dateOnly(agreement.pks_start)} - {dateOnly(agreement.pks_end)}</div>{agreement.acknowledged && <div className="mt-2 text-xs text-emerald-600">PKS disetujui pada {agreement.acknowledged_at}.</div>}</div></div>
-                            <Button type="button" variant="outline" asChild onClick={() => setAgreementOpened(true)}><a href={`/notary/orders/${order.id}/agreement/preview`} target="_blank" rel="noreferrer"><Eye className="size-4" /> Buka preview</a></Button>
+                            <Button type="button" variant="outline" asChild><a href={`/notary/orders/${order.id}/agreement/preview`} target="_blank" rel="noreferrer"><Eye className="size-4" /> Buka preview</a></Button>
                         </> : <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-300">PKS aktif belum tersedia. Hubungi Admin Legal sebelum melanjutkan.</div>}
-                        {agreement && canEditFees && !agreement.acknowledged && <div className="md:col-span-2 rounded-md border-t pt-4"><label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={agreementConfirmed} disabled={!agreementOpened} onChange={(event) => setAgreementConfirmed(event.target.checked)} /><span>Saya sudah membaca dan memahami PKS yang berlaku untuk order ini.</span></label><Button type="button" className="mt-3" disabled={!agreementOpened || !agreementConfirmed} onClick={acknowledgeAgreement}><Check className="size-4" /> Setujui PKS dan lanjutkan</Button></div>}
                     </div>
                 </section>
-
-                {canEditFees && (
-                    <section className="sim-panel overflow-hidden">
-                        <div className="sim-panel-header"><h2 className="font-medium">Langkah dan biaya pekerjaan</h2><p className="mt-1 text-sm text-muted-foreground">Biaya di bawah ini adalah tambahan dari harga utama pekerjaan.</p></div>
-                        {!agreement?.acknowledged ? <div className="p-4 text-sm text-muted-foreground">Bagian ini akan aktif setelah PKS dibaca dan disetujui.</div> : <form onSubmit={submitStepFees} className="p-4"><div className="divide-y rounded-md border">{fees.data.fees.map((fee: any, index: number) => <div key={`${fee.order_collateral_id}-${fee.job_type_step_id}`} className="grid gap-3 p-3 md:grid-cols-[1fr_220px] md:items-center"><div><div className="font-medium">{fee.step_name}</div><div className="text-xs text-muted-foreground">{order.collaterals.find((item: any) => item.id === fee.order_collateral_id)?.job_type?.name ?? 'Pekerjaan'}</div></div><RupiahInput value={fee.amount} onChange={(value) => fees.setData('fees', fees.data.fees.map((item: any, itemIndex: number) => itemIndex === index ? { ...item, amount: value } : item))} /></div>)}</div><div className="mt-4 grid gap-2 border-t pt-4 text-sm sm:grid-cols-3"><Info label="Harga utama" value={money(serviceFee.main)} /><Info label="Tambahan langkah" value={money(fees.data.fees.reduce((sum: number, fee: any) => sum + Number(fee.amount || 0), 0))} /><Info label="Total sementara" value={money(serviceFee.main + fees.data.fees.reduce((sum: number, fee: any) => sum + Number(fee.amount || 0), 0))} /></div><Button className="mt-4" disabled={fees.processing}><Save className="size-4" /> Simpan biaya langkah</Button></form>}
-                    </section>
-                )}
 
                 {canViewDocuments && (
                     <section className="sim-panel overflow-hidden">
@@ -498,7 +458,7 @@ export default function NotaryOrdersShow({
                                 {order.collaterals.map((collateral: any) => (
                                     <div key={collateral.id} className="p-4">
                                         <div className="font-medium">
-                                            {collateral.job_type?.name ?? 'Agunan'}
+                                            {collateral.nama_agunan || 'Jenis agunan'}
                                             {collateral.agunan_id
                                                 ? ` - ${collateral.agunan_id}`
                                                 : ` - AGN-${collateral.id}`}
@@ -506,6 +466,14 @@ export default function NotaryOrdersShow({
                                         <p className="mt-1 text-sm text-muted-foreground">
                                             {collateral.deskripsi_agunan || '-'}
                                         </p>
+                                        <div className="mt-3 space-y-2">
+                                            {(collateral.jobs?.length ? collateral.jobs : [collateral]).map((job: any, index: number) => (
+                                                <div key={job.id ?? index} className="rounded-md border bg-muted/20 p-3 text-sm">
+                                                    <div className="font-medium">{job.job_type?.name ?? 'Pekerjaan'}</div>
+                                                    <p className="mt-1 text-muted-foreground">{job.deskripsi_pekerjaan || 'Deskripsi pekerjaan belum diisi.'}</p>
+                                                </div>
+                                            ))}
+                                        </div>
                                         <div className="mt-3 grid gap-2 md:grid-cols-2">
                                             {(collateral.checklists ?? []).map(
                                                 (checklist: any) => (
@@ -513,6 +481,24 @@ export default function NotaryOrdersShow({
                                                         key={checklist.id}
                                                         className="rounded-md border p-3 text-sm"
                                                     >
+                                                        {checklist.order_document && (
+                                                            <a
+                                                                href={`/notary/orders/${order.id}/documents/${checklist.order_document.id}/preview`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="relative -mx-3 -mt-3 mb-3 block h-36 overflow-hidden border-b bg-muted/20"
+                                                                aria-label={`Preview ${checklist.document_checklist?.name ?? 'dokumen checklist'}`}
+                                                            >
+                                                                <iframe
+                                                                    src={`/notary/orders/${order.id}/documents/${checklist.order_document.id}/preview`}
+                                                                    title={`Preview ${checklist.document_checklist?.name ?? 'dokumen checklist'}`}
+                                                                    className="pointer-events-none h-full w-full bg-white"
+                                                                />
+                                                                <span className="absolute inset-x-0 bottom-0 bg-background/90 px-3 py-2 text-xs font-medium opacity-0 transition-opacity hover:opacity-100">
+                                                                    Buka preview · {checklist.order_document.original_name}
+                                                                </span>
+                                                            </a>
+                                                        )}
                                                         <div className="flex items-start gap-2">
                                                             <span
                                                                 className={
@@ -529,7 +515,7 @@ export default function NotaryOrdersShow({
                                                         </div>
                                                         {checklist.order_document ? (
                                                             <div className="mt-2 truncate text-xs text-muted-foreground">
-                                                                File: {checklist.order_document.display_name ?? checklist.order_document.original_name}
+                                                                File: {checklist.order_document.display_name ?? checklist.order_document.original_name} · v{checklist.order_document.version} · {formatBytes(checklist.order_document.file_size)}
                                                             </div>
                                                         ) : (
                                                             <div className="mt-2 text-xs text-muted-foreground">
@@ -555,9 +541,28 @@ export default function NotaryOrdersShow({
                                                         .map((document: any) => (
                                                             <div
                                                                 key={document.id}
-                                                                className="truncate text-xs text-muted-foreground"
+                                                                className="group overflow-hidden rounded-md border bg-card text-sm"
                                                             >
-                                                                {document.display_name ?? document.original_name}
+                                                                <a
+                                                                    href={`/notary/orders/${order.id}/documents/${document.id}/preview`}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="relative block h-32 overflow-hidden border-b bg-muted/20"
+                                                                    aria-label={`Preview ${document.display_name ?? document.original_name}`}
+                                                                >
+                                                                    <iframe
+                                                                        src={`/notary/orders/${order.id}/documents/${document.id}/preview`}
+                                                                        title={`Preview ${document.display_name ?? document.original_name}`}
+                                                                        className="pointer-events-none h-full w-full bg-white"
+                                                                    />
+                                                                    <span className="absolute inset-x-0 bottom-0 bg-background/90 px-3 py-2 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">
+                                                                        <Eye className="mr-1 inline size-3.5" />Buka preview
+                                                                    </span>
+                                                                </a>
+                                                                <div className="p-3">
+                                                                    <div className="truncate font-medium">{document.display_name ?? document.original_name}</div>
+                                                                    <div className="mt-1 text-xs text-muted-foreground">{formatBytes(document.file_size)}</div>
+                                                                </div>
                                                             </div>
                                                         ))}
                                                 </div>
@@ -632,123 +637,6 @@ export default function NotaryOrdersShow({
                     </>
                 )}
 
-                {canViewDocuments &&
-                (needsCovernote ||
-                    [
-                        'menunggu_approval_covernote',
-                        'perbaikan_covernote',
-                        'Menunggu approval covernote',
-                        'Perbaikan covernote',
-                    ].includes(String(order.status?.value ?? order.status))) ? (
-                    <form
-                        onSubmit={submitInitialCovernote}
-                        className="sim-panel p-4"
-                    >
-                        <h2 className="font-medium">
-                            Covernote dan komitmen penyelesaian
-                        </h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Unggah covernote setelah order diterima. Progres
-                            baru terbuka setelah Admin Legal menyetujui.
-                        </p>
-                        <div className="mt-4 grid gap-4 md:grid-cols-2">
-                            <SimSelect
-                                value={
-                                    covernoteSubmission.data.order_collateral_id
-                                }
-                                onChange={(value) =>
-                                    covernoteSubmission.setData(
-                                        'order_collateral_id',
-                                        value,
-                                    )
-                                }
-                                options={order.collaterals.map((item: any) => ({
-                                    value: String(item.id),
-                                    label: `${item.job_type?.name ?? 'Agunan'} - ${item.agunan_id || `AGN-${item.id}`} - ${item.deskripsi_agunan || 'Tanpa deskripsi'}`,
-                                }))}
-                                placeholder="Pilih agunan"
-                            />
-                            <Input
-                                value={covernoteSubmission.data.covernote_no}
-                                onChange={(event) =>
-                                    covernoteSubmission.setData(
-                                        'covernote_no',
-                                        event.target.value,
-                                    )
-                                }
-                                placeholder="Nomor covernote"
-                            />
-                            <div className="grid gap-2">
-                                <Label>Tanggal mulai covernote</Label>
-                                <Input
-                                    type="date"
-                                    value={
-                                        covernoteSubmission.data.covernote_start
-                                    }
-                                    onChange={(event) =>
-                                        covernoteSubmission.setData(
-                                            'covernote_start',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>Tanggal berakhir covernote</Label>
-                                <Input
-                                    type="date"
-                                    value={
-                                        covernoteSubmission.data.covernote_end
-                                    }
-                                    onChange={(event) =>
-                                        covernoteSubmission.setData(
-                                            'covernote_end',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label>Tanggal komitmen penyelesaian</Label>
-                                <Input
-                                    type="date"
-                                    value={
-                                        covernoteSubmission.data
-                                            .komitmen_penyelesaian
-                                    }
-                                    onChange={(event) =>
-                                        covernoteSubmission.setData(
-                                            'komitmen_penyelesaian',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <SimFileUpload
-                                value={covernoteSubmission.data.file}
-                                onChange={(file) =>
-                                    covernoteSubmission.setData('file', file)
-                                }
-                                label="Pilih covernote"
-                            />
-                        </div>
-                        <InputError
-                            message={
-                                (covernoteSubmission.errors as any).file ||
-                                (covernoteSubmission.errors as any)
-                                    .komitmen_penyelesaian
-                            }
-                        />
-                        <Button
-                            className="mt-4"
-                            disabled={covernoteSubmission.processing}
-                        >
-                            <FileUp className="size-4" />
-                            Ajukan covernote
-                        </Button>
-                    </form>
-                ) : null}
-
                 {canViewDocuments && canRequestAdditionalDocuments && (
                     <section className="sim-panel p-4">
                         <h2 className="font-medium">Minta dokumen tambahan</h2>
@@ -770,7 +658,7 @@ export default function NotaryOrdersShow({
                                 }
                                 options={order.collaterals.map((item: any) => ({
                                     value: String(item.id),
-                                    label: `${item.job_type?.name ?? 'Agunan'} - ${item.agunan_id || `AGN-${item.id}`} - ${item.deskripsi_agunan || 'Tanpa deskripsi'}`,
+                                    label: `${item.nama_agunan || 'Jenis agunan'} - ${item.agunan_id || `AGN-${item.id}`} - ${item.deskripsi_agunan || 'Tanpa deskripsi'}`,
                                 }))}
                                 placeholder="Agunan (opsional)"
                             />
@@ -837,8 +725,7 @@ export default function NotaryOrdersShow({
                                     Perpanjang covernote
                                 </h2>
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Gunakan bagian ini saat masa berlaku
-                                    covernote perlu diperpanjang.
+                                    Perpanjangan berlaku untuk seluruh order. Masa berlaku saat ini sampai {dateOnly(order.covernote_end) || dateOnly(order.collaterals?.[0]?.covernote_end)}.
                                 </p>
                             </div>
                             <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -848,30 +735,6 @@ export default function NotaryOrdersShow({
                             className="border-t p-4"
                         >
                             <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                <div className="grid gap-2">
-                                    <Label>Agunan</Label>
-                                    <SimSelect
-                                        value={
-                                            covernote.data.order_collateral_id
-                                        }
-                                        onChange={(value) =>
-                                            covernote.setData(
-                                                'order_collateral_id',
-                                                value,
-                                            )
-                                        }
-                                        options={order.collaterals
-                                            .filter(
-                                                (item: any) =>
-                                                    item.covernote_end,
-                                            )
-                                            .map((item: any) => ({
-                                                value: String(item.id),
-                                                label: `${item.job_type?.name} - jatuh tempo ${dateOnly(item.covernote_end)}`,
-                                            }))}
-                                        placeholder="Pilih agunan"
-                                    />
-                                </div>
                                 <div className="grid gap-2">
                                     <Label>Tanggal jatuh tempo baru</Label>
                                     <Input
@@ -943,7 +806,7 @@ export default function NotaryOrdersShow({
                                     options={order.collaterals.map(
                                         (collateral: any) => ({
                                             value: String(collateral.id),
-                                            label: `${collateral.job_type?.name} - ${collateral.agunan_id || collateral.id}`,
+                                    label: `${collateral.nama_agunan || 'Jenis agunan'} - ${collateral.agunan_id || collateral.id}`,
                                         }),
                                     )}
                                     placeholder="Pilih agunan"
@@ -1501,10 +1364,11 @@ function orderStatusLabel(
         disetujui_kepala_cabang: 'Disetujui approver cabang',
         menunggu_verifikasi_notaris: 'Menunggu verifikasi notaris',
         perlu_pengalihan_notaris: 'Perlu pengalihan notaris',
-        menunggu_approval_covernote: 'Menunggu approval covernote',
+        persiapan_pekerjaan: 'Persiapan pekerjaan notaris',
+        menunggu_approval_covernote: 'Menunggu approval biaya & covernote',
         menunggu_approval_covernote_kepala_cabang:
             'Menunggu approval covernote Kepala Cabang',
-        perbaikan_covernote: 'Perbaikan covernote',
+        perbaikan_covernote: 'Perbaikan biaya & covernote',
         covernote_disetujui: 'Covernote disetujui',
         perbaikan_dokumen: 'Perbaikan dokumen',
         dokumen_valid: 'Dokumen valid',

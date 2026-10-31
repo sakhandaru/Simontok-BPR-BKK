@@ -164,23 +164,22 @@ class PaymentRequestController extends Controller
         $this->authorizeInternal($request, $order, 'payments.pay');
         $this->ensureBelongsToOrder($order, $paymentRequest);
         abort_unless($order->status === TrackAStatus::DokumenFisikDiterima, 422, 'Pembayaran hanya dapat dicatat setelah handover dokumen fisik selesai.');
-        abort_unless($paymentRequest->status === TrackDPaymentStatus::Disetujui, 422);
+        abort_unless($paymentRequest->status === TrackDPaymentStatus::Diajukan, 422, 'Invoice ini tidak lagi menunggu pembayaran.');
 
         $data = $request->validate([
-            'paid_at' => ['required', 'date'],
-            'nominal' => ['required', 'numeric', 'min:1'],
-            'bukti' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'bukti' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 
         DB::transaction(function () use ($request, $order, $paymentRequest, $data) {
             $path = $request->file('bukti')?->store("payments/{$order->id}", 'local');
             $before = $paymentRequest->status;
+            $paidAt = now();
 
             $payment = $paymentRequest->payments()->create([
                 'order_id' => $order->id,
-                'paid_at' => $data['paid_at'],
-                'nominal' => $data['nominal'],
+                'paid_at' => $paidAt,
+                'nominal' => $paymentRequest->nominal,
                 'bukti_path' => $path,
                 'uploaded_by' => $request->user()->id,
                 'catatan' => $data['catatan'] ?? null,
@@ -197,19 +196,42 @@ class PaymentRequestController extends Controller
 
             $paymentRequest->update([
                 'status' => TrackDPaymentStatus::Dibayar,
-                'paid_at' => $data['paid_at'],
+                'paid_at' => $paidAt,
             ]);
 
             $this->recordStatus($request, $order, $before->value, TrackDPaymentStatus::Dibayar->value, 'Bukti pembayaran diunggah.');
 
             Audit::record($request, 'payments', $paymentRequest, 'upload_payment_proof', 'Bukti pembayaran diunggah.', [
-                'payment' => collect($data)->except('bukti')->all(),
+                'payment' => ['paid_at' => $paidAt->toDateTimeString(), 'nominal' => $paymentRequest->nominal, 'catatan' => $data['catatan'] ?? null],
             ]);
 
+            $order->loadMissing('collaterals');
+            $orderCompleted = $order->status === TrackAStatus::DokumenFisikDiterima
+                && ! $order->risk_flag
+                && $order->collaterals->every(fn ($collateral) => $collateral->doc_status === TrackBDocStatus::FinalDivalidasi);
+
+            if ($orderCompleted) {
+                $order->update(['status' => TrackAStatus::Selesai]);
+                $order->statusHistories()->create([
+                    'track' => 'A',
+                    'from_status' => TrackAStatus::DokumenFisikDiterima->value,
+                    'to_status' => TrackAStatus::Selesai->value,
+                    'actor_type' => 'user',
+                    'actor_id' => $request->user()->id,
+                    'reason' => 'Bukti pembayaran diunggah setelah dokumen fisik diterima; seluruh kewajiban order selesai.',
+                ]);
+                Audit::record($request, 'orders', $order, 'close', 'Order otomatis ditutup setelah bukti pembayaran diunggah.');
+            }
+
             InAppNotification::forNotary($order, 'Bukti pembayaran tersedia', "Bukti pembayaran order {$order->order_no} sudah dicatat.");
+            if ($orderCompleted) {
+                InAppNotification::forNotary($order, 'Order selesai', "Seluruh dokumen dan pembayaran order {$order->order_no} sudah selesai.");
+            }
         });
 
-        return back()->with('success', 'Bukti pembayaran dicatat.');
+        return back()->with('success', $order->fresh()->status === TrackAStatus::Selesai
+            ? 'Bukti pembayaran dicatat dan order selesai.'
+            : 'Bukti pembayaran dicatat.');
     }
 
     public function downloadProof(Request $request, Order $order, PaymentRequest $paymentRequest, int $payment): mixed

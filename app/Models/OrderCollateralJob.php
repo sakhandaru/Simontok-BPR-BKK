@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderCollateralJob extends Model
 {
     protected $fillable = [
-        'order_collateral_id', 'job_type_id', 'sla_days', 'sla_source',
+        'order_collateral_id', 'job_type_id', 'deskripsi_pekerjaan', 'sla_days', 'sla_source',
         'sla_override_reason', 'sla_due_at', 'status',
     ];
 

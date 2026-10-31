@@ -26,13 +26,10 @@ class WorkQueueController extends Controller
             $this->add($tasks, (clone $orders)->whereIn('status', [TrackAStatus::MenungguValidasiBpr->value, TrackAStatus::DokumenFinalDiunggah->value])->get(), 'Validasi dokumen final', 'Dokumen final menunggu pemeriksaan legal.', 'important');
         }
         if ($user->hasPermission('covernotes.approve')) {
-            $this->add($tasks, (clone $orders)->whereIn('status', [TrackAStatus::MenungguApprovalCovernote->value, TrackAStatus::MenungguApprovalCovernoteKepalaCabang->value])->get(), 'Persetujuan covernote', 'Covernote menunggu persetujuan.', 'important');
+            $this->add($tasks, (clone $orders)->whereIn('status', [TrackAStatus::MenungguApprovalCovernote->value, TrackAStatus::MenungguApprovalCovernoteKepalaCabang->value])->get(), 'Persetujuan biaya & covernote', 'Biaya langkah dan covernote menunggu persetujuan.', 'important');
         }
-        if ($user->hasPermission('payments.verify')) {
-            $this->add($tasks, (clone $orders)->whereHas('paymentRequest', fn ($query) => $query->where('status', TrackDPaymentStatus::Diajukan->value))->get(), 'Verifikasi invoice', 'Invoice diajukan oleh notaris.', 'important');
-        }
-        if ($user->hasPermission('payments.approve')) {
-            $this->add($tasks, (clone $orders)->whereHas('paymentRequest', fn ($query) => $query->where('status', TrackDPaymentStatus::DiverifikasiAdmin->value))->get(), 'Persetujuan pembayaran', 'Invoice sudah diverifikasi admin.', 'important');
+        if ($user->hasPermission('payments.pay')) {
+            $this->add($tasks, (clone $orders)->where('status', TrackAStatus::DokumenFisikDiterima->value)->whereHas('paymentRequest', fn ($query) => $query->where('status', TrackDPaymentStatus::Diajukan->value))->get(), 'Unggah bukti pembayaran', 'Invoice notaris siap dibayar setelah dokumen fisik diterima.', 'important');
         }
         if ($user->hasPermission('handovers.manage')) {
             $this->add($tasks, (clone $orders)->where('status', TrackAStatus::DokumenFinalDiunggah->value)->get(), 'Handover dokumen', 'Dokumen final siap dicatat serah terimanya.', 'normal');

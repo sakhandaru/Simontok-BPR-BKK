@@ -81,10 +81,10 @@ class DatabaseSeeder extends Seeder
         $roles = collect([
             ['code' => 'direksi_pusat', 'name' => 'Direksi Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view', 'branches.monitor', 'documents.archive.view', 'announcements.manage']],
             ['code' => 'kadiv_ops_pusat', 'name' => 'Kadiv Operasional Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'documents.view', 'documents.validate', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view', 'branches.monitor', 'documents.archive.view', 'announcements.manage']],
-            ['code' => 'admin_legal_pusat', 'name' => 'Admin Legal Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.approve', 'payments.pay', 'tracking.view', 'reports.view', 'branches.view', 'branches.manage', 'branches.monitor', 'notaries.view', 'notaries.manage', 'job_types.view', 'job_types.manage', 'documents.archive.view', 'announcements.manage', 'audit.view', 'users.manage']],
+            ['code' => 'admin_legal_pusat', 'name' => 'Admin Legal Pusat', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.approve', 'payments.pay', 'tracking.view', 'reports.view', 'branches.view', 'branches.manage', 'branches.monitor', 'notaries.view', 'notaries.manage', 'job_types.view', 'job_types.manage', 'documents.archive.view', 'announcements.manage', 'notary.portal', 'audit.view', 'users.manage']],
             ['code' => 'pimpinan_cabang', 'name' => 'Pimpinan Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view']],
             ['code' => 'kabid_ops_cabang', 'name' => 'Kabid Operasional Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.approve', 'documents.view', 'documents.validate', 'covernotes.approve', 'payments.approve', 'tracking.view', 'reports.view']],
-            ['code' => 'admin_legal_cabang', 'name' => 'Admin Legal Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.pay', 'tracking.view', 'reports.view', 'users.manage']],
+            ['code' => 'admin_legal_cabang', 'name' => 'Admin Legal Cabang', 'permissions' => ['dashboard.view', 'orders.view', 'orders.create', 'orders.manage', 'orders.cancel', 'documents.view', 'documents.validate', 'handovers.manage', 'covernotes.manage', 'covernotes.approve', 'payments.verify', 'payments.pay', 'tracking.view', 'reports.view', 'documents.archive.view', 'users.manage']],
             ['code' => 'notaris', 'name' => 'Notaris', 'permissions' => ['dashboard.view', 'tracking.view', 'notary.portal', 'notary.actions']],
             ['code' => 'it_admin', 'name' => 'IT Administrator', 'permissions' => []],
             ['code' => 'auditor', 'name' => 'Auditor / OJK', 'permissions' => ['dashboard.view', 'orders.view', 'documents.view', 'tracking.view', 'reports.view', 'branches.monitor', 'audit.view', 'documents.archive.view']],
@@ -166,10 +166,21 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        foreach (['KTP debitur', 'KTP pemilik agunan', 'Kartu keluarga', 'Surat nikah', 'Sertifikat/BPKB asli', 'SPPT PBB', 'Bukti lunas PBB', 'NPWP', 'Dokumen persetujuan pasangan', 'Dokumen pendukung lain'] as $name) {
+        foreach ([
+            ['name' => 'KTP debitur', 'is_required' => true],
+            ['name' => 'KTP pemilik agunan', 'is_required' => true],
+            ['name' => 'Kartu keluarga', 'is_required' => true],
+            ['name' => 'Sertifikat/BPKB asli', 'is_required' => true],
+            ['name' => 'SPPT PBB', 'is_required' => true],
+            ['name' => 'KTP pasangan', 'is_required' => false],
+            ['name' => 'Surat nikah', 'is_required' => false],
+            ['name' => 'NPWP', 'is_required' => false],
+            ['name' => 'NIB', 'is_required' => false],
+            ['name' => 'Dokumen pendukung lain', 'is_required' => false],
+        ] as $checklist) {
             DocumentChecklist::updateOrCreate(
-                ['name' => $name, 'job_type_id' => null],
-                ['is_active' => true]
+                ['name' => $checklist['name'], 'job_type_id' => null],
+                ['is_active' => true, 'is_required' => $checklist['is_required']]
             );
         }
 

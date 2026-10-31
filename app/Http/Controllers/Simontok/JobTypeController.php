@@ -14,17 +14,29 @@ use Inertia\Response;
 
 class JobTypeController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:active,inactive'],
+        ]);
+
         return Inertia::render('simontok/masters/job-types', [
             'jobTypes' => JobType::with('steps:id,job_type_id,name,sort_order,is_active')
                 ->with(['slaPolicies' => fn ($query) => $query->whereNull('branch_id')->where('is_active', true)])
+                ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")))
+                ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
+                ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
                 ->orderBy('name')
                 ->paginate(15)->withQueryString()->through(fn (JobType $jobType) => [
                     ...$jobType->only(['id', 'code', 'name', 'is_active']),
                     'steps' => $jobType->steps->map(fn ($step) => $step->only(['id', 'name', 'sort_order']))->values()->all(),
                     'sla_days' => $jobType->slaPolicies->first()?->days,
                 ]),
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'status' => $filters['status'] ?? '',
+            ],
         ]);
     }
 

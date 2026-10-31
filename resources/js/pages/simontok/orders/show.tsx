@@ -33,6 +33,9 @@ import { SimPageHeader } from '@/components/sim-page-header';
 import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 import { SimFileUpload } from '@/components/sim-file-upload';
 import { SimSelect } from '@/components/sim-select';
+import { SimCreatableCombobox } from '@/components/sim-creatable-combobox';
+import { saveCollateralType } from '@/lib/collateral-types';
+import { savePaymentScheme } from '@/lib/payment-schemes';
 import { SimTimeline } from '@/components/sim-timeline';
 import { SimJourneyNodes } from '@/components/sim-journey-nodes';
 import { RupiahInput } from '@/components/rupiah-input';
@@ -69,7 +72,7 @@ type CollateralDraft = {
     covernote_end: string;
     jobs: CollateralJobDraft[];
 };
-type CollateralJobDraft = { id?: string; job_type_id: string; sla_days: string; sla_override_reason: string };
+type CollateralJobDraft = { id?: string; job_type_id: string; deskripsi_pekerjaan: string; sla_days: string; sla_override_reason: string };
 type OrderDraft = {
     branch_id: string;
     notary_id: string;
@@ -90,6 +93,7 @@ export default function OrdersShow({
     documentTypes,
     handoverMethods,
     paymentBlockers,
+    paymentAccount,
     canVerifyPayment,
     canUploadPaymentProof,
     canApprovePayment,
@@ -104,10 +108,14 @@ export default function OrdersShow({
     canEscalateCovernote,
     canSubmitApproval,
     canApproveOrder,
+    stepFees,
+    serviceFee,
     branches,
     branchLocked,
     notaries,
     jobTypes,
+    collateralTypes,
+    paymentSchemes,
     slaPolicies,
 }: {
     order: any;
@@ -115,6 +123,7 @@ export default function OrdersShow({
     documentTypes: Option[];
     handoverMethods: Option[];
     paymentBlockers: string[];
+    paymentAccount: { bank_name?: string | null; bank_account_number?: string | null; bank_account_name?: string | null } | null;
     canVerifyPayment: boolean;
     canUploadPaymentProof: boolean;
     canApprovePayment: boolean;
@@ -129,10 +138,14 @@ export default function OrdersShow({
     canEscalateCovernote: boolean;
     canSubmitApproval: boolean;
     canApproveOrder: boolean;
+    stepFees: { id?: number; order_collateral_id: number; job_type_step_id: number | null; step_name: string; amount: number }[];
+    serviceFee: { main: number; steps: number; total: number };
     branches: { id: number; code: string; name: string }[];
     branchLocked: boolean;
     notaries: { id: number; name: string }[];
     jobTypes: { id: number; code: string; name: string }[];
+    collateralTypes: string[];
+    paymentSchemes: string[];
     slaPolicies: Record<string, { days: number; source: string }>;
 }) {
     const draft = useForm<OrderDraft>({
@@ -158,6 +171,7 @@ export default function OrdersShow({
                 jobs: (item.jobs?.length ? item.jobs : item.job_type_id ? [{ job_type_id: item.job_type_id, sla_days: item.sla_days, sla_source: item.sla_source, sla_override_reason: item.sla_override_reason }] : []).map((job: any) => ({
                     id: String(job.id ?? ''),
                     job_type_id: String(job.job_type_id ?? ''),
+                    deskripsi_pekerjaan: job.deskripsi_pekerjaan ?? '',
                     sla_days: job.sla_source === 'override' && job.sla_days ? String(job.sla_days) : '',
                     sla_override_reason: job.sla_override_reason ?? '',
                 })),
@@ -344,11 +358,11 @@ export default function OrdersShow({
         ...draft.data.collaterals.flatMap((item, index) => [
             item.jobs.length === 0 && `Minimal satu pekerjaan agunan ${index + 1}`,
             ...item.jobs.map((job, jobIndex) => !job.job_type_id && `Jenis pekerjaan ${jobIndex + 1} agunan ${index + 1}`),
-            !item.nama_agunan && `Nama agunan ${index + 1}`,
+            !item.nama_agunan && `Jenis agunan ${index + 1}`,
         ]),
         order.collaterals?.some((item: any) =>
             item.checklists?.some(
-                (checklist: any) => !checklist.is_checked || !checklist.order_document_id,
+                (checklist: any) => checklist.document_checklist?.is_active !== false && checklist.document_checklist?.is_required !== false && (!checklist.is_checked || !checklist.order_document_id),
             ),
         ) && 'Dokumen checklist agunan',
         draft.data.collaterals.some((item) => item.jobs.some((job) => job.sla_days && !job.sla_override_reason)) && 'Alasan perubahan SLA',
@@ -397,8 +411,6 @@ export default function OrdersShow({
         catatan_approver: '',
     });
     const paymentProof = useForm({
-        paid_at: '',
-        nominal: order.payment_request?.nominal ?? order.nominal ?? '',
         bukti: null as File | null,
         catatan: '',
     });
@@ -561,7 +573,7 @@ export default function OrdersShow({
                                     onClick={approveCovernote}
                                 >
                                     <BadgeCheck className="size-4" />
-                                    Setujui covernote
+                                    Setujui biaya & covernote
                                 </Button>
                             )}
                             {canEscalateCovernote && (
@@ -671,16 +683,51 @@ export default function OrdersShow({
                 )}
 
                 {canApproveCovernote && (
+                    <section className="sim-panel overflow-hidden">
+                        <div className="sim-panel-header">
+                            <h2 className="font-medium">Review biaya dan covernote</h2>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Satu approval akan mengesahkan total harga utama, biaya setiap langkah, dan covernote order.
+                            </p>
+                        </div>
+                        <div className="grid gap-4 p-4 md:grid-cols-3">
+                            <div><div className="text-sm text-muted-foreground">Harga utama</div><div className="mt-1 font-medium">{money(serviceFee.main)}</div></div>
+                            <div><div className="text-sm text-muted-foreground">Tambahan langkah</div><div className="mt-1 font-medium">{money(serviceFee.steps)}</div></div>
+                            <div><div className="text-sm text-muted-foreground">Total disetujui</div><div className="mt-1 font-semibold">{money(serviceFee.total)}</div></div>
+                        </div>
+                        <div className="grid gap-3 border-t p-4 md:grid-cols-2">
+                            {stepFees.map((fee) => (
+                                <div key={fee.id ?? `${fee.order_collateral_id}-${fee.job_type_step_id}`} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                                    <div><div className="font-medium">{fee.step_name}</div><div className="text-xs text-muted-foreground">{order.collaterals.find((item: any) => item.id === fee.order_collateral_id)?.job_type?.name ?? 'Pekerjaan'}</div></div>
+                                    <div className="font-medium">{money(fee.amount)}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="grid gap-3 border-t p-4 text-sm md:grid-cols-[1fr_auto] md:items-center">
+                            <div>
+                                <div className="font-medium">Covernote order · {order.covernote_no ?? '-'}</div>
+                                <div className="mt-1 text-muted-foreground">Berlaku {dateOnly(order.covernote_start) || '-'} sampai {dateOnly(order.covernote_end) || '-'}</div>
+                                <div className="mt-1 text-xs text-muted-foreground">{order.covernote_file_path ? 'Satu file covernote untuk seluruh order' : 'File covernote belum tersedia'}</div>
+                            </div>
+                            {order.covernote_file_path && order.collaterals?.[0] && (
+                                <Button type="button" variant="outline" asChild>
+                                    <a href={`/orders/${order.id}/collaterals/${order.collaterals[0].id}/covernote/preview`} target="_blank" rel="noreferrer"><Eye className="size-4" /> Buka preview</a>
+                                </Button>
+                            )}
+                        </div>
+                    </section>
+                )}
+
+                {canApproveCovernote && (
                     <form
                         onSubmit={requestCovernoteRevision}
                         className="sim-panel border-destructive/40 p-4"
                     >
                         <div className="font-medium">
-                            Covernote menunggu approval
+                            Biaya & covernote menunggu approval
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Setujui covernote atau kembalikan dengan alasan
-                            perbaikan.
+                            Setujui total biaya dan covernote, atau kembalikan keduanya dengan satu alasan perbaikan.
                         </p>
                         <textarea
                             className="sim-input mt-4 min-h-24 py-2"
@@ -691,7 +738,7 @@ export default function OrdersShow({
                                     event.target.value,
                                 )
                             }
-                            placeholder="Alasan jika covernote perlu diperbaiki"
+                            placeholder="Contoh: nominal langkah kedua belum sesuai dan nomor covernote perlu diperbaiki."
                         />
                         <InputError message={covernoteRevision.errors.reason} />
                         <Button
@@ -704,7 +751,7 @@ export default function OrdersShow({
                             }
                         >
                             <AlertCircle className="size-4" />
-                            Kembalikan covernote
+                            Kembalikan biaya & covernote
                         </Button>
                     </form>
                 )}
@@ -761,6 +808,8 @@ export default function OrdersShow({
                         branchLocked={branchLocked}
                         notaries={notaries}
                         jobTypes={jobTypes}
+                        collateralTypes={collateralTypes}
+                        paymentSchemes={paymentSchemes}
                         slaPolicies={slaPolicies}
                         setCollateral={setCollateral}
                         setJob={setJob}
@@ -769,7 +818,7 @@ export default function OrdersShow({
                         saveState={draftSaveState}
                     />
                 )}
-                <OrderTrackingHero order={order} />
+                <OrderTrackingHero order={order} paymentAccount={paymentAccount} />
 
                 {order.payment_request && (
                     <details className="sim-panel group">
@@ -777,9 +826,8 @@ export default function OrdersShow({
                             <div>
                                 <h2 className="sim-panel-title">Pembayaran</h2>
                                 <p className="sim-panel-subtitle">
-                                    Alur invoice: notaris mengajukan, Admin
-                                    Legal memverifikasi, lalu bukti bayar
-                                    dicatat setelah handover dokumen fisik.
+                                    Setelah dokumen fisik diterima, Admin Legal
+                                    mengunggah bukti pembayaran invoice.
                                 </p>
                             </div>
                             <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -802,6 +850,16 @@ export default function OrdersShow({
                                         order.payment_request?.nominal,
                                     )}
                                 />
+                                {paymentAccount && (
+                                    <div className="rounded-md border p-3">
+                                        <div className="mb-2 font-medium">Rekening notaris</div>
+                                        <div className="grid gap-2 sm:grid-cols-3">
+                                            <Info label="Bank" value={paymentAccount.bank_name} />
+                                            <Info label="Nomor rekening" value={paymentAccount.bank_account_number} />
+                                            <Info label="Atas nama" value={paymentAccount.bank_account_name} />
+                                        </div>
+                                    </div>
+                                )}
                                 <Info
                                     label="Skema pembayaran"
                                     value={
@@ -957,29 +1015,10 @@ export default function OrdersShow({
                                         onSubmit={submitPaymentProof}
                                         className="sim-metric grid gap-3"
                                     >
-                                        <div className="font-medium">
-                                            Bukti pembayaran
-                                        </div>
-                                        <Input
-                                            type="date"
-                                            value={paymentProof.data.paid_at}
-                                            onChange={(e) =>
-                                                paymentProof.setData(
-                                                    'paid_at',
-                                                    e.target.value,
-                                                )
-                                            }
-                                        />
-                                        <RupiahInput
-                                            min="1"
-                                            value={paymentProof.data.nominal}
-                                            onChange={(value) =>
-                                                paymentProof.setData(
-                                                    'nominal',
-                                                    value,
-                                                )
-                                            }
-                                        />
+                                        <div className="font-medium">Unggah bukti pembayaran</div>
+                                        <p className="text-sm text-muted-foreground">
+                                            Nominal yang dicatat: {money(order.payment_request?.nominal)}
+                                        </p>
                                         <SimFileUpload
                                             value={paymentProof.data.bukti}
                                             accept="application/pdf,image/jpeg,image/png"
@@ -992,6 +1031,7 @@ export default function OrdersShow({
                                             }
                                             label="Pilih foto atau PDF bukti pembayaran"
                                         />
+                                        <InputError message={paymentProof.errors.bukti} />
                                         <textarea
                                             className="sim-input min-h-20 py-2"
                                             value={paymentProof.data.catatan}
@@ -1005,10 +1045,10 @@ export default function OrdersShow({
                                         />
                                         <Button
                                             className="w-fit"
-                                            disabled={paymentProof.processing}
+                                            disabled={paymentProof.processing || !paymentProof.data.bukti}
                                         >
                                             <WalletCards className="size-4" />
-                                            Catat pembayaran
+                                            Simpan bukti pembayaran
                                         </Button>
                                     </form>
                                 )}
@@ -1116,6 +1156,7 @@ export default function OrdersShow({
                                             {(item.jobs?.length ? item.jobs : [item]).map((job: any, jobIndex: number) => (
                                                 <div key={job.id ?? jobIndex} className="border-t pt-2 first:border-t-0 first:pt-0">
                                                     <div className="font-medium text-foreground">{job.job_type?.name ?? 'Pekerjaan'}</div>
+                                                    {job.deskripsi_pekerjaan && <div className="mt-1 text-foreground/80">{job.deskripsi_pekerjaan}</div>}
                                                     <div className="mt-1">{job.sla_days ? `${job.sla_days} hari` : 'Belum ditentukan'} · jatuh tempo {dateOnly(job.sla_due_at) || 'menunggu tanggal masuk notaris'}</div>
                                                     {job.sla_source === 'override' && <div className="mt-1 text-xs">Alasan: {job.sla_override_reason || 'Menunggu alasan'}</div>}
                                                     {job.sla_due_at && <div className="mt-1 text-xs font-medium text-foreground">{slaState(job.sla_due_at)}</div>}
@@ -1175,8 +1216,7 @@ export default function OrdersShow({
                                     >
                                         <div className="min-w-0">
                                             <div className="font-medium">
-                                                {item.job_type?.name ??
-                                                    'Agunan'}
+                                                {item.nama_agunan || item.job_type?.name || 'Jenis agunan'}
                                             </div>
                                             <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
                                                 <Info
@@ -1271,8 +1311,7 @@ export default function OrdersShow({
                                             <div className="text-sm">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <div className="font-medium">
-                                                        {item.job_type?.name ??
-                                                            'Agunan'}
+                                                        {item.nama_agunan || item.job_type?.name || 'Jenis agunan'}
                                                     </div>
                                                     <SimStatusBadge
                                                         label="Menunggu approval"
@@ -1603,7 +1642,7 @@ export default function OrdersShow({
                                 }
                                 options={order.collaterals.map((item: any) => ({
                                     value: String(item.id),
-                                    label: `${item.job_type?.name} - ${item.agunan_id || item.id}`,
+                                    label: `${item.nama_agunan || item.job_type?.name || 'Agunan'} - ${item.agunan_id || item.id}`,
                                 }))}
                             />
                             <Input
@@ -1695,7 +1734,7 @@ export default function OrdersShow({
                             {order.collaterals.map((collateral: any) => (
                                 <div key={collateral.id} className="p-4">
                                     <div className="font-medium">
-                                        {collateral.nama_agunan || collateral.job_type?.name || 'Agunan'}
+                                        {collateral.nama_agunan || 'Jenis agunan'}
                                         {collateral.agunan_id
                                             ? ` - ${collateral.agunan_id}`
                                             : ` - AGN-${collateral.id}`}
@@ -1726,14 +1765,46 @@ export default function OrdersShow({
                                         </Button>
                                         </div>
                                     )}
-                                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                        {collateral.checklists.map(
+                                    <div className="mt-3 space-y-4">
+                                        {[
+                                            {
+                                                label: 'Dokumen wajib',
+                                                items: collateral.checklists.filter((item: any) => item.document_checklist?.is_active !== false && item.document_checklist?.is_required !== false),
+                                            },
+                                            {
+                                                label: 'Add-on',
+                                                items: collateral.checklists.filter((item: any) => item.document_checklist?.is_active !== false && item.document_checklist?.is_required === false),
+                                            },
+                                        ].map((group) => group.items.length > 0 && (
+                                            <section key={group.label} className="grid gap-2">
+                                                <h4 className="text-sm font-medium">{group.label}</h4>
+                                                <div className="grid gap-3 md:grid-cols-2">
+                                        {group.items.map(
                                             (item: any) => {
                                                 return (
                                                     <div
                                                         key={item.id}
-                                                        className="sim-metric grid gap-3 text-sm"
+                                                        className="group sim-metric grid gap-3 overflow-hidden text-sm"
                                                     >
+                                                        {item.order_document && (
+                                                            <a
+                                                                href={`/orders/${order.id}/documents/${item.order_document.id}/preview`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="relative -mx-3 -mt-3 block h-36 overflow-hidden border-b border-border bg-muted/20"
+                                                                aria-label={`Preview ${item.document_checklist?.name ?? 'dokumen checklist'}`}
+                                                            >
+                                                                <iframe
+                                                                    src={`/orders/${order.id}/documents/${item.order_document.id}/preview`}
+                                                                    title={`Preview ${item.document_checklist?.name ?? 'dokumen checklist'}`}
+                                                                    className="pointer-events-none h-full w-full bg-white"
+                                                                />
+                                                                <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-background/90 px-3 py-2 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">
+                                                                    <span className="inline-flex items-center gap-1.5"><Eye className="size-3.5" />Buka preview</span>
+                                                                    <span className="max-w-[60%] truncate">{item.order_document.original_name}</span>
+                                                                </span>
+                                                            </a>
+                                                        )}
                                                         <label className="flex items-start gap-3">
                                                             <span
                                                                 className={
@@ -1775,6 +1846,9 @@ export default function OrdersShow({
                                                                                 .order_document
                                                                                 .file_size,
                                                                         )}
+                                                                    </span>
+                                                                    <span className="block text-muted-foreground">
+                                                                        Versi {item.order_document.version} · {item.order_document.uploader?.name ?? '-'}
                                                                     </span>
                                                                 </div>
                                                                 {canManageOrder && (
@@ -1843,8 +1917,9 @@ export default function OrdersShow({
                                                         ) : canManageOrder ? (
                                                             <Button
                                                                 type="button"
-                                                                variant="ghost"
-                                                                className="h-auto justify-start p-0 text-left text-xs text-muted-foreground hover:bg-transparent hover:text-foreground"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="w-fit"
                                                                 onClick={() =>
                                                                     openChecklistEditor(
                                                                         String(
@@ -1856,9 +1931,8 @@ export default function OrdersShow({
                                                                     )
                                                                 }
                                                             >
-                                                                Belum ada file.
-                                                                Klik untuk input
-                                                                dokumen.
+                                                                <FilePlus2 className="size-4" />
+                                                                Input dokumen
                                                             </Button>
                                                         ) : (
                                                             <span className="text-xs text-muted-foreground">
@@ -1869,6 +1943,9 @@ export default function OrdersShow({
                                                 );
                                             },
                                         )}
+                                                </div>
+                                            </section>
+                                        ))}
                                     </div>
                                     {(
                                         collateral.documents ?? []
@@ -1895,22 +1972,36 @@ export default function OrdersShow({
                                                     .map((document: any) => (
                                                         <div
                                                             key={document.id}
-                                                            className="flex min-w-0 items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                                                            className="group min-w-0 overflow-hidden rounded-md border bg-card text-sm"
                                                         >
-                                                            <div className="min-w-0">
-                                                                <a
-                                                                    className="block truncate text-primary underline-offset-4 hover:underline"
-                                                                    href={`/orders/${order.id}/documents/${document.id}/download`}
-                                                                >
-                                                                    {document.display_name ||
-                                                                        document.original_name}
-                                                                </a>
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {formatBytes(
-                                                                        document.file_size,
-                                                                    )}
+                                                            <a
+                                                                href={`/orders/${order.id}/documents/${document.id}/preview`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="relative block h-36 overflow-hidden border-b border-border bg-muted/20"
+                                                                aria-label={`Preview ${document.display_name || document.original_name}`}
+                                                            >
+                                                                <iframe
+                                                                    src={`/orders/${order.id}/documents/${document.id}/preview`}
+                                                                    title={`Preview ${document.display_name || document.original_name}`}
+                                                                    className="pointer-events-none h-full w-full bg-white"
+                                                                />
+                                                                <span className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-background/90 px-3 py-2 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">
+                                                                    <Eye className="size-3.5" />Buka preview
                                                                 </span>
-                                                            </div>
+                                                            </a>
+                                                            <div className="flex min-w-0 items-center justify-between gap-3 p-3">
+                                                                <div className="min-w-0">
+                                                                    <a
+                                                                        className="block truncate text-primary underline-offset-4 hover:underline"
+                                                                        href={`/orders/${order.id}/documents/${document.id}/download`}
+                                                                    >
+                                                                        {document.display_name || document.original_name}
+                                                                    </a>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        {formatBytes(document.file_size)}
+                                                                    </span>
+                                                                </div>
                                                             {canManageOrder && (
                                                                 <span className="flex shrink-0 items-center gap-1">
                                                                 <Button
@@ -1963,6 +2054,7 @@ export default function OrdersShow({
                                                                 </Button>
                                                                 </span>
                                                             )}
+                                                            </div>
                                                         </div>
                                                     ))}
                                             </div>
@@ -2105,8 +2197,7 @@ export default function OrdersShow({
                                                 {progressLabel(item.status)}
                                             </div>
                                             <div className="mt-1 text-xs text-muted-foreground">
-                                                {item.collateral?.job_type?.name ??
-                                                    'Agunan'}{' '}
+                                                {item.collateral?.nama_agunan || item.collateral?.job_type?.name || 'Jenis agunan'}{' '}
                                                 · Komitmen{' '}
                                                 {dateOnly(
                                                     item.komitmen_penyelesaian,
@@ -2411,6 +2502,8 @@ function DraftOrderForm({
     branchLocked,
     notaries,
     jobTypes,
+    collateralTypes,
+    paymentSchemes,
     slaPolicies,
     setCollateral,
     setJob,
@@ -2423,6 +2516,8 @@ function DraftOrderForm({
     branchLocked: boolean;
     notaries: any[];
     jobTypes: any[];
+    collateralTypes: string[];
+    paymentSchemes: string[];
     slaPolicies: Record<string, { days: number; source: string }>;
     setCollateral: (
         index: number,
@@ -2572,21 +2667,15 @@ function DraftOrderForm({
                     />
                 </DraftField>
                 <DraftField label="Skema pembayaran">
-                    <Input
-                        list="payment-schemes"
+                    <SimCreatableCombobox
+                        id="payment-schemes"
                         value={draft.data.skema_pembayaran}
-                        onChange={(event) =>
-                            draft.setData(
-                                'skema_pembayaran',
-                                event.target.value,
-                            )
-                        }
+                        options={paymentSchemes}
                         placeholder="Pilih atau ketik skema"
+                        emptyLabel="Ketik skema pembayaran baru."
+                        onAdd={savePaymentScheme}
+                        onChange={(value) => draft.setData('skema_pembayaran', value)}
                     />
-                    <datalist id="payment-schemes">
-                        <option value="Transfer penuh" />
-                        <option value="Lainnya" />
-                    </datalist>
                 </DraftField>
             </div>
             <div className="border-t p-4">
@@ -2634,8 +2723,8 @@ function DraftOrderForm({
                                         }
                                     />
                                 </DraftField>
-                                <DraftField label="Nama agunan" required invalid={!item.nama_agunan} error={draft.errors[`collaterals.${index}.nama_agunan`]}>
-                                    <Input value={item.nama_agunan} placeholder="Contoh: SHM Tanah Demak" onChange={(event) => setCollateral(index, 'nama_agunan', event.target.value)} />
+                                <DraftField label="Jenis agunan" required invalid={!item.nama_agunan} error={draft.errors[`collaterals.${index}.nama_agunan`]}>
+                                    <SimCreatableCombobox id={`collateral-type-draft-${index}`} value={item.nama_agunan} options={collateralTypes} placeholder="Pilih atau ketik jenis agunan" emptyLabel="Belum ada pilihan jenis agunan." onAdd={saveCollateralType} onChange={(value) => setCollateral(index, 'nama_agunan', value)} />
                                 </DraftField>
                                 <DraftField
                                     label="Deskripsi agunan"
@@ -2672,6 +2761,9 @@ function DraftOrderForm({
                                             <div key={jobIndex} className="grid gap-3 rounded-md border bg-muted/20 p-3 md:grid-cols-2">
                                                 <DraftField label={`Pekerjaan ${jobIndex + 1}`} required invalid={!job.job_type_id && Boolean(draft.errors[`collaterals.${index}.jobs.${jobIndex}.job_type_id`])} error={job.job_type_id ? undefined : draft.errors[`collaterals.${index}.jobs.${jobIndex}.job_type_id`]}>
                                                     <SimSelect value={job.job_type_id} onChange={(value) => setJob(index, jobIndex, 'job_type_id', value)} options={jobTypes.map((type) => ({ value: String(type.id), label: type.name }))} placeholder="Pilih jenis pekerjaan" />
+                                                </DraftField>
+                                                <DraftField label="Deskripsi pekerjaan" error={draft.errors[`collaterals.${index}.jobs.${jobIndex}.deskripsi_pekerjaan`]}>
+                                                    <textarea className="sim-input min-h-20 py-2" value={job.deskripsi_pekerjaan} onChange={(event) => setJob(index, jobIndex, 'deskripsi_pekerjaan', event.target.value)} placeholder="Jelaskan pekerjaan yang diminta untuk agunan ini" />
                                                 </DraftField>
                                                 <DraftField label="SLA pekerjaan (hari)" error={draft.errors[`collaterals.${index}.jobs.${jobIndex}.sla_days`]}>
                                                     <Input type="number" min={1} max={365} value={job.sla_days} placeholder={slaPolicies[job.job_type_id] ? String(slaPolicies[job.job_type_id].days) : 'Otomatis dari kebijakan'} onChange={(event) => setJob(index, jobIndex, 'sla_days', event.target.value)} />
@@ -2756,7 +2848,7 @@ function emptyCollateralDraft(): CollateralDraft {
 }
 
 function emptyCollateralJobDraft(): CollateralJobDraft {
-    return { id: '', job_type_id: '', sla_days: '', sla_override_reason: '' };
+    return { id: '', job_type_id: '', deskripsi_pekerjaan: '', sla_days: '', sla_override_reason: '' };
 }
 
 function money(value?: string | number | null) {
@@ -2858,7 +2950,13 @@ const paymentStages = [
     { label: 'Dibayar', keys: ['dibayar'] },
 ];
 
-function OrderTrackingHero({ order }: { order: any }) {
+function OrderTrackingHero({
+    order,
+    paymentAccount,
+}: {
+    order: any;
+    paymentAccount: { bank_name?: string | null; bank_account_number?: string | null; bank_account_name?: string | null } | null;
+}) {
     const orderStatus = statusValue(order.status);
     const blockers = trackerBlockers(order);
     const history = order.status_histories ?? [];
@@ -2969,9 +3067,16 @@ function OrderTrackingHero({ order }: { order: any }) {
                     <div className="grid gap-x-4 gap-y-4 border-t-2 border-dashed border-sidebar-border pt-4 sm:grid-cols-2 lg:grid-cols-1">
                         <Info label="Notaris" value={order.notary?.name} />
                         <Info
-                            label="Nomor rekening"
+                            label="Nomor rekening nasabah"
                             value={order.no_rekening}
                         />
+                        {paymentAccount && (
+                            <>
+                                <Info label="Bank notaris" value={paymentAccount.bank_name} />
+                                <Info label="Nomor rekening notaris" value={paymentAccount.bank_account_number} />
+                                <Info label="Atas nama rekening" value={paymentAccount.bank_account_name} />
+                            </>
+                        )}
                         <Info label="Plafon" value={money(order.plafon)} />
                         <Info
                             label="Tanggal akad"
@@ -3282,10 +3387,11 @@ function statusLabel(status?: string | null): string {
         disetujui_kepala_cabang: 'Disetujui approver cabang',
         menunggu_verifikasi_notaris: 'Menunggu verifikasi notaris',
         perlu_pengalihan_notaris: 'Perlu pengalihan notaris',
-        menunggu_approval_covernote: 'Menunggu approval covernote',
+        persiapan_pekerjaan: 'Persiapan pekerjaan notaris',
+        menunggu_approval_covernote: 'Menunggu approval biaya & covernote',
         menunggu_approval_covernote_kepala_cabang:
-            'Menunggu approval covernote Pimpinan Cabang',
-        perbaikan_covernote: 'Perbaikan covernote',
+            'Menunggu approval biaya & covernote Pimpinan Cabang',
+        perbaikan_covernote: 'Perbaikan biaya & covernote',
         covernote_disetujui: 'Covernote disetujui',
         perbaikan_dokumen: 'Perbaikan dokumen',
         dokumen_valid: 'Dokumen valid',
@@ -3365,7 +3471,8 @@ function historyEventLabel(status?: string | null): string {
         menunggu_approval: 'Menunggu persetujuan cabang',
         disetujui_kepala_cabang: 'Order disetujui approver cabang',
         menunggu_verifikasi_notaris: 'Order dikirim ke notaris',
-        menunggu_approval_covernote: 'Covernote diajukan untuk persetujuan',
+        persiapan_pekerjaan: 'Notaris menyiapkan biaya dan covernote',
+        menunggu_approval_covernote: 'Biaya dan covernote diajukan untuk persetujuan',
         covernote_disetujui: 'Covernote disetujui',
         dokumen_valid: 'Dokumen agunan dinyatakan valid',
         proses_akta: 'Proses akta dimulai',
@@ -3377,7 +3484,7 @@ function historyEventLabel(status?: string | null): string {
         dibayar: 'Pembayaran dikonfirmasi',
         selesai: 'Order diselesaikan',
         perbaikan_dokumen: 'Dokumen dikembalikan untuk perbaikan',
-        perbaikan_covernote: 'Covernote dikembalikan untuk perbaikan',
+        perbaikan_covernote: 'Biaya dan covernote dikembalikan untuk perbaikan',
         dibatalkan: 'Order dibatalkan',
     };
 

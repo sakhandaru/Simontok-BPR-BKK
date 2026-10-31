@@ -1,6 +1,6 @@
-import { Head, useForm } from '@inertiajs/react';
-import { ChevronDown, ChevronUp, Edit3, FileText, KeyRound, Mail, Phone, Plus, UserPlus, UsersRound, X } from 'lucide-react';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Edit3, FileText, KeyRound, Mail, Phone, Plus, UserPlus, UsersRound, X } from 'lucide-react';
+import { FormEvent, useEffect, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +14,14 @@ import { SimSelect } from '@/components/sim-select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
+import { SimTableToolbar } from '@/components/sim-table-toolbar';
+import { SimCreatableCombobox } from '@/components/sim-creatable-combobox';
+import { saveBankName } from '@/lib/bank-names';
 
 type PortalUser = { id: number; name: string; email: string; is_active: boolean };
 type Notary = { id: number; name: string; email?: string; phone?: string; address?: string; bank_name?: string; bank_account_number?: string; bank_account_name?: string; is_active: boolean; agreement_type?: 'PKS' | 'MoU' | null; agreement_file_name?: string | null; pks_no?: string | null; pks_start?: string | null; pks_end?: string | null; partnership_status?: string; branches: Option[]; users?: PortalUser[] };
 
-export default function Notaries({ notaries, branches, bankNames }: { notaries: { data: Notary[]; links: SimPaginationLink[] }; branches: Option[]; bankNames: string[] }) {
+export default function Notaries({ notaries, branches, bankNames, filters }: { notaries: { data: Notary[]; links: SimPaginationLink[] }; branches: Option[]; bankNames: string[]; filters: { search: string; status: string } }) {
     const { data, setData, post, processing, reset, errors, transform } = useForm({
         name: '',
         email: '',
@@ -43,6 +46,8 @@ export default function Notaries({ notaries, branches, bankNames }: { notaries: 
     const [accountNotary, setAccountNotary] = useState<Notary | null>(null);
     const [editingAccount, setEditingAccount] = useState<PortalUser | null>(null);
     const [accountFormOpen, setAccountFormOpen] = useState(false);
+    const [search, setSearch] = useState(filters.search);
+    const [status, setStatus] = useState(filters.status);
     const accountForm = useForm({ name: '', email: '', password: '', is_active: true });
 
     useEffect(() => {
@@ -89,6 +94,9 @@ export default function Notaries({ notaries, branches, bankNames }: { notaries: 
             <Head title="Notaris" />
             <div className="sim-workspace">
                 <SimPageHeader title="Notaris" description="Kelola identitas notaris, legalitas, akun portal, dan cabang rekanan." actions={<Button type="button" onClick={openCreate}><Plus className="size-4" />Tambah notaris</Button>} />
+                <SimTableToolbar search={search} searchPlaceholder="Nama, email, atau telepon notaris" onSearchChange={setSearch} onSubmit={() => router.get('/notaries', { search, status }, { preserveState: true, replace: true })} onReset={() => { setSearch(''); setStatus(''); router.get('/notaries'); }}>
+                    <SimSelect value={status} onChange={setStatus} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} placeholder="Semua status" />
+                </SimTableToolbar>
                 <div className="hidden md:block"><SimTable minWidth="720px">
                             <SimTableHead><tr><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('email')}>Kontak</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('branches')}>Cabang</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>
                             <tbody>{sortedRows.map((notary) => (
@@ -174,36 +182,6 @@ function Field({ label, error, children }: { label: string; error?: string; chil
     return <div className="grid gap-2"><Label>{label}</Label>{children}<InputError message={error} /></div>;
 }
 
-function BankCombobox({ value, options, onChange }: { value: string; options: string[]; onChange: (value: string) => void }) {
-    const [open, setOpen] = useState(false);
-    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const filteredOptions = options.filter((option) => option.toLowerCase().includes(value.toLowerCase()));
-
-    const closeLater = () => {
-        closeTimer.current = setTimeout(() => setOpen(false), 120);
-    };
-
-    const choose = (option: string) => {
-        if (closeTimer.current) clearTimeout(closeTimer.current);
-        onChange(option);
-        setOpen(false);
-    };
-
-    return (
-        <div className="relative">
-            <div className={`flex h-10 w-full items-center rounded-md border bg-background px-3 ring-offset-background transition-colors ${open ? 'border-ring ring-2 ring-ring/30' : 'border-input'}`}>
-                <input value={value} onChange={(event) => { onChange(event.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={closeLater} placeholder="Pilih atau ketik nama bank" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
-                <button type="button" tabIndex={-1} aria-label={open ? 'Tutup pilihan bank' : 'Buka pilihan bank'} onMouseDown={(event) => event.preventDefault()} onClick={() => setOpen((current) => !current)} className="ml-2 text-muted-foreground">
-                    {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                </button>
-            </div>
-            {open && <div className="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
-                {filteredOptions.length ? filteredOptions.map((option) => <button key={option} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose(option)} className="flex w-full items-center rounded-sm px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">{option}</button>) : <div className="px-3 py-2 text-sm text-muted-foreground">Belum ada bank yang cocok. Lanjutkan mengetik untuk nama baru.</div>}
-            </div>}
-        </div>
-    );
-}
-
 function NotaryProfileDialog({ open, editingId, data, errors, processing, branches, bankNames, notaries, agreementPreviewUrl, setData, onSubmit, onClose }: any) {
     const existingFileName = editingId ? notaries.find((item: Notary) => item.id === editingId)?.agreement_file_name : null;
     const previewSource = agreementPreviewUrl ?? (editingId && existingFileName ? `/notaries/${editingId}/agreement/preview` : null);
@@ -238,7 +216,7 @@ function NotaryProfileDialog({ open, editingId, data, errors, processing, branch
                                 <p className="mt-1 text-sm text-muted-foreground">Referensi pembayaran jasa notaris.</p>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2">
-                                <Field label="Nama bank" error={errors.bank_name}><BankCombobox value={data.bank_name} options={bankNames} onChange={(value) => setData('bank_name', value)} /></Field>
+                                <Field label="Nama bank" error={errors.bank_name}><SimCreatableCombobox value={data.bank_name} options={bankNames} placeholder="Pilih atau ketik nama bank" emptyLabel="Ketik nama bank baru." onAdd={saveBankName} onChange={(value) => setData('bank_name', value)} /></Field>
                                 <Field label="Nomor rekening" error={errors.bank_account_number}><Input value={data.bank_account_number} onChange={(event) => setData('bank_account_number', event.target.value)} placeholder="Nomor rekening" /></Field>
                                 <div className="sm:col-span-2"><Field label="Nama pemilik rekening" error={errors.bank_account_name}><Input value={data.bank_account_name} onChange={(event) => setData('bank_account_name', event.target.value)} placeholder="Sesuai buku rekening" /></Field></div>
                             </div>

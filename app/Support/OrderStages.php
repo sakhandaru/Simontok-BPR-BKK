@@ -36,6 +36,7 @@ final class OrderStages
             'akta' => [
                 'label' => 'Proses akta',
                 'statuses' => [
+                    TrackAStatus::PersiapanPekerjaan->value,
                     TrackAStatus::MenungguApprovalCovernote->value,
                     TrackAStatus::MenungguApprovalCovernoteKepalaCabang->value,
                     TrackAStatus::PerbaikanCovernote->value,

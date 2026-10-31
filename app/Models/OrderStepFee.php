@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderStepFee extends Model
 {
-    protected $fillable = ['order_id', 'order_collateral_id', 'job_type_step_id', 'step_name', 'amount', 'entered_by'];
+    protected $fillable = ['order_id', 'order_collateral_id', 'job_type_step_id', 'step_name', 'amount', 'sort_order', 'entered_by'];
 
     protected function casts(): array
     {

@@ -37,7 +37,9 @@ class Order extends Model
         'stat_kred', 'tgl_masuk_notaris', 'nominal', 'skema_pembayaran',
         'status', 'risk_flag', 'sla_due_at', 'keterangan', 'created_by',
         'checked_by', 'checked_at', 'sent_to_notary_at',
+        'notary_agreement_archive_id', 'notary_agreement_acknowledged_at', 'notary_agreement_acknowledged_by',
         'komitmen_penyelesaian', 'covernote_submitted_at', 'covernote_approved_at', 'covernote_approved_by', 'final_submitted_at',
+        'covernote_no', 'covernote_start', 'covernote_end', 'covernote_file_path',
     ];
 
     protected function casts(): array
@@ -53,9 +55,12 @@ class Order extends Model
             'sla_due_at' => 'datetime',
             'checked_at' => 'datetime',
             'sent_to_notary_at' => 'datetime',
+            'notary_agreement_acknowledged_at' => 'datetime',
             'komitmen_penyelesaian' => 'date',
             'covernote_submitted_at' => 'datetime',
             'covernote_approved_at' => 'datetime',
+            'covernote_start' => 'date',
+            'covernote_end' => 'date',
             'final_submitted_at' => 'datetime',
         ];
     }

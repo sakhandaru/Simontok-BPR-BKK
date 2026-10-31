@@ -108,11 +108,11 @@ class WorkflowSeederTest extends TestCase
             ->post(route('notary.orders.accept-documents', $order))
             ->assertRedirect();
 
-        $this->assertSame('menunggu_approval_covernote', $order->fresh()->status->value);
+        $this->assertSame('persiapan_pekerjaan', $order->fresh()->status->value);
         $this->assertDatabaseHas('notifications', [
             'recipient_type' => 'user',
             'recipient_id' => $order->created_by,
-            'title' => 'Dokumen awal diterima',
+            'title' => 'Order diterima notaris',
         ]);
     }
 

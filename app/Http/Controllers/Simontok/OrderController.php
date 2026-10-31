@@ -8,11 +8,13 @@ use App\Enums\TrackCCovernoteStatus;
 use App\Enums\TrackDPaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\CollateralType;
 use App\Models\DocumentChecklist;
 use App\Models\JobType;
 use App\Models\Notary;
 use App\Models\Order;
 use App\Models\OrderCollateral;
+use App\Models\PaymentSchemeOption;
 use App\Models\SlaPolicy;
 use App\Support\Audit;
 use App\Support\InAppNotification;
@@ -137,6 +139,28 @@ class OrderController extends Controller
         ]);
     }
 
+    public function storeCollateralType(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $this->rememberCollateralType($data['name']);
+
+        return back()->with('success', 'Jenis agunan ditambahkan ke pilihan.');
+    }
+
+    public function storePaymentScheme(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+        ]);
+
+        $this->rememberPaymentScheme($data['name']);
+
+        return back()->with('success', 'Skema pembayaran ditambahkan ke pilihan.');
+    }
+
     public function create(Request $request): RedirectResponse
     {
         $branchId = $this->userBranchScope($request);
@@ -185,6 +209,7 @@ class OrderController extends Controller
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
 
         $order = DB::transaction(function () use ($data, $request) {
+            $this->rememberPaymentScheme($data['skema_pembayaran'] ?? null);
             $order = Order::create([
                 ...collect($data)->except('collaterals')->all(),
                 'order_no' => $this->makeOrderNo(),
@@ -193,6 +218,7 @@ class OrderController extends Controller
             ]);
 
             foreach ($data['collaterals'] as $collateralData) {
+                $this->rememberCollateralType($collateralData['nama_agunan'] ?? null);
                 $jobs = $collateralData['jobs'] ?? [];
                 if ($jobs === []) {
                     continue;
@@ -200,7 +226,7 @@ class OrderController extends Controller
                 $primaryJob = $jobs[0];
                 $sla = $this->resolveSla($primaryJob, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null);
                 $collateral = $order->collaterals()->create([
-                    ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'sla_days', 'sla_override_reason'])->all(),
+                    ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'deskripsi_pekerjaan', 'sla_days', 'sla_override_reason'])->all(),
                     'job_type_id' => $primaryJob['job_type_id'],
                     'doc_status' => TrackBDocStatus::MenungguVerifikasi,
                     'covernote_status' => null,
@@ -234,12 +260,15 @@ class OrderController extends Controller
         $this->authorizeVisibleOrder($request, $order);
         $order->load([
             'branch:id,code,name',
-            'notary:id,name,email,phone',
+            'notary:id,name,email,phone,bank_name,bank_account_number,bank_account_name',
             'maker:id,name',
             'collaterals.jobType:id,code,name',
+            'collaterals.jobType.steps:id,job_type_id,name,sort_order,is_active',
             'collaterals.jobs.jobType:id,code,name',
-            'collaterals.checklists.documentChecklist:id,name',
-            'collaterals.checklists.orderDocument:id,display_name,original_name,file_size,version,order_collateral_id',
+            'stepFees' => fn ($query) => $query->orderBy('order_collateral_id')->orderBy('sort_order')->orderBy('id'),
+            'collaterals.checklists.documentChecklist:id,name,is_active,is_required',
+            'collaterals.checklists.orderDocument:id,display_name,original_name,file_size,version,order_collateral_id,uploaded_by,created_at,mime_type',
+            'collaterals.checklists.orderDocument.uploader:id,name',
             'collaterals.documents.uploader:id,name',
             'collaterals.handovers',
             'collaterals.covernoteExtensions',
@@ -261,6 +290,17 @@ class OrderController extends Controller
         ]);
 
         $paymentBlockers = $this->paymentBlockers($order);
+        $paymentAccount = $request->user()->hasPermission('payments.pay') ? [
+            'bank_name' => $order->notary?->bank_name,
+            'bank_account_number' => $order->notary?->bank_account_number,
+            'bank_account_name' => $order->notary?->bank_account_name,
+        ] : null;
+        $order->notary?->makeHidden(['bank_name', 'bank_account_number', 'bank_account_name']);
+        $canCloseOrder = $request->user()->hasPermission('orders.manage')
+            && $order->status === TrackAStatus::DokumenFisikDiterima
+            && $order->paymentRequest?->status === TrackDPaymentStatus::Dibayar
+            && ! $order->risk_flag
+            && $order->collaterals->every(fn ($collateral) => $collateral->doc_status === TrackBDocStatus::FinalDivalidasi);
 
         return Inertia::render('simontok/orders/show', [
             'order' => $order,
@@ -271,16 +311,31 @@ class OrderController extends Controller
             'branchLocked' => $this->userBranchScope($request) !== null,
             'notaries' => Notary::availableForOrders()->whereHas('users', fn ($query) => $query->where('is_active', true))->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'collateralTypes' => $this->collateralTypeOptions(),
+            'paymentSchemes' => $this->paymentSchemeOptions(),
             'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
             'paymentBlockers' => $paymentBlockers,
-            'canVerifyPayment' => $request->user()->hasPermission('payments.verify') && $order->paymentRequest?->status?->value === 'diajukan' && $paymentBlockers === [],
-            'canApprovePayment' => $request->user()->hasPermission('payments.approve') && $order->paymentRequest?->status?->value === 'diverifikasi_admin' && $paymentBlockers === [],
-            'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay') && $order->paymentRequest?->status?->value === 'disetujui' && $order->status === TrackAStatus::DokumenFisikDiterima,
+            'paymentAccount' => $paymentAccount,
+            'canVerifyPayment' => false,
+            'canApprovePayment' => false,
+            'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay') && $order->paymentRequest?->status?->value === 'diajukan' && $order->status === TrackAStatus::DokumenFisikDiterima,
             'canValidateDocuments' => $request->user()->hasPermission('documents.validate'),
             'canManageHandovers' => $request->user()->hasPermission('handovers.manage') && $order->status === TrackAStatus::DokumenFinalDiunggah,
             'canManageOrder' => $request->user()->hasPermission('orders.manage'),
             'canCancelOrder' => $request->user()->hasPermission('orders.cancel') && ! in_array($order->status, [TrackAStatus::Selesai, TrackAStatus::Dibatalkan], true),
-            'canCloseOrder' => $request->user()->hasPermission('orders.manage') && $order->status === TrackAStatus::DokumenFisikDiterima,
+            'canCloseOrder' => $canCloseOrder,
+            'stepFees' => $order->stepFees->map(fn ($fee) => [
+                'id' => $fee->id,
+                'order_collateral_id' => $fee->order_collateral_id,
+                'job_type_step_id' => $fee->job_type_step_id,
+                'step_name' => $fee->step_name,
+                'amount' => (float) $fee->amount,
+            ])->values()->all(),
+            'serviceFee' => [
+                'main' => (float) ($order->nominal ?? 0),
+                'steps' => (float) $order->stepFees->sum('amount'),
+                'total' => (float) ($order->nominal ?? 0) + (float) $order->stepFees->sum('amount'),
+            ],
             'canManageCovernote' => $request->user()->hasPermission('covernotes.manage'),
             'canApproveCovernote' => $request->user()->hasPermission('covernotes.approve')
                 && ($order->status === TrackAStatus::MenungguApprovalCovernote
@@ -308,13 +363,15 @@ class OrderController extends Controller
     {
         $this->authorizeVisibleOrder($request, $order);
         abort_unless($this->canEditDraft($order), 403);
-        $order->load('collaterals');
+        $order->load('collaterals.jobs');
 
         return Inertia::render('simontok/orders/edit', [
             'order' => $order,
             'branches' => Branch::where('is_active', true)->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
             'notaries' => Notary::availableForOrders()->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'collateralTypes' => $this->collateralTypeOptions(),
+            'paymentSchemes' => $this->paymentSchemeOptions(),
             'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
         ]);
     }
@@ -330,6 +387,7 @@ class OrderController extends Controller
         DB::transaction(function () use ($data, $request, $order) {
             $before = $order->load('collaterals')->toArray();
 
+            $this->rememberPaymentScheme($data['skema_pembayaran'] ?? null);
             $order->update(collect($data)->except('collaterals')->all());
 
             $submittedCollateralIds = collect($data['collaterals'])
@@ -344,6 +402,7 @@ class OrderController extends Controller
                 ->delete();
 
             foreach ($data['collaterals'] as $collateralData) {
+                $this->rememberCollateralType($collateralData['nama_agunan'] ?? null);
                 $jobs = $collateralData['jobs'] ?? [];
                 if ($jobs === []) {
                     continue;
@@ -352,7 +411,7 @@ class OrderController extends Controller
                 $collateral = ! empty($collateralData['id'])
                     ? $order->collaterals()->findOrFail($collateralData['id'])
                     : $order->collaterals()->create([
-                        ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'sla_days', 'sla_override_reason'])->all(),
+                        ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'deskripsi_pekerjaan', 'sla_days', 'sla_override_reason'])->all(),
                         'job_type_id' => $primaryJob['job_type_id'],
                         'doc_status' => TrackBDocStatus::MenungguVerifikasi,
                         'covernote_status' => null,
@@ -360,7 +419,7 @@ class OrderController extends Controller
                     ]);
 
                 $collateral->update([
-                    ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'sla_days', 'sla_override_reason'])->all(),
+                    ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'deskripsi_pekerjaan', 'sla_days', 'sla_override_reason'])->all(),
                     'job_type_id' => $primaryJob['job_type_id'],
                     ...$this->resolveSla($primaryJob, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
                 ]);
@@ -670,18 +729,20 @@ class OrderController extends Controller
             'collaterals.*.job_type_id' => ['nullable', 'integer', 'exists:job_types,id'],
             'collaterals.*.jobs' => ['nullable', 'array'],
             'collaterals.*.jobs.*.job_type_id' => ['required', 'integer', 'exists:job_types,id'],
+            'collaterals.*.jobs.*.deskripsi_pekerjaan' => ['nullable', 'string', 'max:2000'],
             'collaterals.*.jobs.*.sla_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'collaterals.*.jobs.*.sla_override_reason' => ['nullable', 'string', 'max:2000'],
             'collaterals.*.id' => ['nullable', 'integer', 'exists:order_collaterals,id'],
             'collaterals.*.agunan_id' => ['nullable', 'string', 'max:50'],
             'collaterals.*.nama_agunan' => ['nullable', 'string', 'max:255'],
             'collaterals.*.deskripsi_agunan' => ['nullable', 'string'],
+            'collaterals.*.deskripsi_pekerjaan' => ['nullable', 'string', 'max:2000'],
             'collaterals.*.sla_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'collaterals.*.sla_override_reason' => ['nullable', 'string', 'max:2000'],
         ], [
             'collaterals.*.jobs.*.job_type_id.required' => 'Pilih jenis pekerjaan untuk agunan ini.',
             'collaterals.*.jobs.*.job_type_id.exists' => 'Jenis pekerjaan yang dipilih tidak tersedia.',
-            'collaterals.*.nama_agunan.required' => 'Nama agunan wajib diisi.',
+            'collaterals.*.nama_agunan.required' => 'Jenis agunan wajib diisi.',
             'collaterals.*.jobs.*.sla_days.integer' => 'SLA pekerjaan harus berupa angka hari.',
             'collaterals.*.jobs.*.sla_override_reason.required' => 'Alasan perubahan SLA wajib diisi.',
         ]);
@@ -699,6 +760,7 @@ class OrderController extends Controller
             if ($jobs === [] && ($collateralData['job_type_id'] ?? null)) {
                 $jobs = [[
                     'job_type_id' => $collateralData['job_type_id'],
+                    'deskripsi_pekerjaan' => $collateralData['deskripsi_pekerjaan'] ?? null,
                     'sla_days' => $collateralData['sla_days'] ?? null,
                     'sla_override_reason' => $collateralData['sla_override_reason'] ?? null,
                 ]];
@@ -736,7 +798,7 @@ class OrderController extends Controller
             $missing[] = 'data agunan lengkap';
         }
 
-        if ($order->collaterals->contains(fn ($collateral) => $collateral->checklists->contains(fn ($checklist) => ! $checklist->is_checked || ! $checklist->order_document_id))) {
+        if ($order->collaterals->contains(fn ($collateral) => $collateral->checklists->filter(fn ($checklist) => $checklist->documentChecklist?->is_active !== false && $checklist->documentChecklist?->is_required !== false)->contains(fn ($checklist) => ! $checklist->is_checked || ! $checklist->order_document_id))) {
             $missing[] = 'dokumen checklist lengkap';
         }
 
@@ -772,7 +834,7 @@ class OrderController extends Controller
         foreach ($jobs as $jobData) {
             $collateral->jobs()->updateOrCreate(
                 ['job_type_id' => (int) $jobData['job_type_id']],
-                [...$this->resolveSla($jobData, $branchId, $startDate), 'status' => TrackBDocStatus::MenungguVerifikasi],
+                [...$this->resolveSla($jobData, $branchId, $startDate), 'deskripsi_pekerjaan' => $jobData['deskripsi_pekerjaan'] ?? null, 'status' => TrackBDocStatus::MenungguVerifikasi],
             );
         }
     }
@@ -834,6 +896,34 @@ class OrderController extends Controller
             ->map(fn ($policies) => $policies->sortBy(fn ($item) => $item->branch_id === $branchId ? 0 : 1)->first())
             ->mapWithKeys(fn ($item) => [$item->job_type_id => ['days' => $item->days, 'source' => $item->branch_id ? 'cabang' : 'global']])
             ->all();
+    }
+
+    private function collateralTypeOptions(): array
+    {
+        return CollateralType::query()->orderBy('name')->pluck('name')->all();
+    }
+
+    private function rememberCollateralType(?string $name): void
+    {
+        $name = trim((string) $name);
+
+        if ($name !== '') {
+            CollateralType::query()->firstOrCreate(['name' => $name]);
+        }
+    }
+
+    private function paymentSchemeOptions(): array
+    {
+        return PaymentSchemeOption::query()->orderBy('name')->pluck('name')->all();
+    }
+
+    private function rememberPaymentScheme(?string $name): void
+    {
+        $name = trim((string) $name);
+
+        if ($name !== '') {
+            PaymentSchemeOption::query()->firstOrCreate(['name' => $name]);
+        }
     }
 
     private function resolveSla(array $collateralData, int $branchId, ?string $startDate): array

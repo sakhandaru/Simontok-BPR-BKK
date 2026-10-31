@@ -70,6 +70,11 @@ class OrderCollateral extends Model
         return $this->hasMany(OrderProgress::class);
     }
 
+    public function stepFees(): HasMany
+    {
+        return $this->hasMany(OrderStepFee::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function documents(): HasMany
     {
         return $this->hasMany(OrderDocument::class);

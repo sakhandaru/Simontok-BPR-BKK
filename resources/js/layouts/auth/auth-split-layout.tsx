@@ -17,7 +17,7 @@ export default function AuthSplitLayout({
                     href={home()}
                     className="relative z-20 flex items-center text-lg font-medium"
                 >
-                    <img src="/logo_web.svg" alt={name || 'SIMONTOK'} className="h-auto w-40 object-contain" />
+                    <img src="/logo_web2.svg" alt={name || 'SIMONTOK'} className="h-auto w-40 object-contain" />
                 </Link>
             </div>
             <div className="w-full lg:p-8">
@@ -26,7 +26,7 @@ export default function AuthSplitLayout({
                         href={home()}
                         className="relative z-20 flex min-h-11 items-center justify-center lg:hidden"
                     >
-                        <img src="/logo_web.svg" alt={name || 'SIMONTOK'} className="h-auto w-[min(100%,15rem)] object-contain" />
+                        <img src="/logo_web2.svg" alt={name || 'SIMONTOK'} className="h-auto w-[min(100%,15rem)] object-contain" />
                     </Link>
                     <div className="flex flex-col items-start gap-2 text-left sm:items-center sm:text-center">
                         <h1 className="text-xl font-medium">{title}</h1>

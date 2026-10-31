@@ -1,7 +1,10 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 import type { Paginated } from '@/types';
 import { SimTable } from '@/components/sim-table';
 import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
+import { SimTableToolbar } from '@/components/sim-table-toolbar';
+import { SimSelect } from '@/components/sim-select';
 
 type NotaryOrder = {
     id: number;
@@ -13,7 +16,10 @@ type NotaryOrder = {
     sent_to_notary_at: string | null;
 };
 
-export default function NotaryOrdersIndex({ orders, isNotaryUser }: { orders: Paginated<NotaryOrder>; isNotaryUser: boolean }) {
+export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, filters, statusOptions }: { orders: Paginated<NotaryOrder>; isNotaryUser: boolean; isMonitor: boolean; filters: { search: string; status: string }; statusOptions: { value: string; label: string }[] }) {
+    const [search, setSearch] = useState(filters.search);
+    const [status, setStatus] = useState(filters.status);
+
     return (
         <>
             <Head title="Portal Notaris" />
@@ -23,10 +29,14 @@ export default function NotaryOrdersIndex({ orders, isNotaryUser }: { orders: Pa
                     <p className="mt-1 text-sm text-muted-foreground">Daftar pekerjaan yang sudah dikirim oleh BPR untuk ditindaklanjuti.</p>
                 </div>
 
+                <SimTableToolbar search={search} searchPlaceholder="No. order, nasabah, atau rekening" onSearchChange={setSearch} onSubmit={() => router.get('/notary/orders', { search, status }, { preserveState: true, replace: true })} onReset={() => { setSearch(''); setStatus(''); router.get('/notary/orders'); }}>
+                    <SimSelect value={status} onChange={setStatus} options={statusOptions} placeholder="Semua status" />
+                </SimTableToolbar>
+
                 <div className="rounded-lg border">
-                    {!isNotaryUser && (
+                    {isMonitor && (
                         <div className="border-b bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                            Portal ini hanya menampilkan pekerjaan untuk akun yang terhubung ke master notaris. Login dengan akun notaris demo untuk mencoba alur ini.
+                            Mode pantau pusat. Daftar ini mencakup order yang sudah dikirim ke notaris dari seluruh cabang; tindakan portal tetap dilakukan oleh akun notaris.
                         </div>
                     )}
                     <div className="hidden md:block"><SimTable raw>

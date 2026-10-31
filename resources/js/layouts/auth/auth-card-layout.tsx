@@ -25,7 +25,7 @@ export default function AuthCardLayout({
                     href={home()}
                     className="flex min-h-11 items-center justify-center self-center font-medium"
                 >
-                    <img src="/logo_web.svg" alt="SIMONTOK" className="h-auto w-[min(100%,15rem)] object-contain" />
+                    <img src="/logo_web2.svg" alt="SIMONTOK" className="h-auto w-[min(100%,15rem)] object-contain" />
                 </Link>
 
                 <div className="flex flex-col gap-6">
