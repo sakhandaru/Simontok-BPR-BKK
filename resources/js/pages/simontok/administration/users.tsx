@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Edit3, Plus, RotateCcw, Search, X } from 'lucide-react';
+import { Ban, CircleCheck, Edit3, Plus, RotateCcw, Search, X } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import { SimPageHeader } from '@/components/sim-page-header';
@@ -32,7 +32,7 @@ type Option = {
     id: number;
     name: string;
     code?: string;
-    role?: { name: string };
+    role?: { code?: string; name: string };
 };
 type User = {
     id: number;
@@ -46,15 +46,32 @@ type User = {
 };
 type AccountType = 'sso' | 'local';
 
+const BRANCH_ROLE_CODES = ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang'];
+const GLOBAL_ROLE_CODES = ['direksi_pusat', 'kadiv_ops_pusat', 'admin_legal_pusat', 'auditor', 'it_admin'];
+
+function branchRequiredRole(roleCode?: string) {
+    return BRANCH_ROLE_CODES.includes(roleCode ?? '');
+}
+
+function isGlobalRole(roleCode?: string) {
+    return GLOBAL_ROLE_CODES.includes(roleCode ?? '');
+}
+
 export default function Users({
     users,
     branches,
     positions,
+    branchLocked,
+    actorBranch,
+    actorUserId,
     filters,
 }: {
     users: { data: User[]; links: SimPaginationLink[] };
     branches: Option[];
     positions: Option[];
+    branchLocked: boolean;
+    actorBranch: Option | null;
+    actorUserId: number;
     filters: { search: string; type: string; branch_id: string; position_id: string; status: string };
 }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({
@@ -70,6 +87,8 @@ export default function Users({
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const [accountType, setAccountType] = useState<AccountType>('sso');
+    const [statusProcessingId, setStatusProcessingId] = useState<number | null>(null);
+    const [pendingStatusUser, setPendingStatusUser] = useState<User | null>(null);
     const filterInitialized = useRef(false);
     const skipNextFilterRequest = useRef(false);
     const { sortedRows, sort, toggleSort } = useSimTableSort(
@@ -79,13 +98,22 @@ export default function Users({
     const selectedPosition = positions.find(
         (position) => String(position.id) === data.job_position_id,
     );
-    const selectedRole = selectedPosition?.role?.name ?? '';
-    const branchRequired = [
-        'Pimpinan Cabang',
-        'Kadiv Operasional Cabang',
-        'Admin Legal',
-    ].includes(selectedRole);
-    const branchHidden = selectedRole === 'IT Administrator';
+    const availablePositions = positions.filter(
+        (position) => accountType === 'sso' || position.role?.code !== 'it_admin',
+    );
+    const branchRequired = branchRequiredRole(selectedPosition?.role?.code);
+    const branchHidden = !selectedPosition || isGlobalRole(selectedPosition.role?.code);
+    const changePosition = (positionId: string) => {
+        const nextPosition = positions.find((position) => String(position.id) === positionId);
+        const nextRoleCode = nextPosition?.role?.code;
+        setData('job_position_id', positionId);
+
+        if (branchLocked && branchRequiredRole(nextRoleCode)) {
+            setData('branch_id', String(actorBranch?.id ?? ''));
+        } else if (!nextRoleCode || isGlobalRole(nextRoleCode)) {
+            setData('branch_id', '');
+        }
+    };
     const submit = (event: FormEvent) => {
         event.preventDefault();
         const options = {
@@ -127,9 +155,25 @@ export default function Users({
     };
     const addUser = () => {
         reset();
+        if (branchLocked && actorBranch) setData('branch_id', String(actorBranch.id));
         setEditingId(null);
         setAccountType('sso');
         setFormOpen(true);
+    };
+    const changeUserStatus = (user: User) => {
+        setPendingStatusUser(user);
+    };
+    const confirmUserStatusChange = () => {
+        if (!pendingStatusUser) return;
+        const user = pendingStatusUser;
+        const nextActive = !user.is_active;
+
+        setStatusProcessingId(user.id);
+        setPendingStatusUser(null);
+        router.patch(`/users/${user.id}/status`, { is_active: nextActive }, {
+            preserveScroll: true,
+            onFinish: () => setStatusProcessingId(null),
+        });
     };
     const resetFilters = () => {
         const emptyFilters = { search: '', type: '', branch_id: '', position_id: '', status: '' };
@@ -253,15 +297,28 @@ export default function Users({
                                                 Kelola di Notaris
                                             </span>
                                         ) : (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => editUser(user)}
-                                            >
-                                                <Edit3 className="size-4" />
-                                                Edit
-                                            </Button>
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => editUser(user)}
+                                                >
+                                                    <Edit3 className="size-4" />
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={statusProcessingId === user.id || (user.id === actorUserId && user.is_active)}
+                                                    title={user.id === actorUserId && user.is_active ? 'Akun yang sedang digunakan tidak dapat dinonaktifkan.' : undefined}
+                                                    onClick={() => changeUserStatus(user)}
+                                                >
+                                                    {user.is_active ? <Ban className="size-4" /> : <CircleCheck className="size-4" />}
+                                                    {user.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                                                </Button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>
@@ -334,16 +391,28 @@ export default function Users({
                                     Kelola akun dari menu Notaris
                                 </div>
                             ) : (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => editUser(user)}
-                                >
-                                    <Edit3 className="size-4" />
-                                    Edit pengguna
-                                </Button>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => editUser(user)}
+                                    >
+                                        <Edit3 className="size-4" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={statusProcessingId === user.id || (user.id === actorUserId && user.is_active)}
+                                        title={user.id === actorUserId && user.is_active ? 'Akun yang sedang digunakan tidak dapat dinonaktifkan.' : undefined}
+                                        onClick={() => changeUserStatus(user)}
+                                    >
+                                        {user.is_active ? <Ban className="size-4" /> : <CircleCheck className="size-4" />}
+                                        {user.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                                    </Button>
+                                </div>
                             )}
                         </article>
                     ))}
@@ -383,6 +452,10 @@ export default function Users({
                                     onClick={() => {
                                         setAccountType('local');
                                         setData('sso_employee_id', '');
+                                        if (selectedPosition?.role?.code === 'it_admin') {
+                                            setData('job_position_id', '');
+                                            setData('branch_id', '');
+                                        }
                                     }}
                                 >
                                     Akun lokal
@@ -391,7 +464,7 @@ export default function Users({
                             <p className="text-sm text-muted-foreground">
                                 {accountType === 'sso'
                                     ? 'Pegawai login dengan ID dan password SSO. Role, cabang, dan status akses tetap diatur di SIMONTOK.'
-                                    : 'Akun lokal memakai username dan password yang dikelola SIMONTOK.'}
+                                    : 'Akun lokal memakai username dan password yang dikelola SIMONTOK. Akun akses darurat IT dibuat terpisah oleh petugas IT.'}
                             </p>
                             {accountType === 'sso' ? (
                                 <>
@@ -455,23 +528,31 @@ export default function Users({
                                 </>
                             )}
                             <SelectField
-                                label="Posisi"
+                                label="Posisi (wajib)"
                                 value={data.job_position_id}
-                                onChange={(v) => {
-                                    setData('job_position_id', v);
-                                }}
-                                options={positions}
+                                onChange={changePosition}
+                                options={availablePositions}
                                 error={errors.job_position_id}
                             />
-                            {!branchHidden && (
+                            {!branchHidden && branchRequired && branchLocked && actorBranch ? (
+                                <Field label="Cabang (wajib)" error={errors.branch_id}>
+                                    <SimSelect
+                                        value={String(actorBranch.id)}
+                                        onChange={() => undefined}
+                                        options={[{ value: String(actorBranch.id), label: `${actorBranch.code ? `${actorBranch.code} · ` : ''}${actorBranch.name}` }]}
+                                        disabled
+                                    />
+                                    <p className="text-xs text-muted-foreground">Cabang mengikuti akun Anda.</p>
+                                </Field>
+                            ) : !branchHidden && branchRequired ? (
                                 <SelectField
-                                    label={`Cabang${branchRequired ? ' (wajib)' : ' (opsional)'}`}
+                                    label="Cabang (wajib)"
                                     value={data.branch_id}
                                     onChange={(v) => setData('branch_id', v)}
                                     options={branches}
                                     error={errors.branch_id}
                                 />
-                            )}
+                            ) : null}
                             <DialogFooter>
                                 <Button
                                     type="button"
@@ -487,6 +568,37 @@ export default function Users({
                                 </Button>
                             </DialogFooter>
                         </form>
+                    </DialogContent>
+                </Dialog>
+                <Dialog
+                    open={pendingStatusUser !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setPendingStatusUser(null);
+                    }}
+                >
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {pendingStatusUser?.is_active ? 'Nonaktifkan akun?' : 'Aktifkan kembali akun?'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {pendingStatusUser?.is_active
+                                    ? `Akun ${pendingStatusUser.name} tidak dapat digunakan untuk login setelah dinonaktifkan. Riwayat order dan audit tetap tersimpan.`
+                                    : `Akun ${pendingStatusUser?.name} akan dapat digunakan kembali setelah diaktifkan.`}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setPendingStatusUser(null)}>
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={pendingStatusUser?.is_active ? 'destructive' : 'default'}
+                                onClick={confirmUserStatusChange}
+                            >
+                                {pendingStatusUser?.is_active ? 'Nonaktifkan akun' : 'Aktifkan akun'}
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>

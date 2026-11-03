@@ -15,6 +15,7 @@ import ManageTwoFactor from '@/components/manage-two-factor';
 // oxfmt-ignore
 type Props = {
     passwordRules: string;
+    isEmergencyAccount: boolean;
 } & ManagePasskeysProps &
     ManageTwoFactorProps;
 
@@ -35,6 +36,11 @@ export default function Security(props: Props) {
                     description="Ensure your account is using a long, random password to stay secure"
                 />
 
+                {props.isEmergencyAccount ? (
+                    <p className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-muted-foreground">
+                        Kata sandi akun akses darurat hanya dapat dirotasi dari Pengaturan Sistem agar setiap perubahan tercatat.
+                    </p>
+                ) : (
                 <Form
                     {...SecurityController.update.form()}
                     options={{
@@ -122,6 +128,7 @@ export default function Security(props: Props) {
                         </>
                     )}
                 </Form>
+                )}
             </div>
 
             <ManageTwoFactor

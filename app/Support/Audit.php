@@ -43,7 +43,7 @@ class Audit
             'actor_type' => $user ? 'user' : 'guest',
             'actor_id' => $user?->getKey(),
             'actor_name' => $user?->getAttribute('name'),
-            'role_code' => method_exists($user, 'roleCode') ? $user->roleCode() : null,
+            'role_code' => $user && method_exists($user, 'roleCode') ? $user->roleCode() : null,
             'module' => 'security',
             'entity_type' => $user ? class_basename($user) : null,
             'entity_id' => $user?->getKey(),

@@ -30,6 +30,8 @@ class UserController extends Controller
         $user = $request->user();
         $users = User::with(['jobPosition.role', 'branch', 'notary'])
             ->when($user->isBranchScopedUser(), fn ($query) => $query->where('branch_id', $user->branchScopeId())->whereNull('notary_id'))
+            ->when(filled(config('services.sso.emergency_login')), fn ($query) => $query->where('email', '!=', config('services.sso.emergency_login')))
+            ->where(fn ($query) => $query->whereNotNull('sso_employee_id')->orWhereDoesntHave('jobPosition.role', fn ($role) => $role->where('code', 'it_admin')))
             ->when(($filters['type'] ?? null) === 'internal', fn ($query) => $query->whereNull('notary_id'))
             ->when(($filters['type'] ?? null) === 'notary', fn ($query) => $query->whereNotNull('notary_id'))
             ->when($filters['branch_id'] ?? null, fn ($query, $branchId) => $query->where('branch_id', $branchId))
@@ -47,7 +49,10 @@ class UserController extends Controller
 
         return Inertia::render('simontok/administration/users', [
             'users' => $users,
-            'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'actorUserId' => $user->id,
+            'branches' => Branch::query()->where('is_active', true)->when($user->branchScopeId(), fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
+            'branchLocked' => $user->isBranchScopedUser(),
+            'actorBranch' => $user->isBranchScopedUser() ? $user->branch?->only(['id', 'code', 'name']) : null,
             'positions' => JobPosition::with('role:id,code,name')
                 ->whereHas('role', fn ($query) => $query->where('code', '!=', 'notaris')
                     ->when($user->isBranchScopedUser(), fn ($roleQuery) => $roleQuery->whereIn('code', ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang'])))
@@ -70,10 +75,12 @@ class UserController extends Controller
             'sso_employee_id' => ['nullable', 'string', 'max:50', 'unique:users,sso_employee_id'],
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
-            'job_position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
+            'job_position_id' => ['required', 'integer', 'exists:job_positions,id'],
             'notary_id' => ['prohibited'],
             'is_active' => ['boolean'],
         ]);
+
+        abort_if(filled(config('services.sso.emergency_login')) && ($data['email'] ?? null) === config('services.sso.emergency_login'), 422, 'Identitas akses darurat dikelola melalui Pengaturan Sistem.');
 
         $data = $this->restrictBranchScope($request, $data);
 
@@ -96,6 +103,7 @@ class UserController extends Controller
 
     public function update(Request $request, User $user): RedirectResponse
     {
+        abort_if(filled(config('services.sso.emergency_login')) && $user->email === config('services.sso.emergency_login'), 403, 'Akun akses darurat dikelola melalui Pengaturan Sistem.');
         $this->authorizeManagedUser($request, $user);
         $data = $request->validate([
             'name' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id'))), 'nullable', 'string', 'max:255'],
@@ -103,16 +111,19 @@ class UserController extends Controller
             'sso_employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users', 'sso_employee_id')->ignore($user->id)],
             'password' => [Rule::requiredIf(fn () => blank($request->input('sso_employee_id')) && ! $user->sso_employee_id), 'nullable', 'string', 'min:8'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
-            'job_position_id' => ['nullable', 'integer', 'exists:job_positions,id'],
+            'job_position_id' => ['required', 'integer', 'exists:job_positions,id'],
             'notary_id' => ['prohibited'],
             'is_active' => ['boolean'],
         ]);
+
+        abort_if(filled(config('services.sso.emergency_login')) && ($data['email'] ?? null) === config('services.sso.emergency_login'), 422, 'Identitas akses darurat tidak dapat digunakan oleh akun biasa.');
 
         $data = $this->restrictBranchScope($request, $data);
 
         $assignment = array_merge([
             'branch_id' => $user->branch_id,
             'job_position_id' => $user->job_position_id,
+            'sso_employee_id' => $user->sso_employee_id,
             'is_active' => $user->is_active,
         ], $data);
         $this->validateOrganizationalAssignment($assignment);
@@ -132,6 +143,45 @@ class UserController extends Controller
         ]);
 
         return back()->with('success', 'Pengguna diperbarui.');
+    }
+
+    public function updateStatus(Request $request, User $user): RedirectResponse
+    {
+        $this->authorizeManagedUser($request, $user);
+        abort_if($user->notary_id !== null, 403, 'Akun portal notaris dikelola dari menu Notaris.');
+        abort_if(filled(config('services.sso.emergency_login')) && $user->email === config('services.sso.emergency_login'), 403, 'Akun akses darurat dikelola melalui Pengaturan Sistem.');
+
+        $data = $request->validate([
+            'is_active' => ['required', 'boolean'],
+        ]);
+        $isActive = (bool) $data['is_active'];
+
+        if (! $isActive && $request->user()->is($user)) {
+            throw ValidationException::withMessages([
+                'is_active' => 'Akun yang sedang digunakan tidak dapat dinonaktifkan.',
+            ]);
+        }
+
+        if ($isActive) {
+            $this->validateUniqueBranchLeadership([
+                'branch_id' => $user->branch_id,
+                'job_position_id' => $user->job_position_id,
+                'is_active' => true,
+            ], $user->id);
+        }
+
+        $wasActive = (bool) $user->is_active;
+        $user->update(['is_active' => $isActive]);
+        Audit::record(
+            $request,
+            'users',
+            $user,
+            $isActive ? 'activate_user' : 'deactivate_user',
+            $isActive ? 'Pengguna diaktifkan.' : 'Pengguna dinonaktifkan.',
+            ['before' => ['is_active' => $wasActive], 'after' => ['is_active' => $isActive]],
+        );
+
+        return back()->with('success', $isActive ? 'Pengguna diaktifkan.' : 'Pengguna dinonaktifkan.');
     }
 
     private function validateOrganizationalAssignment(array $data): void
@@ -158,6 +208,12 @@ class UserController extends Controller
         if ($roleCode === 'notaris') {
             throw ValidationException::withMessages([
                 'job_position_id' => 'Akun portal notaris dibuat dari menu Notaris.',
+            ]);
+        }
+
+        if ($roleCode === 'it_admin' && blank($data['sso_employee_id'] ?? null)) {
+            throw ValidationException::withMessages([
+                'job_position_id' => 'Akun IT lokal hanya dapat dibuat atau dipulihkan melalui prosedur akses darurat IT.',
             ]);
         }
     }

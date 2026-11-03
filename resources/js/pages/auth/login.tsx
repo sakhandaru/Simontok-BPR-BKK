@@ -51,6 +51,9 @@ export default function Login({
                                     placeholder="102-119 atau admin"
                                     defaultValue={demoCredentials?.username}
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    Pegawai internal menggunakan SSO; akun lokal menggunakan kata sandi SIMONTOK.
+                                </p>
                                 <InputError
                                     message={loginError(errors.email)}
                                 />

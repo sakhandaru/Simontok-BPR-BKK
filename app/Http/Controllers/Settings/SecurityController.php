@@ -10,6 +10,7 @@ use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 use Laravel\Fortify\Features;
+use App\Models\User;
 
 class SecurityController extends Controller
 {
@@ -18,10 +19,12 @@ class SecurityController extends Controller
      */
     public function edit(TwoFactorAuthenticationRequest $request): Response
     {
+        $isEmergencyAccount = $this->isEmergencyAccount($request->user());
         $props = [
+            'isEmergencyAccount' => $isEmergencyAccount,
             'canManageTwoFactor' => Features::canManageTwoFactorAuthentication(),
-            'canManagePasskeys' => Features::canManagePasskeys(),
-            'passkeys' => Features::canManagePasskeys()
+            'canManagePasskeys' => Features::canManagePasskeys() && ! $isEmergencyAccount,
+            'passkeys' => Features::canManagePasskeys() && ! $isEmergencyAccount
                 ? $request->user()
                     ->passkeys()
                     ->select(['id', 'name', 'credential', 'created_at', 'last_used_at'])
@@ -55,6 +58,8 @@ class SecurityController extends Controller
      */
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
+        abort_if($this->isEmergencyAccount($request->user()), 403, 'Kata sandi akses darurat hanya dapat dirotasi melalui Pengaturan Sistem.');
+
         $request->user()->update([
             'password' => $request->password,
         ]);
@@ -62,5 +67,11 @@ class SecurityController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Password updated.')]);
 
         return back();
+    }
+
+    private function isEmergencyAccount(User $user): bool
+    {
+        return filled(config('services.sso.emergency_login'))
+            && $user->email === config('services.sso.emergency_login');
     }
 }

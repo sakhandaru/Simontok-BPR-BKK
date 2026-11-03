@@ -84,6 +84,7 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permission:system.settings')->group(function () {
         Route::get('system-settings', [SystemSettingController::class, 'index'])->name('system-settings.index');
         Route::put('system-settings', [SystemSettingController::class, 'update'])->name('system-settings.update');
+        Route::put('system-settings/emergency-password', [SystemSettingController::class, 'rotateEmergencyPassword'])->name('system-settings.emergency-password');
     });
     Route::middleware('permission:audit.view')->get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
     Route::get('notifications/poll', [NotificationController::class, 'poll'])->name('notifications.poll');
@@ -146,7 +147,10 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permission:job_types.manage')->group(function () {
         Route::resource('job-types', JobTypeController::class)->only(['index', 'store', 'update']);
     });
-    Route::middleware('permission:users.manage')->group(function () { Route::resource('users', UserController::class)->only(['index', 'store', 'update']); });
+    Route::middleware('permission:users.manage')->group(function () {
+        Route::resource('users', UserController::class)->only(['index', 'store', 'update']);
+        Route::patch('users/{user}/status', [UserController::class, 'updateStatus'])->name('users.status');
+    });
     Route::middleware('permission:roles.manage')->group(function () { Route::resource('roles', RoleController::class)->only(['index', 'store', 'update']); });
 });
 

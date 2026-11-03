@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\User;
 use App\Services\SsoAuthenticationService;
+use App\Support\Audit;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -14,6 +16,7 @@ use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
+use Laravel\Passkeys\Passkeys;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -47,6 +50,17 @@ class FortifyServiceProvider extends ServiceProvider
 
     private function configureAuthentication(): void
     {
+        Passkeys::authorizeLoginUsing(function (Request $request, User $user): bool {
+            $isEmergencyAccount = filled(config('services.sso.emergency_login'))
+                && $user->email === config('services.sso.emergency_login');
+
+            if ($isEmergencyAccount) {
+                Audit::security($request, 'emergency_passkey_login_blocked', 'Login akun darurat melalui passkey ditolak; gunakan jalur akses darurat.', $user);
+            }
+
+            return ! $isEmergencyAccount;
+        });
+
         Fortify::authenticateUsing(function (Request $request) {
             return app(SsoAuthenticationService::class)->authenticate(
                 (string) $request->input('email'),

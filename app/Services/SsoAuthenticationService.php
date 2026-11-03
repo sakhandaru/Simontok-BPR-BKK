@@ -12,6 +12,10 @@ class SsoAuthenticationService
 {
     public function authenticate(string $identifier, string $password): ?User
     {
+        if ($this->isEmergencyIdentifier($identifier)) {
+            return $this->authenticateEmergency($identifier, $password);
+        }
+
         if (! config('services.sso.enabled')) {
             return $this->authenticateLocally($identifier, $password);
         }
@@ -85,6 +89,26 @@ class SsoAuthenticationService
         return $this->syncUser($profile->json('data', []));
     }
 
+    public function authenticateEmergency(string $identifier, string $password): ?User
+    {
+        if (! $this->isEmergencyIdentifier($identifier)) {
+            return null;
+        }
+
+        $user = User::query()->where('email', config('services.sso.emergency_login'))->first();
+
+        if (! $user
+            || $user->sso_employee_id
+            || $user->notary_id
+            || $user->roleCode() !== 'it_admin'
+            || ! $user->isOperationallyActive()
+            || ! Hash::check($password, $user->password)) {
+            return null;
+        }
+
+        return $user;
+    }
+
     private function authenticateLocally(string $identifier, string $password): ?User
     {
         $user = User::query()->where('email', $identifier)->first();
@@ -104,8 +128,14 @@ class SsoAuthenticationService
             return true;
         }
 
-        return $user->roleCode() === 'it_admin'
-            && $user->email === config('services.sso.emergency_login');
+        return false;
+    }
+
+    private function isEmergencyIdentifier(string $identifier): bool
+    {
+        $emergencyLogin = config('services.sso.emergency_login');
+
+        return is_string($emergencyLogin) && $emergencyLogin !== '' && hash_equals($emergencyLogin, $identifier);
     }
 
     /** @param array<string, mixed> $profile */
@@ -155,7 +185,7 @@ class SsoAuthenticationService
             ]);
         }
 
-        if ($user->roleCode() !== 'it_admin' && ! $user->branch_id) {
+        if (in_array($user->roleCode(), ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang'], true) && ! $user->branch_id) {
             throw ValidationException::withMessages([
                 'email' => 'Cabang akun SSO belum diatur di SIMONTOK. Hubungi administrator.',
             ]);

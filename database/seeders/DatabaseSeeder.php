@@ -10,10 +10,8 @@ use App\Models\Notary;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\SlaPolicy;
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -24,13 +22,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $seedPassword = env('SEEDER_DEFAULT_PASSWORD', app()->isProduction() ? null : 'password');
-
-        if (app()->isProduction() && blank($seedPassword)) {
-            throw new \RuntimeException('SEEDER_DEFAULT_PASSWORD wajib diisi saat menjalankan seeder di production.');
-        }
-
-        $seedPassword ??= Str::random(32);
         $permissions = collect([
             ['code' => 'dashboard.view', 'name' => 'Lihat dashboard', 'module' => 'dashboard'],
             ['code' => 'orders.view', 'name' => 'Lihat order', 'module' => 'orders'],
@@ -229,37 +220,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Notaris', 'role_id' => $roles['notaris']->id]
         );
 
-        collect([
-            ['login' => 'admin', 'name' => 'Administrator', 'position' => 'IT_ADMIN'],
-            ['login' => 'direksi', 'name' => 'Direksi Pusat', 'position' => 'DIREKSI_PUSAT'],
-            ['login' => 'kadiv_pusat', 'name' => 'Kadiv Operasional Pusat', 'position' => 'KADIV_OPS_PUSAT'],
-            ['login' => 'legal', 'name' => 'Admin Legal Pusat', 'position' => 'LEGAL_ADMIN_PUSAT'],
-            ['login' => 'legal_cabang', 'name' => 'Admin Legal Cabang', 'position' => 'LEGAL_ADMIN_CABANG'],
-            ['login' => 'pimpinan', 'name' => 'Pimpinan Cabang', 'position' => 'PIMPINAN_CABANG'],
-            ['login' => 'kadiv', 'name' => 'Kabid Operasional Cabang', 'position' => 'KABID_OPS_CABANG'],
-            ['login' => 'it', 'name' => 'IT Admin', 'position' => 'IT_ADMIN'],
-            ['login' => 'auditor', 'name' => 'Auditor', 'position' => 'AUDITOR'],
-        ])->each(fn (array $user) => User::updateOrCreate([
-            'email' => $user['login'],
-        ], [
-            'name' => $user['name'],
-            'password' => $seedPassword,
-            'branch_id' => in_array($user['position'], ['PIMPINAN_CABANG', 'KABID_OPS_CABANG', 'LEGAL_ADMIN_CABANG'], true) ? $branch->id : null,
-            'job_position_id' => JobPosition::where('code', $user['position'])->value('id'),
-            'notary_id' => null,
-            'is_active' => true,
-        ]));
-
-        User::updateOrCreate([
-            'email' => 'notaris',
-        ], [
-            'name' => 'Notaris',
-            'password' => $seedPassword,
-            'branch_id' => null,
-            'job_position_id' => JobPosition::where('code', 'NOTARIS')->value('id'),
-            'notary_id' => $notary->id,
-            'is_active' => true,
-        ]);
+        $this->call(UserSeeder::class);
 
         // Data demo hanya dibuat jika diaktifkan secara eksplisit. Ini aman untuk
         // staging dengan APP_ENV=production tanpa mengisi demo secara tidak sengaja.
