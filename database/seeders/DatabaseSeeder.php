@@ -221,6 +221,7 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call(UserSeeder::class);
+        $this->call(EmergencyAccountSeeder::class);
 
         // Data demo hanya dibuat jika diaktifkan secara eksplisit. Ini aman untuk
         // staging dengan APP_ENV=production tanpa mengisi demo secara tidak sengaja.
