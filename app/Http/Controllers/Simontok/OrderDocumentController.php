@@ -7,21 +7,25 @@ use App\Enums\TrackAStatus;
 use App\Enums\TrackBDocStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\OrderChecklist;
 use App\Models\OrderCollateral;
 use App\Models\OrderDocument;
 use App\Support\Audit;
 use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
+use App\Support\OrderFinalDocumentState;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderDocumentController extends Controller
 {
+    public function __construct(private readonly OrderFinalDocumentState $finalDocuments) {}
+
     public function update(Request $request, Order $order, OrderDocument $document): RedirectResponse
     {
         $this->authorizeDocumentAccess($request, $order);
@@ -44,6 +48,7 @@ class OrderDocumentController extends Controller
             }
             Audit::record($request, 'documents', $order, 'update', 'Dokumen diperbarui.', ['document_id' => $document->id]);
         });
+
         return back()->with('success', 'Dokumen diperbarui.');
     }
 
@@ -53,11 +58,12 @@ class OrderDocumentController extends Controller
         abort_unless(! $request->user()?->notary_id && $document->order_id === $order->id, 403);
         abort_unless(in_array($order->status, [TrackAStatus::Draft, TrackAStatus::Diajukan, TrackAStatus::PerluPerbaikanOrder], true), 422, 'Dokumen terkunci setelah order masuk tahap berikutnya.');
         DB::transaction(function () use ($request, $order, $document) {
-            \App\Models\OrderChecklist::where('order_document_id', $document->id)->update(['order_document_id' => null, 'is_checked' => false, 'checked_by' => null, 'checked_at' => null]);
+            OrderChecklist::where('order_document_id', $document->id)->update(['order_document_id' => null, 'is_checked' => false, 'checked_by' => null, 'checked_at' => null]);
             Storage::disk('local')->delete($document->stored_path);
             $document->delete();
             Audit::record($request, 'documents', $order, 'delete', 'Dokumen dihapus.', ['document_id' => $document->id]);
         });
+
         return back()->with('success', 'Dokumen dihapus.');
     }
 
@@ -87,7 +93,7 @@ class OrderDocumentController extends Controller
                 $isChecklist = ! empty($item['checklist_id']);
                 $type = $isChecklist ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
                 $checklist = $isChecklist
-                    ? \App\Models\OrderChecklist::with('documentChecklist')->whereKey($item['checklist_id'])->where('order_id', $order->id)->firstOrFail()
+                    ? OrderChecklist::with('documentChecklist')->whereKey($item['checklist_id'])->where('order_id', $order->id)->firstOrFail()
                     : null;
                 if (! $isChecklist) {
                     validator($item, ['display_name' => ['required', 'string', 'max:255']], ['display_name.required' => 'Nama dokumen pendukung wajib diisi.'])->validate();
@@ -178,7 +184,7 @@ class OrderDocumentController extends Controller
             ]);
 
             if (! empty($data['order_checklist_id'])) {
-                $checklist = \App\Models\OrderChecklist::whereKey($data['order_checklist_id'])->where('order_id', $order->id)->firstOrFail();
+                $checklist = OrderChecklist::whereKey($data['order_checklist_id'])->where('order_id', $order->id)->firstOrFail();
                 $checklist->update(['order_document_id' => $document->id, 'is_checked' => true, 'checked_by' => $request->user()->id, 'checked_at' => now()]);
             }
 
@@ -210,15 +216,8 @@ class OrderDocumentController extends Controller
                 'validated_at' => now(),
             ]);
 
-            if ($document->order_collateral_id) {
-                OrderCollateral::whereKey($document->order_collateral_id)->update([
-                    'doc_status' => TrackBDocStatus::FinalDivalidasi,
-                ]);
-            }
-
-            $allFinal = $order->collaterals()
-                ->where('doc_status', '!=', TrackBDocStatus::FinalDivalidasi->value)
-                ->doesntExist();
+            $this->finalDocuments->sync($order->fresh());
+            $allFinal = $this->finalDocuments->allValidated($order->fresh());
 
             if ($allFinal) {
                 $before = $order->status;
@@ -264,23 +263,8 @@ class OrderDocumentController extends Controller
                 'validated_at' => now(),
             ]));
 
-            foreach ($documents->pluck('order_collateral_id')->filter()->unique() as $collateralId) {
-                $collateralHasPendingFinal = $order->documents()
-                    ->where('order_collateral_id', $collateralId)
-                    ->where('document_type', OrderDocumentType::Final)
-                    ->whereNull('validated_at')
-                    ->exists();
-
-                if (! $collateralHasPendingFinal) {
-                    OrderCollateral::whereKey($collateralId)->update([
-                        'doc_status' => TrackBDocStatus::FinalDivalidasi,
-                    ]);
-                }
-            }
-
-            $allFinal = $order->collaterals()
-                ->where('doc_status', '!=', TrackBDocStatus::FinalDivalidasi->value)
-                ->doesntExist();
+            $this->finalDocuments->sync($order->fresh());
+            $allFinal = $this->finalDocuments->allValidated($order->fresh());
 
             if ($allFinal) {
                 $before = $order->status;
@@ -309,11 +293,12 @@ class OrderDocumentController extends Controller
         abort_unless($request->user()?->notary_id, 403);
         abort_unless($order->status === TrackAStatus::DraftDiunggah, 422, 'Dokumen final belum siap diajukan.');
         $order->loadMissing('collaterals');
-        abort_unless($order->collaterals->every(fn ($collateral) => $collateral->doc_status === TrackBDocStatus::FinalDiunggah), 422, 'Seluruh dokumen final wajib diunggah sebelum diajukan.');
+        abort_unless($this->finalDocuments->allUploaded($order), 422, 'Seluruh pekerjaan wajib memiliki dokumen final sebelum diajukan.');
         $order->update(['status' => TrackAStatus::MenungguValidasiBpr, 'final_submitted_at' => now()]);
         $order->statusHistories()->create(['track' => 'B', 'from_status' => TrackAStatus::DraftDiunggah->value, 'to_status' => TrackAStatus::MenungguValidasiBpr->value, 'actor_type' => 'notary', 'actor_id' => $request->user()->id, 'reason' => 'Paket dokumen final diajukan untuk approval Admin Legal.']);
         Audit::record($request, 'documents', $order, 'submit_final', 'Paket dokumen final diajukan.', []);
         InAppNotification::forOrderMaker($order, 'Dokumen final menunggu approval', "Dokumen final order {$order->order_no} menunggu approval Admin Legal.");
+
         return back()->with('success', 'Dokumen final diajukan untuk approval.');
     }
 
@@ -430,6 +415,7 @@ class OrderDocumentController extends Controller
 
         if ($user?->notary_id) {
             abort_unless($order->notary_id === $user->notary_id && $order->sent_to_notary_at !== null, 403);
+
             return;
         }
 
@@ -438,13 +424,15 @@ class OrderDocumentController extends Controller
 
     private function allProgressComplete(Order $order): bool
     {
-        $order->loadMissing('collaterals.jobType.steps', 'collaterals.progress');
+        $order->loadMissing('collaterals.jobs.jobType.steps', 'collaterals.jobs.progress');
 
         return $order->collaterals->every(function ($collateral) {
-            $required = $collateral->jobType->steps->where('is_active', true)->count();
-            $completed = $collateral->progress->whereNotNull('completed_at')->pluck('status')->unique()->count();
+            return $collateral->jobs->isNotEmpty() && $collateral->jobs->every(function ($job) {
+                $required = $job->jobType?->steps->where('is_active', true)->count() ?? 0;
+                $completed = $job->progress->whereNotNull('completed_at')->pluck('status')->unique()->count();
 
-            return $required > 0 && $completed >= $required;
+                return $required > 0 && $completed >= $required;
+            });
         });
     }
 }

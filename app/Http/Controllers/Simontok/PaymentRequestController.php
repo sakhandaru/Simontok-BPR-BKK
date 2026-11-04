@@ -185,7 +185,7 @@ class PaymentRequestController extends Controller
                 'catatan' => $data['catatan'] ?? null,
             ]);
             if ($path) {
-                DocumentArchiveService::archiveFile($request, \App\Models\Order::class, $order->id, 'payment_proof', 'payment_'.$payment->id, 'bukti_pembayaran', 'Bukti pembayaran', basename($path), $path, $request->file('bukti')->getSize(), [
+                DocumentArchiveService::archiveFile($request, Order::class, $order->id, 'payment_proof', 'payment_'.$payment->id, 'bukti_pembayaran', 'Bukti pembayaran', basename($path), $path, $request->file('bukti')->getSize(), [
                     'order_id' => $order->id,
                     'payment_request_id' => $paymentRequest->id,
                     'payment_id' => $payment->id,
@@ -266,6 +266,7 @@ class PaymentRequestController extends Controller
 
         if ($user?->notary_id) {
             abort_unless($order->notary_id === $user->notary_id, 403);
+
             return;
         }
 

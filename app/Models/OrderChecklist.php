@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderChecklist extends Model
 {
     protected $fillable = [
-        'order_id', 'order_collateral_id', 'document_checklist_id',
+        'order_id', 'order_collateral_id', 'order_collateral_job_id', 'document_checklist_id',
         'order_document_id',
         'is_checked', 'checked_by', 'checked_at', 'catatan',
     ];
@@ -29,5 +29,10 @@ class OrderChecklist extends Model
     public function orderDocument(): BelongsTo
     {
         return $this->belongsTo(OrderDocument::class);
+    }
+
+    public function job(): BelongsTo
+    {
+        return $this->belongsTo(OrderCollateralJob::class, 'order_collateral_job_id');
     }
 }

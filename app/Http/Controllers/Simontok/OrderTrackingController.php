@@ -6,8 +6,8 @@ use App\Enums\TrackAStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use Carbon\CarbonInterface;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class OrderTrackingController extends Controller
 {
@@ -19,6 +19,7 @@ class OrderTrackingController extends Controller
     public function show(Request $request, Order $order): RedirectResponse
     {
         abort_unless($order->isVisibleTo($request->user()), 404);
+
         return redirect()->route('orders.show', $order);
     }
 

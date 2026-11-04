@@ -61,21 +61,18 @@ export default function NotaryOrdersShow({
     const [rejectOpen, setRejectOpen] = useState(false);
     const [evidencePreview, setEvidencePreview] = useState<any | null>(null);
     const [finalDocumentsPreview, setFinalDocumentsPreview] = useState<any[] | null>(null);
-    const progressOptions = useMemo(() => {
-        return Object.fromEntries(
-            order.collaterals.map((collateral: any) => [
-                collateral.id,
-                (stepFees.filter((fee: any) => fee.order_collateral_id === collateral.id).length
-                    ? stepFees.filter((fee: any) => fee.order_collateral_id === collateral.id).map((fee: any) => fee.step_name)
-                    : collateral.job_type?.steps?.map((step: any) => step.name)) ?? [],
-            ]),
-        );
-    }, [order.collaterals, stepFees]);
+    const progressOptions = useMemo(() => Object.fromEntries(
+        order.collaterals.flatMap((collateral: any) => (collateral.jobs ?? []).map((job: any) => [
+            job.id,
+            job.job_type?.steps?.map((step: any) => step.name) ?? [],
+        ])),
+    ), [order.collaterals]);
 
     const revision = useForm({ order_collateral_id: '', alasan: '' });
     const reject = useForm({ reason: '' });
     const progress = useForm({
         order_collateral_id: String(order.collaterals[0]?.id ?? ''),
+        order_collateral_job_id: String(order.collaterals[0]?.jobs?.[0]?.id ?? ''),
         status: '',
         catatan: '',
         komitmen_penyelesaian: '',
@@ -100,7 +97,10 @@ export default function NotaryOrdersShow({
         reason: '',
     });
     const selectedProgressSteps =
-        progressOptions[progress.data.order_collateral_id] ?? [];
+        progressOptions[progress.data.order_collateral_job_id] ?? [];
+    const selectedCollateral = order.collaterals.find(
+        (collateral: any) => String(collateral.id) === progress.data.order_collateral_id,
+    );
     const isFinalProgressStep =
         selectedProgressSteps.length > 0 &&
         progress.data.status ===
@@ -152,6 +152,7 @@ export default function NotaryOrdersShow({
             onSuccess: () =>
                 progress.reset(
                     'status',
+                    'order_collateral_job_id',
                     'catatan',
                     'komitmen_penyelesaian',
                     'evidence',
@@ -797,12 +798,15 @@ export default function NotaryOrdersShow({
                                 <Label>Agunan</Label>
                                 <SimSelect
                                     value={progress.data.order_collateral_id}
-                                    onChange={(value) =>
-                                        progress.setData(
-                                            'order_collateral_id',
-                                            value,
-                                        )
-                                    }
+                                    onChange={(value) => {
+                                        const collateral = order.collaterals.find((item: any) => String(item.id) === value);
+                                        progress.setData((data) => ({
+                                            ...data,
+                                            order_collateral_id: value,
+                                            order_collateral_job_id: String(collateral?.jobs?.[0]?.id ?? ''),
+                                            status: '',
+                                        }));
+                                    }}
                                     options={order.collaterals.map(
                                         (collateral: any) => ({
                                             value: String(collateral.id),
@@ -821,7 +825,7 @@ export default function NotaryOrdersShow({
                                     }
                                     options={(
                                         progressOptions[
-                                            progress.data.order_collateral_id
+                                            progress.data.order_collateral_job_id
                                         ] ?? []
                                     ).map((step: string) => ({
                                         value: step,
@@ -830,6 +834,19 @@ export default function NotaryOrdersShow({
                                     placeholder="Pilih langkah"
                                 />
                                 <InputError message={progress.errors.status} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Pekerjaan</Label>
+                                <SimSelect
+                                    value={progress.data.order_collateral_job_id}
+                                    onChange={(value) => progress.setData('order_collateral_job_id', value)}
+                                    options={(selectedCollateral?.jobs ?? []).map((job: any) => ({
+                                        value: String(job.id),
+                                        label: job.job_type?.name ?? `Pekerjaan ${job.id}`,
+                                    }))}
+                                    placeholder="Pilih pekerjaan"
+                                />
+                                <InputError message={progress.errors.order_collateral_job_id} />
                             </div>
                             <div className="grid gap-2">
                                 <Label>Komitmen penyelesaian</Label>
@@ -1139,8 +1156,7 @@ export default function NotaryOrdersShow({
                                                 {progressLabel(item.status)}
                                             </div>
                                             <div className="mt-1 text-xs text-muted-foreground">
-                                                {item.collateral?.job_type
-                                                    ?.name ?? 'Agunan'}{' '}
+                                                {item.job?.job_type?.name ?? item.collateral?.job_type?.name ?? 'Agunan'}{' '}
                                                 · Komitmen{' '}
                                                 {dateOnly(
                                                     item.komitmen_penyelesaian,

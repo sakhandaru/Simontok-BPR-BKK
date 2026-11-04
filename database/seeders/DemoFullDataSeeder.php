@@ -37,7 +37,7 @@ class DemoFullDataSeeder extends Seeder
                     ['email' => "notaris{$index}@demo.local"],
                     [
                         'name' => "Kantor Notaris Simulasi {$index}",
-                        'phone' => "024-0000".str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+                        'phone' => '024-0000'.str_pad((string) $index, 3, '0', STR_PAD_LEFT),
                         'address' => 'Jawa Tengah',
                         'is_active' => true,
                     ],
@@ -202,12 +202,12 @@ class DemoFullDataSeeder extends Seeder
             $this->seedPayment($order, $index, $admin?->id, $manager?->id);
 
             $journeyStatuses = [
-            TrackAStatus::Draft,
-            TrackAStatus::Diajukan,
-            TrackAStatus::MenungguApproval,
-            TrackAStatus::PerluPerbaikanOrder,
-            TrackAStatus::DisetujuiKepalaCabang,
-            TrackAStatus::MenungguVerifikasiNotaris,
+                TrackAStatus::Draft,
+                TrackAStatus::Diajukan,
+                TrackAStatus::MenungguApproval,
+                TrackAStatus::PerluPerbaikanOrder,
+                TrackAStatus::DisetujuiKepalaCabang,
+                TrackAStatus::MenungguVerifikasiNotaris,
                 TrackAStatus::DokumenValid,
                 TrackAStatus::ProsesAkta,
                 TrackAStatus::DraftDiunggah,

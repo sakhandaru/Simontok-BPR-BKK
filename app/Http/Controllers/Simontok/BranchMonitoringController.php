@@ -23,15 +23,20 @@ class BranchMonitoringController extends Controller
         $closed = OrderStages::closedStatuses();
         $rows = Branch::query()->where('is_active', true)->orderBy('name')->get()->map(function (Branch $branch) use ($closed) {
             $orders = Order::where('branch_id', $branch->id);
+
+            $totalOrders = (clone $orders)->count();
+            $completedOrders = (clone $orders)->where('status', TrackAStatus::Selesai->value)->count();
+
             return [
                 'id' => $branch->id,
                 'code' => $branch->code,
                 'name' => $branch->name,
-                'total_orders' => (clone $orders)->count(),
+                'total_orders' => $totalOrders,
                 'active_orders' => (clone $orders)->whereNotIn('status', $closed)->count(),
                 'risk_orders' => (clone $orders)->where('risk_flag', true)->whereNotIn('status', $closed)->count(),
                 'overdue_sla' => (clone $orders)->whereNotNull('sla_due_at')->where('sla_due_at', '<', now())->whereNotIn('status', $closed)->count(),
-                'completed_orders' => (clone $orders)->where('status', TrackAStatus::Selesai->value)->count(),
+                'completed_orders' => $completedOrders,
+                'completion_percentage' => $totalOrders > 0 ? round(($completedOrders / $totalOrders) * 100, 1) : 0,
             ];
         })->filter(function (array $branch) use ($filters): bool {
             $search = strtolower((string) ($filters['search'] ?? ''));

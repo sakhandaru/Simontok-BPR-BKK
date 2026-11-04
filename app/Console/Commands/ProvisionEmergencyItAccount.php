@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\EmergencyAccessNotifier;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class ProvisionEmergencyItAccount extends Command
 {
@@ -22,6 +23,7 @@ class ProvisionEmergencyItAccount extends Command
         $login = config('services.sso.emergency_login');
         if (! is_string($login) || trim($login) === '') {
             $this->error('Tetapkan SSO_EMERGENCY_LOGIN pada environment sebelum menjalankan perintah ini.');
+
             return self::FAILURE;
         }
 
@@ -29,36 +31,43 @@ class ProvisionEmergencyItAccount extends Command
         $position = JobPosition::query()->where('code', 'IT_ADMIN')->where('role_id', $role?->id)->first();
         if (! $role || ! $position) {
             $this->error('Role IT Administrator belum tersedia. Jalankan migrasi dan seeder terlebih dahulu.');
+
             return self::FAILURE;
         }
 
         $user = User::query()->where('email', $login)->first();
         if ($user && ($user->sso_employee_id || $user->notary_id || $user->roleCode() !== 'it_admin')) {
             $this->error('ID login sudah dipakai akun lain. Pilih SSO_EMERGENCY_LOGIN yang unik.');
+
             return self::FAILURE;
         }
         if (! $user && $this->option('rotate')) {
             $this->error('Akun belum ada, jadi kata sandinya belum dapat dirotasi. Jalankan perintah tanpa --rotate untuk membuat akun.');
+
             return self::FAILURE;
         }
         if ($user && ! $this->option('rotate')) {
             $this->error('Akun sudah ada. Tambahkan --rotate jika memang perlu mengganti kata sandinya.');
+
             return self::FAILURE;
         }
 
         $password = $this->option('generate')
-            ? \Illuminate\Support\Str::random(48)
-            : $this->secret('Masukkan kata sandi baru (minimal 16 karakter)');
-        if (! is_string($password) || mb_strlen($password) < 16) {
-            $this->error('Kata sandi minimal 16 karakter.');
+            ? Str::random(48)
+            : $this->secret('Masukkan kata sandi baru');
+        if (! is_string($password) || $password === '') {
+            $this->error('Kata sandi wajib diisi.');
+
             return self::FAILURE;
         }
         if (! $this->option('generate') && $password !== $this->secret('Ulangi kata sandi baru')) {
             $this->error('Konfirmasi kata sandi tidak cocok.');
+
             return self::FAILURE;
         }
         if ($user && Hash::check($password, $user->password)) {
             $this->error('Gunakan kata sandi yang berbeda dari kata sandi saat ini.');
+
             return self::FAILURE;
         }
 

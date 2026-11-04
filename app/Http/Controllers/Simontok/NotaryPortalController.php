@@ -2,20 +2,21 @@
 
 namespace App\Http\Controllers\Simontok;
 
+use App\Enums\OrderDocumentType;
 use App\Enums\TrackAStatus;
 use App\Enums\TrackBDocStatus;
 use App\Enums\TrackCCovernoteStatus;
-use App\Enums\OrderDocumentType;
 use App\Http\Controllers\Controller;
+use App\Models\DocumentArchive;
+use App\Models\Notary;
 use App\Models\Order;
 use App\Models\OrderCollateral;
 use App\Models\OrderProgress;
-use App\Models\DocumentArchive;
 use App\Models\OrderStepFee;
-use App\Models\Notary;
 use App\Support\Audit;
 use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
+use App\Support\OrderFinalDocumentState;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class NotaryPortalController extends Controller
 {
+    public function __construct(private readonly OrderFinalDocumentState $finalDocuments) {}
+
     public function index(Request $request): Response
     {
         $notaryId = $request->user()?->notary_id;
@@ -84,10 +87,12 @@ class NotaryPortalController extends Controller
             'stepFees' => fn ($query) => $query->orderBy('order_collateral_id')->orderBy('sort_order')->orderBy('id'),
             'collaterals.jobType.steps:id,job_type_id,name,sort_order',
             'collaterals.jobs.jobType:id,name,code',
+            'collaterals.jobs.jobType.steps:id,job_type_id,name,sort_order',
             'collaterals.checklists.documentChecklist:id,name,is_active,is_required',
             'collaterals.checklists.orderDocument:id,display_name,original_name,file_size,version,order_collateral_id,uploaded_by,created_at,mime_type',
             'collaterals.checklists.orderDocument.uploader:id,name',
             'collaterals.progress.user:id,name',
+            'collaterals.jobs.progress.user:id,name',
             'collaterals.documents.uploader:id,name',
             'collaterals.covernoteExtensions',
             'documentRequests.requester:id,name',
@@ -95,6 +100,7 @@ class NotaryPortalController extends Controller
             'revisions.collateral.jobType:id,name',
             'revisions.requester:id,name',
             'progress.collateral.jobType:id,name',
+            'progress.job.jobType:id,name',
             'progress.user:id,name',
             'documents.uploader:id,name',
             'documents.collateral.jobType:id,name',
@@ -497,6 +503,7 @@ class NotaryPortalController extends Controller
             'service_fee_total' => (float) ($order->nominal ?? 0) + (float) $order->stepFees()->sum('amount'),
         ]);
         InAppNotification::forNotary($order, 'Biaya & covernote disetujui', "Biaya dan covernote order {$order->order_no} disetujui. Detail order dapat dilanjutkan.");
+
         return back()->with('success', 'Biaya dan covernote disetujui.');
     }
 
@@ -509,6 +516,7 @@ class NotaryPortalController extends Controller
         $this->recordStatus($request, $order, 'A', TrackAStatus::MenungguApprovalCovernote->value, TrackAStatus::MenungguApprovalCovernoteKepalaCabang->value, 'Admin Legal meminta approval Kepala Cabang.');
         Audit::record($request, 'covernotes', $order, 'escalate', 'Approval covernote dieskalasikan ke Kepala Cabang.');
         InAppNotification::forBranchApprovers($order, 'Covernote perlu approval Kepala Cabang', "Covernote order {$order->order_no} menunggu approval Kepala Cabang.");
+
         return back()->with('success', 'Covernote dikirim ke Kepala Cabang untuk approval.');
     }
 
@@ -523,6 +531,7 @@ class NotaryPortalController extends Controller
         $this->recordStatus($request, $order, 'A', $before->value, TrackAStatus::PerbaikanCovernote->value, $data['reason']);
         Audit::record($request, 'covernotes', $order, 'return_revision', 'Biaya per langkah dan covernote dikembalikan untuk perbaikan.', ['reason' => $data['reason']]);
         InAppNotification::forNotary($order, 'Biaya & covernote perlu diperbaiki', "Biaya dan covernote order {$order->order_no} perlu diperbaiki.");
+
         return back()->with('success', 'Biaya dan covernote dikembalikan untuk perbaikan.');
     }
 
@@ -624,6 +633,7 @@ class NotaryPortalController extends Controller
 
         $data = $request->validate([
             'order_collateral_id' => ['required', 'integer', 'exists:order_collaterals,id'],
+            'order_collateral_job_id' => ['required', 'integer', 'exists:order_collateral_jobs,id'],
             'status' => ['required', 'string', 'max:120'],
             'catatan' => ['required', 'string', 'max:2000'],
             'komitmen_penyelesaian' => ['nullable', 'date'],
@@ -633,13 +643,11 @@ class NotaryPortalController extends Controller
         ]);
 
         $collateral = $order->collaterals()->with('jobType.steps')->findOrFail($data['order_collateral_id']);
-        $steps = $collateral->stepFees;
-        if ($steps->isEmpty()) {
-            $steps = $collateral->jobType->steps->where('is_active', true)->sortBy('sort_order')->values();
-        }
+        $job = $collateral->jobs()->with('jobType.steps')->findOrFail($data['order_collateral_job_id']);
+        $steps = $job->jobType->steps->where('is_active', true)->sortBy('sort_order')->values();
         $stepNames = $steps->pluck($steps->first() instanceof OrderStepFee ? 'step_name' : 'name')->all();
         abort_unless(in_array($data['status'], $stepNames, true), 422, 'Langkah progres tidak tersedia untuk order ini.');
-        $completedNames = $collateral->progress()
+        $completedNames = $job->progress()
             ->whereNotNull('completed_at')
             ->pluck('status')
             ->filter(fn (string $status): bool => in_array($status, $stepNames, true))
@@ -668,10 +676,11 @@ class NotaryPortalController extends Controller
         $evidencePath = $request->file('evidence')?->store("documents/{$order->order_no}/progress", 'local');
 
         DB::transaction(function () use ($request, $order, $data, $evidencePath, $collateral, $finalDocuments, $isFinalStep) {
-            $existingFinalProgress = $collateral->progress()->where('status', $data['status'])->latest('id')->first();
+            $existingFinalProgress = $job->progress()->where('status', $data['status'])->latest('id')->first();
             $progressData = [
                 ...collect($data)->except(['evidence', 'final_documents'])->all(),
                 'order_collateral_id' => $collateral->id,
+                'order_collateral_job_id' => $job->id,
                 'completed_at' => now(),
                 'evidence_path' => $evidencePath,
                 'created_by' => $request->user()->id,
@@ -688,6 +697,7 @@ class NotaryPortalController extends Controller
                     $path = $finalDocument->store("documents/{$order->order_no}/final", 'local');
                     $document = $order->documents()->create([
                         'order_collateral_id' => $collateral->id,
+                        'order_collateral_job_id' => $job->id,
                         'document_type' => OrderDocumentType::Final,
                         'display_name' => null,
                         'version' => ((int) $order->documents()->where('order_collateral_id', $collateral->id)->where('document_type', OrderDocumentType::Final)->max('version')) + 1,
@@ -701,10 +711,8 @@ class NotaryPortalController extends Controller
                     $documentIds[] = $document->id;
                     DocumentArchiveService::archiveOrderDocument($request, $document);
                 }
-                $collateral->update(['doc_status' => TrackBDocStatus::FinalDiunggah]);
-                $allFinalDocumentsUploaded = $order->collaterals()
-                    ->where('doc_status', '!=', TrackBDocStatus::FinalDiunggah->value)
-                    ->doesntExist();
+                $this->finalDocuments->sync($order->fresh());
+                $allFinalDocumentsUploaded = $this->finalDocuments->allUploaded($order->fresh());
                 $before = $order->status;
                 if ($allFinalDocumentsUploaded) {
                     $order->update([
@@ -804,13 +812,17 @@ class NotaryPortalController extends Controller
     private function allProgressComplete(Order $order): bool
     {
         return $order->collaterals->every(function ($collateral) {
-            $required = $collateral->stepFees()->count();
-            if ($required === 0) {
-                $required = $collateral->jobType?->steps->where('is_active', true)->count() ?? 0;
+            $jobs = $collateral->jobs;
+            if ($jobs->isEmpty()) {
+                return false;
             }
-            $completed = $collateral->progress->whereNotNull('completed_at')->pluck('status')->unique()->count();
 
-            return $required > 0 && $completed >= $required;
+            return $jobs->every(function ($job) {
+                $required = $job->jobType?->steps->where('is_active', true)->count() ?? 0;
+                $completed = $job->progress->whereNotNull('completed_at')->pluck('status')->unique()->count();
+
+                return $required > 0 && $completed >= $required;
+            });
         });
     }
 }

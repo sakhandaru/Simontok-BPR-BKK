@@ -14,7 +14,18 @@ class OrderStepFee extends Model
         return ['amount' => 'decimal:2'];
     }
 
-    public function order(): BelongsTo { return $this->belongsTo(Order::class); }
-    public function collateral(): BelongsTo { return $this->belongsTo(OrderCollateral::class, 'order_collateral_id'); }
-    public function step(): BelongsTo { return $this->belongsTo(JobTypeStep::class, 'job_type_step_id'); }
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function collateral(): BelongsTo
+    {
+        return $this->belongsTo(OrderCollateral::class, 'order_collateral_id');
+    }
+
+    public function step(): BelongsTo
+    {
+        return $this->belongsTo(JobTypeStep::class, 'job_type_step_id');
+    }
 }

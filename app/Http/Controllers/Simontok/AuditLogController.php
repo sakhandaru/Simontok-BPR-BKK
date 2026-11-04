@@ -4,6 +4,17 @@ namespace App\Http\Controllers\Simontok;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Branch;
+use App\Models\JobType;
+use App\Models\Notary;
+use App\Models\Notification;
+use App\Models\Order;
+use App\Models\OrderCollateral;
+use App\Models\OrderDocument;
+use App\Models\OrderHandover;
+use App\Models\PaymentRequest;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -78,17 +89,17 @@ class AuditLogController extends Controller
         }
 
         $modelClass = [
-            'User' => \App\Models\User::class,
-            'Branch' => \App\Models\Branch::class,
-            'Notary' => \App\Models\Notary::class,
-            'Order' => \App\Models\Order::class,
-            'JobType' => \App\Models\JobType::class,
-            'Role' => \App\Models\Role::class,
-            'PaymentRequest' => \App\Models\PaymentRequest::class,
-            'OrderDocument' => \App\Models\OrderDocument::class,
-            'OrderCollateral' => \App\Models\OrderCollateral::class,
-            'OrderHandover' => \App\Models\OrderHandover::class,
-            'Notification' => \App\Models\Notification::class,
+            'User' => User::class,
+            'Branch' => Branch::class,
+            'Notary' => Notary::class,
+            'Order' => Order::class,
+            'JobType' => JobType::class,
+            'Role' => Role::class,
+            'PaymentRequest' => PaymentRequest::class,
+            'OrderDocument' => OrderDocument::class,
+            'OrderCollateral' => OrderCollateral::class,
+            'OrderHandover' => OrderHandover::class,
+            'Notification' => Notification::class,
         ][$log->entity_type ?? ''] ?? null;
 
         if (! $modelClass || ! $log->entity_id) {

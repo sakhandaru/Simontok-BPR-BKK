@@ -101,11 +101,9 @@ class SystemSettingController extends Controller
 
         $data = $request->validate([
             'current_password' => ['required', 'string'],
-            'password' => ['required', 'string', 'min:16', 'different:current_password', 'confirmed'],
+            'password' => ['required', 'string', 'confirmed'],
         ], [
-            'password.min' => 'Kata sandi baru harus memiliki minimal 16 karakter.',
             'password.confirmed' => 'Konfirmasi kata sandi baru tidak cocok.',
-            'password.different' => 'Kata sandi baru harus berbeda dari kata sandi saat ini.',
         ]);
 
         if (! Hash::check($data['current_password'], $user->password)) {

@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use App\Enums\TrackAStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Builder;
 
 class Order extends Model
 {
@@ -32,7 +32,7 @@ class Order extends Model
     }
 
     protected $fillable = [
-        'order_no', 'branch_id', 'notary_id', 'legacy_id', 'customer_name',
+        'order_no', 'branch_id', 'notary_id', 'legacy_id', 'core_account_id', 'core_customer_id', 'core_branch_code', 'core_snapshot', 'core_synced_at', 'customer_name',
         'no_rekening', 'tgl_realisasi', 'plafon', 'baki_debet', 'kolek',
         'stat_kred', 'tgl_masuk_notaris', 'nominal', 'skema_pembayaran',
         'status', 'risk_flag', 'sla_due_at', 'keterangan', 'created_by',
@@ -47,6 +47,8 @@ class Order extends Model
         return [
             'tgl_realisasi' => 'date',
             'tgl_masuk_notaris' => 'date',
+            'core_snapshot' => 'array',
+            'core_synced_at' => 'datetime',
             'plafon' => 'decimal:2',
             'baki_debet' => 'decimal:2',
             'nominal' => 'decimal:2',

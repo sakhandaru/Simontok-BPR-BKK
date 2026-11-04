@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Simontok;
 
 use App\Http\Controllers\Controller;
-use App\Models\Branch;
 use App\Models\BankName;
+use App\Models\Branch;
+use App\Models\DocumentArchive;
 use App\Models\JobPosition;
 use App\Models\Notary;
-use App\Models\DocumentArchive;
 use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;

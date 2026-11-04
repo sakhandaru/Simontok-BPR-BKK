@@ -29,6 +29,53 @@ SIMONTOK tidak mengubah data BU Core. Semua endpoint yang diminta di dokumen ini
 - Seluruh agunan yang terhubung ke rekening.
 - Identitas unik dari rekening, nasabah, cabang, dan agunan untuk disimpan sebagai referensi.
 
+### Pemetaan sumber pada skema BU Core
+
+Berdasarkan dokumentasi skema BU Core yang tersedia di `bu_core-docs.html`, sumber data yang perlu dipertimbangkan oleh tim API adalah:
+
+| Sumber BU Core | Kegunaan di SIMONTOK | Field sumber utama |
+|---|---|---|
+| `kredit` | Rekening dan detail fasilitas kredit | `no_rekening`, `nasabah_id`, `jml_pinjaman`, `tgl_realisasi`, `tgl_jatuh_tempo`, `kode_kantor`, `kode_produk`, `type_kredit`, `status`, `tgl_lunas`, `tgl_pengikatan`, `kode_notaris`, `status_rek` |
+| `nasabah` | Identitas dan data kontak nasabah | `nasabah_id`, `nama_nasabah`, `alamat`, `jenis_id`, `no_id`, `telpon`, `hp`, `email`, `alamat_ktp`, `alamat_surat`, `npwp` |
+| `kre_agunan_relasi` | Relasi rekening dan agunan | `agunan_id`, `no_rekening`, `kode_kantor`, `primer`, `status` |
+| `kre_agunan` | Detail agunan dan data legalnya | `AGUNAN_ID`, `KODE_JENIS_AGUNAN`, `DESKRIPSI_RINGKAS`, `JENIS_AGUNAN`, `JENIS_PENGIKATAN`, `PEMILIK_AGUNAN`, `BUKTI_MILIK`, `ALAMAT_AGUNAN`, `NILAI_AGUNAN`, `NILAI_AGUNAN_BANK`, `NILAI_AGUNAN_PENILAI`, `TGL_PENILAIAN`, serta field detail tanah/kendaraan sesuai jenis agunan |
+| `app_kode_kantor` | Master cabang | `KODE_KANTOR`, `NAMA_KANTOR`, `ALAMAT_KANTOR`, `KOTA_KANTOR`, status/keterangan cabang yang aman untuk diekspos |
+| `kre_kode_jenis_agunan` | Label jenis agunan | `KODE_JENIS_AGUNAN`, `DESKRIPSI_JENIS_AGUNAN` |
+| `kre_produk` | Label/metadata produk kredit jika diperlukan | `kode_produk`, `DESKRIPSI_PRODUK`, `TYPE_KREDIT_DEFAULT`, `kode_pembiayaan` |
+
+`kredit_history` tidak menjadi kebutuhan versi awal karena sistem baru tidak menggunakan `baki_debet` atau data saldo historis. Endpoint history hanya dibuat jika ada kebutuhan monitoring yang disetujui kemudian.
+
+API sebaiknya menggabungkan dan menerjemahkan tabel-tabel tersebut menjadi response bisnis. SIMONTOK tidak perlu mengetahui atau mengakses join database BU Core secara langsung.
+
+### Field wajib versi awal dari pemetaan skema
+
+Untuk pembuatan order SIMONTOK, field minimal yang perlu tersedia adalah:
+
+| Kelompok | Field response API | Keterangan |
+|---|---|---|
+| Rekening | `account_id`, `account_number` | Identifier stabil dan nomor rekening sebagai string. |
+| Nasabah | `customer_id`, `customer_name` | Nama untuk snapshot order. |
+| Cabang | `branch.code`, `branch.name` | Cabang pemilik rekening dan scope akses. |
+| Kredit | `credit.loan_amount`, `credit.realization_date` | `credit.loan_amount` ditampilkan sebagai **Plafon** di SIMONTOK dan bersumber dari `kredit.jml_pinjaman`, bukan baki debet. |
+| Agunan | `collateral_id`, `collateral_code`, `type_code`, `type_name`, `description` | Seluruh agunan yang terhubung ke rekening. |
+| Relasi | `account_id`, `is_primary`, `status` | Untuk memastikan agunan benar-benar terkait rekening tersebut. |
+
+### Field kandidat untuk pengembangan
+
+Field berikut tersedia atau dapat diturunkan dari skema BU Core, tetapi belum menjadi syarat order versi awal:
+
+- `credit_product_code` dan `credit_product_name` dari `kredit.kode_produk`/`kre_produk`;
+- `credit_type` dari `kredit.type_kredit`;
+- `maturity_date` dari `kredit.tgl_jatuh_tempo`;
+- `account_status` dari status rekening/kredit;
+- `paid_off_date` dari `kredit.tgl_lunas`;
+- `binding_date` dari `kredit.tgl_pengikatan`;
+- `notary_code` dari `kredit.kode_notaris`, hanya sebagai referensi dan bukan pengganti notaris rekanan SIMONTOK;
+- detail legal agunan seperti jenis pengikatan, pemilik, bukti kepemilikan, alamat, nomor sertifikat/BPKB, dan data penilaian;
+- data identitas nasabah seperti alamat, nomor identitas, tanggal lahir, kontak, dan NPWP jika benar-benar diperlukan untuk dokumen legal.
+
+Field identitas dan legal agunan termasuk data sensitif. Penggunaannya harus disetujui oleh pemilik proses dan tim keamanan/privasi sebelum dimasukkan ke response API atau snapshot SIMONTOK.
+
 ### Tidak diperlukan untuk sistem baru
 
 Jangan masukkan field berikut kecuali ada kebutuhan bisnis baru yang disetujui:
@@ -125,7 +172,10 @@ Respons minimal:
       "code": "001",
       "name": "Kantor Cabang Contoh"
     },
-    "realization_date": "2026-11-03",
+    "credit": {
+      "loan_amount": 100000000,
+      "realization_date": "2026-11-03"
+    },
     "collaterals": []
   }
 }
@@ -141,8 +191,11 @@ Field detail:
 | `customer.name` | Ya | Nama nasabah untuk snapshot order. |
 | `branch.code` | Ya | Kode cabang resmi. |
 | `branch.name` | Ya | Nama cabang resmi. |
-| `realization_date` | Jika tersedia | Tanggal realisasi/akad yang ditampilkan SIMONTOK. |
+| `credit.loan_amount` | Jika digunakan | Nilai pinjaman/plafon dari `kredit.jml_pinjaman`; di form SIMONTOK dipetakan menjadi `plafon`. Bukan `baki_debet`. |
+| `credit.realization_date` | Jika tersedia | Tanggal realisasi/akad yang ditampilkan SIMONTOK. |
 | `collaterals` | Ya | Array seluruh agunan yang terhubung. |
+
+`credit.loan_amount` adalah sumber field **Plafon** pada form order SIMONTOK. Setelah rekening dipilih, SIMONTOK mengisi nilai ini otomatis, menjadikannya read-only, dan menyimpannya sebagai bagian dari snapshot order.
 
 Jangan mengirim data sensitif yang tidak diperlukan oleh proses order.
 
@@ -231,6 +284,119 @@ Mohon tentukan:
 
 SIMONTOK hanya memerlukan akses baca. Tidak diperlukan endpoint untuk insert/update/delete data BU Core.
 
+## Arsitektur integrasi dan database staging
+
+BU Core tetap menjadi sumber kebenaran utama. SIMONTOK tidak mengakses tabel BU Core secara langsung dan tidak menjadikan database staging sebagai pengganti sumber resmi.
+
+Alur produksi yang diharapkan:
+
+```text
+BU Core API
+    ↓
+API adapter / sinkronisasi SIMONTOK
+    ↓
+Database staging atau read model SIMONTOK
+    ↓
+Pencarian dan pengisian form order
+    ↓
+Snapshot permanen pada order
+```
+
+Database staging digunakan sebagai read model untuk pencarian cepat, mengurangi beban API BU Core, dan menjaga aplikasi tetap dapat membaca data terakhir yang berhasil disinkronkan. Data staging tidak boleh dianggap lebih authoritative daripada BU Core.
+
+Read model minimal yang perlu disediakan SIMONTOK:
+
+| Read model | Isi utama |
+|---|---|
+| `core_staged_accounts` | `account_id`, `account_number`, `customer_id`, `customer_name`, `credit.loan_amount`, `credit.realization_date`, `branch.code`, `branch.name`, `source_provider`, `synced_at`, `expires_at` |
+| `core_staged_collaterals` | `account_id`, `collateral_id`, `collateral_code`, `type_code`, `type_name`, `description`, `is_primary`, `status`, `synced_at` |
+
+Nama tabel di atas adalah usulan internal SIMONTOK dan tidak perlu sama dengan nama tabel BU Core. Jika API BU Core mengembalikan response gabungan, SIMONTOK tetap memisahkan data rekening dan agunan pada read model agar pencarian dan pembaruan dapat dilakukan secara efisien.
+
+### Sinkronisasi
+
+Sinkronisasi staging harus memiliki ketentuan berikut:
+
+- berjalan terjadwal, minimal setiap jam atau sesuai SLA API BU Core;
+- dapat dijalankan ulang secara manual untuk kebutuhan UAT dan troubleshooting;
+- menyimpan waktu sinkronisasi terakhir dan waktu kedaluwarsa setiap record;
+- menggunakan transaksi per rekening agar kegagalan satu rekening tidak merusak data rekening lain;
+- mengganti daftar agunan secara atomik setelah detail rekening berhasil diambil;
+- mencatat jumlah berhasil, gagal, dilewati, dan waktu proses;
+- tidak menghapus data staging hanya karena satu kali request API gagal;
+- memiliki retry dengan backoff untuk timeout dan HTTP `429`/`503`;
+- tidak menimpa data dengan response parsial atau data yang tidak tervalidasi.
+
+Endpoint atau mekanisme sinkronisasi yang diminta dari tim BU Core:
+
+- pencarian atau daftar rekening yang dapat diproses bertahap/pagination;
+- detail rekening berdasarkan `account_id`;
+- detail seluruh agunan rekening;
+- optional: `updated_since` atau cursor perubahan agar sinkronisasi tidak perlu mengambil seluruh data setiap kali.
+
+### TTL dan data kedaluwarsa
+
+TTL read model harus dapat dikonfigurasi per environment. Nilai awal yang disarankan untuk staging/UAT adalah 60 menit, lalu disesuaikan berdasarkan SLA dan frekuensi perubahan data BU Core.
+
+Ketika record staging sudah melewati `expires_at`:
+
+- record tidak boleh dipakai diam-diam untuk membuat order baru;
+- sistem mencoba refresh dari BU Core atau menampilkan pesan bahwa data perlu dimuat ulang;
+- order lama tetap dapat dibaca karena menggunakan snapshot order;
+- kegagalan refresh ditampilkan sebagai error yang dapat dicoba ulang, bukan sebagai data kosong yang menyesatkan.
+
+### Validasi ulang sebelum order dikirim
+
+Staging dipakai untuk pencarian dan pengisian awal. Sebelum order dikirim untuk approval, backend perlu mengambil detail rekening terbaru dari BU Core API jika layanan tersedia, lalu memvalidasi:
+
+- `account_id` masih ada dan dapat diakses user;
+- rekening masih berada pada cabang yang diizinkan;
+- nomor rekening dan customer ID sesuai dengan rekening yang dipilih;
+- plafon dari `credit.loan_amount` masih dapat digunakan;
+- seluruh `collateral_id` pada order masih terhubung ke rekening;
+- agunan tidak berstatus tidak aktif atau terhapus jika status tersebut disediakan API.
+
+Jika validasi ulang gagal karena rekening berubah, berada di luar scope, atau agunan tidak lagi sesuai, pengiriman order harus ditolak dan admin diminta memuat ulang data. Jika BU Core sedang tidak tersedia, kebijakan harus dipilih secara eksplisit oleh pemilik proses. Rekomendasi default untuk produksi adalah menolak submit baru dan mengizinkan retry; jangan menggunakan data staging kedaluwarsa secara diam-diam.
+
+Validasi ulang tidak boleh mengubah snapshot order lama secara otomatis. Jika data terbaru berbeda, perbedaan dicatat dan admin harus memilih tindakan yang sesuai.
+
+## Status implementasi UAT saat ini
+
+Sebelum API BU Core produksi tersedia, UAT menggunakan provider dummy dengan alur yang sama:
+
+```text
+Dummy Core
+    ↓ core:sync-staging
+Database staging SIMONTOK
+    ↓
+Pencarian rekening, plafon, dan agunan
+    ↓
+Validasi backend
+    ↓
+Snapshot order
+```
+
+Implementasi UAT saat ini sudah memiliki:
+
+- provider dummy untuk rekening, nasabah, cabang, plafon, dan agunan;
+- read model staging rekening dan agunan;
+- TTL staging yang dapat dikonfigurasi;
+- sinkronisasi staging manual dan terjadwal;
+- pengisian otomatis form berdasarkan rekening terpilih;
+- snapshot data Core pada order;
+- pembatasan scope cabang pada pencarian dan penyimpanan order.
+
+Yang belum dapat diaktifkan sebelum informasi dari tim BU Core tersedia:
+
+- API adapter produksi;
+- base URL tiap environment;
+- autentikasi dan credential/service account;
+- validasi ulang langsung ke BU Core sebelum submit;
+- retry policy dan SLA yang disepakati;
+- rekonsiliasi perubahan data dari BU Core.
+
+Saat API produksi siap, form order dan struktur snapshot tidak perlu diubah. Yang perlu diganti adalah source pada command sinkronisasi, adapter response, konfigurasi autentikasi, dan proses validasi ulang sebelum submit.
+
 ## Error response
 
 Mohon gunakan HTTP status yang konsisten, minimal:
@@ -267,6 +433,7 @@ Saat admin memilih rekening dan menyimpan order, SIMONTOK akan menyimpan snapsho
 - nomor rekening;
 - identifier nasabah dan nama nasabah;
 - kode/nama cabang;
+- plafon dari `credit.loan_amount`;
 - tanggal realisasi jika digunakan;
 - identifier, jenis, dan deskripsi setiap agunan;
 - waktu pengambilan data;

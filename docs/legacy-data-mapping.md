@@ -26,6 +26,8 @@ Berdasarkan aturan aplikasi lama, pekerjaan dianggap belum selesai bila `tgl_pek
 
 Angka ini menunjukkan status historis yang perlu dibawa ke sistem baru. Nilai tersebut tidak boleh diterjemahkan otomatis menjadi status baru sebelum arti bisnis `setu` dan `covernote` disepakati, tetapi record proses dan overdue sudah dapat ditandai sebagai kelompok prioritas migrasi.
 
+Pemeriksaan khusus terhadap 1.347 order aktif menemukan 1 record tanpa ID notaris dan 2 record tanpa kode cabang. Semua order aktif memiliki `id_karyawan_master` lama, tetapi seluruh ID tersebut tetap perlu dicocokkan ke user baru melalui BU Core atau crosswalk pegawai. Tiga record tanpa relasi utama itu menjadi daftar klarifikasi kecil untuk jalur order aktif; record lainnya siap masuk tahap simulasi setelah master BU Core tersedia.
+
 ## Pembagian jalur pemindahan order
 
 Karena data yang tersedia terbatas, `tabel_form` tetap menjadi sumber utama order. Semua record dipertahankan, tetapi perlakuannya dibedakan:

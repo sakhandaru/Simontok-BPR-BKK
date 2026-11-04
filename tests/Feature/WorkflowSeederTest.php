@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrackBDocStatus;
+use App\Enums\TrackDPaymentStatus;
 use App\Models\Order;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
-use App\Enums\TrackBDocStatus;
-use App\Enums\TrackDPaymentStatus;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

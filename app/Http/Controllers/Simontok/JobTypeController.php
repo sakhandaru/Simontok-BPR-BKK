@@ -95,6 +95,7 @@ class JobTypeController extends Controller
         });
 
         Audit::record($request, 'masters', $jobType, 'update_job_type', 'Jenis pekerjaan diperbarui.', ['after' => $jobType->load('steps')->toArray()]);
+
         return back()->with('success', 'Jenis pekerjaan diperbarui.');
     }
 }

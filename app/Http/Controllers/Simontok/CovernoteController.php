@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers\Simontok;
 
-use App\Enums\TrackCCovernoteStatus;
 use App\Enums\TrackAStatus;
+use App\Enums\TrackCCovernoteStatus;
 use App\Http\Controllers\Controller;
+use App\Models\CovernoteExtension;
 use App\Models\Order;
 use App\Models\OrderCollateral;
 use App\Support\Audit;
@@ -32,7 +33,7 @@ class CovernoteController extends Controller
         ]);
     }
 
-    public function previewExtension(Request $request, Order $order, OrderCollateral $collateral, \App\Models\CovernoteExtension $extension)
+    public function previewExtension(Request $request, Order $order, OrderCollateral $collateral, CovernoteExtension $extension)
     {
         abort_unless($order->isVisibleTo($request->user()), 404);
         abort_unless($collateral->order_id === $order->id && $extension->order_collateral_id === $collateral->id && filled($extension->file_path), 404);
@@ -89,7 +90,7 @@ class CovernoteController extends Controller
         return back()->with('success', 'Perpanjangan covernote diajukan untuk approval Admin Legal.');
     }
 
-    public function approveExtension(Request $request, Order $order, OrderCollateral $collateral, \App\Models\CovernoteExtension $extension): RedirectResponse
+    public function approveExtension(Request $request, Order $order, OrderCollateral $collateral, CovernoteExtension $extension): RedirectResponse
     {
         abort_unless($order->isVisibleTo($request->user()), 404);
         abort_unless($collateral->order_id === $order->id && $extension->order_collateral_id === $collateral->id, 404);
@@ -123,7 +124,7 @@ class CovernoteController extends Controller
         return back()->with('success', 'Perpanjangan covernote disetujui.');
     }
 
-    public function rejectExtension(Request $request, Order $order, OrderCollateral $collateral, \App\Models\CovernoteExtension $extension): RedirectResponse
+    public function rejectExtension(Request $request, Order $order, OrderCollateral $collateral, CovernoteExtension $extension): RedirectResponse
     {
         abort_unless($order->isVisibleTo($request->user()), 404);
         abort_unless($collateral->order_id === $order->id && $extension->order_collateral_id === $collateral->id, 404);
@@ -132,6 +133,7 @@ class CovernoteController extends Controller
         $extension->update(['status' => 'ditolak', 'approved_by' => $request->user()->id, 'approved_at' => now(), 'rejection_reason' => $data['reason']]);
         Audit::record($request, 'covernotes', $order, 'reject_extension', 'Perpanjangan covernote dikembalikan untuk perbaikan.', ['extension_id' => $extension->id, 'reason' => $data['reason']]);
         InAppNotification::forNotary($order, 'Perpanjangan covernote perlu diperbaiki', "Perpanjangan covernote order {$order->order_no} dikembalikan Admin Legal.");
+
         return back()->with('success', 'Perpanjangan covernote dikembalikan untuk perbaikan.');
     }
 

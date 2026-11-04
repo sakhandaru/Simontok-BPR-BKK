@@ -12,6 +12,7 @@ class OrderProgress extends Model
     protected $fillable = [
         'order_id',
         'order_collateral_id',
+        'order_collateral_job_id',
         'status',
         'catatan',
         'komitmen_penyelesaian',
@@ -31,6 +32,11 @@ class OrderProgress extends Model
     public function collateral(): BelongsTo
     {
         return $this->belongsTo(OrderCollateral::class, 'order_collateral_id');
+    }
+
+    public function job(): BelongsTo
+    {
+        return $this->belongsTo(OrderCollateralJob::class, 'order_collateral_job_id');
     }
 
     public function user(): BelongsTo

@@ -16,6 +16,7 @@ use App\Models\Order;
 use App\Models\OrderCollateral;
 use App\Models\PaymentSchemeOption;
 use App\Models\SlaPolicy;
+use App\Services\Core\CoreOrderSnapshot;
 use App\Support\Audit;
 use App\Support\InAppNotification;
 use App\Support\OrderStages;
@@ -30,6 +31,8 @@ use Inertia\Response;
 
 class OrderController extends Controller
 {
+    public function __construct(private readonly CoreOrderSnapshot $coreSnapshot) {}
+
     public function index(Request $request): Response
     {
         $filters = $request->validate([
@@ -166,11 +169,17 @@ class OrderController extends Controller
         $branchId = $this->userBranchScope($request);
         $branch = Branch::where('is_active', true)
             ->when($branchId, fn ($query) => $query->whereKey($branchId))
+            ->whereHas('notaries', fn ($query) => $query->availableForOrders()
+                ->where('branch_notary.is_active', true)
+                ->whereHas('users', fn ($users) => $users->where('is_active', true)))
             ->orderBy('name')
             ->first();
+
+        abort_unless($branch, 422, 'Belum ada cabang dengan notaris rekanan siap menerima order. Lengkapi PKS, akun portal aktif, dan hubungan cabang pada master notaris.');
+
         $notary = Notary::availableForOrders()
             ->whereHas('users', fn ($query) => $query->where('is_active', true))
-            ->when($branchId, fn ($query) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))
+            ->whereHas('branches', fn ($query) => $query->whereKey($branch->id)->where('branch_notary.is_active', true))
             ->orderBy('name')
             ->first();
 
@@ -304,12 +313,13 @@ class OrderController extends Controller
 
         return Inertia::render('simontok/orders/show', [
             'order' => $order,
+            'coreProvider' => config('core.provider'),
             'canEdit' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canSubmitApproval' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canApproveOrder' => $request->user()->hasPermission('orders.approve') && $order->status === TrackAStatus::MenungguApproval,
             'branches' => Branch::where('is_active', true)->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
             'branchLocked' => $this->userBranchScope($request) !== null,
-            'notaries' => Notary::availableForOrders()->whereHas('users', fn ($query) => $query->where('is_active', true))->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
+            'notaries' => Notary::availableForOrders()->with(['branches' => fn ($query) => $query->where('branches.is_active', true)->where('branch_notary.is_active', true)])->whereHas('users', fn ($query) => $query->where('is_active', true))->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name'])->map(fn (Notary $notary) => ['id' => $notary->id, 'name' => $notary->name, 'branch_ids' => $notary->branches->pluck('id')]),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'collateralTypes' => $this->collateralTypeOptions(),
             'paymentSchemes' => $this->paymentSchemeOptions(),
@@ -381,7 +391,7 @@ class OrderController extends Controller
         $this->authorizeVisibleOrder($request, $order);
         abort_unless($this->canEditDraft($order), 403);
 
-        $data = $this->validatedDraftData($request);
+        $data = $this->validatedDraftData($request, $order);
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
 
         DB::transaction(function () use ($data, $request, $order) {
@@ -712,11 +722,30 @@ class OrderController extends Controller
         return $data;
     }
 
-    private function validatedDraftData(Request $request): array
+    private function validatedDraftData(Request $request, ?Order $order = null): array
     {
+        $selection = $request->validate([
+            'core_account_id' => ['nullable', 'string', 'max:100'],
+            'collaterals' => ['nullable', 'array'],
+            'collaterals.*' => ['array'],
+            'collaterals.*.id' => ['nullable', 'integer'],
+            'collaterals.*.agunan_id' => ['nullable', 'string', 'max:50'],
+        ]);
+        $accountId = $request->exists('core_account_id') ? ($selection['core_account_id'] ?? null) : $order?->core_account_id;
+        if ($order?->core_account_id && blank($accountId)) {
+            throw ValidationException::withMessages(['core_account_id' => 'Rekening yang sudah dipilih tidak dapat dihapus. Pilih rekening pengganti jika draft belum berisi pekerjaan.']);
+        }
+        $core = filled($accountId)
+            ? $this->coreSnapshot->prepare($accountId, $request->input('collaterals') ?? [], $request->user(), $order)
+            : [];
+        if ($core !== []) {
+            $request->merge(collect($core)->only(['core_account_id', 'branch_id', 'customer_name', 'no_rekening', 'plafon', 'collaterals'])->all());
+        }
+
         $data = $request->validate([
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'notary_id' => ['required', 'integer', 'exists:notaries,id'],
+            'core_account_id' => ['nullable', 'string', 'max:100'],
             'customer_name' => ['required', 'string', 'max:255'],
             'no_rekening' => ['required', 'string', 'max:30'],
             'tgl_realisasi' => ['nullable', 'date'],
@@ -728,7 +757,7 @@ class OrderController extends Controller
             'collaterals' => ['nullable', 'array'],
             'collaterals.*.job_type_id' => ['nullable', 'integer', 'exists:job_types,id'],
             'collaterals.*.jobs' => ['nullable', 'array'],
-            'collaterals.*.jobs.*.job_type_id' => ['required', 'integer', 'exists:job_types,id'],
+            'collaterals.*.jobs.*.job_type_id' => ['nullable', 'integer', 'exists:job_types,id'],
             'collaterals.*.jobs.*.deskripsi_pekerjaan' => ['nullable', 'string', 'max:2000'],
             'collaterals.*.jobs.*.sla_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'collaterals.*.jobs.*.sla_override_reason' => ['nullable', 'string', 'max:2000'],
@@ -747,16 +776,24 @@ class OrderController extends Controller
             'collaterals.*.jobs.*.sla_override_reason.required' => 'Alasan perubahan SLA wajib diisi.',
         ]);
 
+        $data = [...$data, ...collect($core)->only(['core_customer_id', 'core_branch_code', 'core_snapshot', 'core_synced_at', 'plafon'])->all()];
+
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
 
-        if (! Notary::availableForOrders()->whereKey($data['notary_id'])->exists()) {
+        if (! Notary::availableForOrders()->whereKey($data['notary_id'])
+            ->whereHas('users', fn ($query) => $query->where('is_active', true))
+            ->whereHas('branches', fn ($query) => $query->whereKey($data['branch_id'])->where('branch_notary.is_active', true))
+            ->exists()) {
             throw ValidationException::withMessages([
-                'notary_id' => 'Legalitas notaris belum lengkap atau sudah berakhir.',
+                'notary_id' => 'Pilih notaris rekanan aktif untuk cabang rekening ini, dengan PKS dan akun portal yang tersedia.',
             ]);
         }
 
         foreach ($data['collaterals'] ?? [] as $index => $collateralData) {
-            $jobs = $collateralData['jobs'] ?? [];
+            $jobs = array_values(array_filter($collateralData['jobs'] ?? [], fn ($job) => filled($job['job_type_id'] ?? null)));
+            if ($order && filled($collateralData['id'] ?? null) && ! $order->collaterals()->whereKey($collateralData['id'])->exists()) {
+                throw ValidationException::withMessages(["collaterals.{$index}.id" => 'Agunan bukan milik order ini.']);
+            }
             if ($jobs === [] && ($collateralData['job_type_id'] ?? null)) {
                 $jobs = [[
                     'job_type_id' => $collateralData['job_type_id'],
@@ -766,6 +803,8 @@ class OrderController extends Controller
                 ]];
             }
             if ($jobs === []) {
+                $data['collaterals'][$index]['jobs'] = [];
+
                 continue;
             }
             foreach ($jobs as $jobIndex => $job) {
@@ -787,6 +826,14 @@ class OrderController extends Controller
     {
         $order->loadMissing('collaterals.checklists');
         $missing = [];
+
+        if ($order->core_account_id) {
+            $sourceIds = collect($order->core_snapshot['collaterals'] ?? [])->pluck('collateral_id')->sort()->values()->all();
+            $savedIds = $order->collaterals->pluck('agunan_id')->sort()->values()->all();
+            if ($sourceIds !== $savedIds) {
+                $missing[] = 'jenis pekerjaan untuk seluruh agunan rekening';
+            }
+        }
 
         foreach (['branch_id' => 'cabang', 'notary_id' => 'notaris', 'customer_name' => 'nama nasabah', 'no_rekening' => 'nomor rekening', 'tgl_realisasi' => 'tanggal akad'] as $field => $label) {
             if (blank($order->{$field})) {
@@ -815,15 +862,25 @@ class OrderController extends Controller
 
     private function seedOrderChecklists(Order $order, $collateral, array $jobTypeIds): void
     {
-        DocumentChecklist::query()
+        $checklists = DocumentChecklist::query()
             ->where(function ($query) use ($jobTypeIds) {
                 $query->whereNull('job_type_id')->orWhereIn('job_type_id', $jobTypeIds);
             })
             ->where('is_active', true)
-            ->get()
-            ->each(fn (DocumentChecklist $checklist) => $collateral->checklists()->firstOrCreate([
-                'document_checklist_id' => $checklist->id,
-            ], ['order_id' => $order->id]));
+            ->get();
+
+        foreach ($checklists as $checklist) {
+            $jobs = $checklist->job_type_id
+                ? $collateral->jobs->where('job_type_id', $checklist->job_type_id)
+                : collect([null]);
+
+            foreach ($jobs as $job) {
+                $collateral->checklists()->firstOrCreate([
+                    'document_checklist_id' => $checklist->id,
+                    'order_collateral_job_id' => $job?->id,
+                ], ['order_id' => $order->id]);
+            }
+        }
     }
 
     private function syncCollateralJobs(OrderCollateral $collateral, array $jobs, int $branchId, ?string $startDate): void

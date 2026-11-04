@@ -26,21 +26,21 @@ class BranchController extends Controller
         return Inertia::render('simontok/masters/branches', [
             'branches' => Branch::query()
                 ->with(['users' => fn ($query) => $query->whereNull('notary_id')->with('jobPosition.role:id,code,name')->orderBy('name')])
-            ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")->orWhere('address', 'like', "%{$search}%")))
-            ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
-            ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
-            ->latest()->paginate(10)->withQueryString()->through(fn (Branch $branch) => [
-                    ...$branch->only(['id', 'code', 'name', 'address', 'latitude', 'longitude', 'is_active']),
-                    'users' => $branch->users->map(fn (User $user) => [
-                        'id' => $user->id,
-                        'name' => $user->name,
-                        'email' => $user->email,
-                        'sso_employee_id' => $user->sso_employee_id,
-                        'is_active' => $user->is_active,
-                        'job_position' => $user->jobPosition?->only(['id', 'name', 'code']),
-                        'role' => $user->jobPosition?->role?->only(['code', 'name']),
-                    ])->values()->all(),
-                ]),
+                ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")->orWhere('address', 'like', "%{$search}%")))
+                ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
+                ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
+                ->latest()->paginate(10)->withQueryString()->through(fn (Branch $branch) => [
+                ...$branch->only(['id', 'code', 'name', 'address', 'latitude', 'longitude', 'is_active']),
+                'users' => $branch->users->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'sso_employee_id' => $user->sso_employee_id,
+                    'is_active' => $user->is_active,
+                    'job_position' => $user->jobPosition?->only(['id', 'name', 'code']),
+                    'role' => $user->jobPosition?->role?->only(['code', 'name']),
+                ])->values()->all(),
+            ]),
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'status' => $filters['status'] ?? '',

@@ -9,9 +9,10 @@ use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -184,6 +185,59 @@ class UserController extends Controller
         return back()->with('success', $isActive ? 'Pengguna diaktifkan.' : 'Pengguna dinonaktifkan.');
     }
 
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        $this->authorizeManagedUser($request, $user);
+        abort_if($request->user()->is($user), 403, 'Akun yang sedang digunakan tidak dapat dihapus.');
+        abort_if($user->notary_id !== null, 403, 'Akun portal notaris dikelola dari menu Notaris.');
+        abort_if(filled(config('services.sso.emergency_login')) && $user->email === config('services.sso.emergency_login'), 403, 'Akun akses darurat dikelola melalui Pengaturan Sistem.');
+
+        $references = $this->userReferences($user);
+        if ($references !== []) {
+            throw ValidationException::withMessages([
+                'user' => 'Pengguna tidak dapat dihapus karena masih tercatat pada '.implode(', ', $references).'. Nonaktifkan akun jika aksesnya perlu dihentikan.',
+            ]);
+        }
+
+        $snapshot = $user->only(['name', 'email', 'sso_employee_id', 'branch_id', 'job_position_id', 'notary_id', 'is_active']);
+        Audit::record($request, 'users', $user, 'delete_user', 'Pengguna dihapus.', ['before' => $snapshot]);
+        $user->delete();
+
+        return back()->with('success', 'Pengguna dihapus.');
+    }
+
+    /** @return list<string> */
+    private function userReferences(User $user): array
+    {
+        $references = [
+            ['table' => 'orders', 'column' => 'created_by', 'label' => 'order yang dibuat'],
+            ['table' => 'orders', 'column' => 'checked_by', 'label' => 'pemeriksaan order'],
+            ['table' => 'orders', 'column' => 'covernote_approved_by', 'label' => 'persetujuan covernote'],
+            ['table' => 'covernote_extensions', 'column' => 'extended_by', 'label' => 'perpanjangan covernote'],
+            ['table' => 'covernote_extensions', 'column' => 'approved_by', 'label' => 'persetujuan perpanjangan covernote'],
+            ['table' => 'order_checklists', 'column' => 'checked_by', 'label' => 'checklist dokumen'],
+            ['table' => 'order_progress', 'column' => 'created_by', 'label' => 'progres order'],
+            ['table' => 'order_revisions', 'column' => 'requested_by', 'label' => 'permintaan revisi'],
+            ['table' => 'order_revisions', 'column' => 'fixed_by', 'label' => 'penyelesaian revisi'],
+            ['table' => 'order_documents', 'column' => 'uploaded_by', 'label' => 'dokumen order'],
+            ['table' => 'order_documents', 'column' => 'validated_by', 'label' => 'validasi dokumen'],
+            ['table' => 'order_handovers', 'column' => 'maker_id', 'label' => 'serah terima dokumen'],
+            ['table' => 'order_handovers', 'column' => 'checked_by', 'label' => 'pemeriksaan serah terima'],
+            ['table' => 'document_requests', 'column' => 'requested_by', 'label' => 'permintaan dokumen'],
+            ['table' => 'document_requests', 'column' => 'fulfilled_by', 'label' => 'pemenuhan dokumen'],
+            ['table' => 'payment_requests', 'column' => 'verified_by', 'label' => 'verifikasi pembayaran'],
+            ['table' => 'payment_requests', 'column' => 'approved_by', 'label' => 'persetujuan pembayaran'],
+            ['table' => 'payment_requests', 'column' => 'rejected_by', 'label' => 'penolakan pembayaran'],
+            ['table' => 'payments', 'column' => 'uploaded_by', 'label' => 'bukti pembayaran'],
+        ];
+
+        return collect($references)
+            ->filter(fn (array $reference) => DB::table($reference['table'])->where($reference['column'], $user->id)->exists())
+            ->pluck('label')
+            ->values()
+            ->all();
+    }
+
     private function validateOrganizationalAssignment(array $data): void
     {
         $position = ! empty($data['job_position_id'])
@@ -238,6 +292,7 @@ class UserController extends Controller
         }
 
         $data['branch_id'] = $actor->branchScopeId();
+
         return $data;
     }
 

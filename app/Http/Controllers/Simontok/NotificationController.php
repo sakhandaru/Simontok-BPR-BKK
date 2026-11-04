@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Simontok;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Support\Audit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 
 class NotificationController extends Controller
 {

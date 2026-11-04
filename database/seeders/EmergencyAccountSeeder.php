@@ -6,7 +6,6 @@ use App\Models\JobPosition;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class EmergencyAccountSeeder extends Seeder
 {
@@ -36,8 +35,8 @@ class EmergencyAccountSeeder extends Seeder
         }
 
         $password = env('EMERGENCY_ACCOUNT_PASSWORD');
-        if (! is_string($password) || Str::length($password) < 16) {
-            throw new \RuntimeException('EMERGENCY_ACCOUNT_PASSWORD wajib diisi dan minimal 16 karakter saat membuat akun darurat.');
+        if (! is_string($password) || $password === '') {
+            throw new \RuntimeException('EMERGENCY_ACCOUNT_PASSWORD wajib diisi saat membuat akun darurat.');
         }
 
         User::query()->create([

@@ -10,6 +10,7 @@ type SimCreatableComboboxProps = {
     emptyLabel?: string;
     id?: string;
     onAdd?: (value: string) => Promise<void>;
+    disabled?: boolean;
 };
 
 export function SimCreatableCombobox({
@@ -21,6 +22,7 @@ export function SimCreatableCombobox({
     emptyLabel = 'Belum ada pilihan.',
     id,
     onAdd,
+    disabled = false,
 }: SimCreatableComboboxProps) {
     const [open, setOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
@@ -37,6 +39,7 @@ export function SimCreatableCombobox({
     const canAdd = Boolean(newValue) && !allOptions.some((option) => option.toLowerCase() === newValue.toLowerCase());
 
     const openList = () => {
+        if (disabled) return;
         if (closeTimer.current) clearTimeout(closeTimer.current);
         setOpen(true);
         setActiveIndex(filteredOptions.length ? 0 : -1);
@@ -112,6 +115,7 @@ export function SimCreatableCombobox({
                     onBlur={closeLater}
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
+                    disabled={disabled}
                     className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 />
                 <button
@@ -120,6 +124,7 @@ export function SimCreatableCombobox({
                     aria-label={open ? 'Tutup pilihan' : 'Buka pilihan'}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => open ? setOpen(false) : openList()}
+                    disabled={disabled}
                     className="ml-2 inline-flex min-h-8 min-w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                     {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}

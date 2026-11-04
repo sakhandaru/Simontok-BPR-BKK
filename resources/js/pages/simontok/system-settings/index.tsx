@@ -140,11 +140,11 @@ export default function SystemSettings({ settings, emergencyAccess }: { settings
                     {emergencyAccess.canRotatePassword && (
                         <form onSubmit={(event) => { event.preventDefault(); rotation.put('/system-settings/emergency-password', { onSuccess: () => rotation.reset() }); }} className="border-t px-5 py-4">
                             <h3 className="font-medium">Rotasi kata sandi</h3>
-                            <p className="mt-1 text-sm text-muted-foreground">Gunakan kata sandi unik dari password vault. Minimal 16 karakter; kata sandi tidak akan ditampilkan lagi.</p>
+                            <p className="mt-1 text-sm text-muted-foreground">Gunakan kata sandi yang hanya diketahui admin IT. Kata sandi tidak akan ditampilkan lagi.</p>
                             <div className="mt-4 grid gap-4 sm:grid-cols-2">
                                 <div className="space-y-2 sm:col-span-2"><Label htmlFor="current_password">Kata sandi saat ini</Label><Input id="current_password" type="password" autoComplete="current-password" value={rotation.data.current_password} onChange={(event) => rotation.setData('current_password', event.target.value)} required /><InputError message={rotation.errors.current_password} /></div>
-                                <div className="space-y-2"><Label htmlFor="new_password">Kata sandi baru</Label><Input id="new_password" type="password" autoComplete="new-password" value={rotation.data.password} onChange={(event) => rotation.setData('password', event.target.value)} required minLength={16} /><InputError message={rotation.errors.password} /></div>
-                                <div className="space-y-2"><Label htmlFor="password_confirmation">Konfirmasi kata sandi baru</Label><Input id="password_confirmation" type="password" autoComplete="new-password" value={rotation.data.password_confirmation} onChange={(event) => rotation.setData('password_confirmation', event.target.value)} required minLength={16} /></div>
+                                <div className="space-y-2"><Label htmlFor="new_password">Kata sandi baru</Label><Input id="new_password" type="password" autoComplete="new-password" value={rotation.data.password} onChange={(event) => rotation.setData('password', event.target.value)} required /><InputError message={rotation.errors.password} /></div>
+                                <div className="space-y-2"><Label htmlFor="password_confirmation">Konfirmasi kata sandi baru</Label><Input id="password_confirmation" type="password" autoComplete="new-password" value={rotation.data.password_confirmation} onChange={(event) => rotation.setData('password_confirmation', event.target.value)} required /></div>
                             </div>
                             <Button type="submit" className="mt-4" disabled={rotation.processing}><KeyRound aria-hidden="true" /> Rotasi kata sandi</Button>
                         </form>

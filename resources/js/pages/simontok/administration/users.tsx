@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Ban, CircleCheck, Edit3, Plus, RotateCcw, Search, X } from 'lucide-react';
+import { Ban, CircleCheck, Edit3, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import InputError from '@/components/input-error';
 import { SimPageHeader } from '@/components/sim-page-header';
@@ -89,6 +89,8 @@ export default function Users({
     const [accountType, setAccountType] = useState<AccountType>('sso');
     const [statusProcessingId, setStatusProcessingId] = useState<number | null>(null);
     const [pendingStatusUser, setPendingStatusUser] = useState<User | null>(null);
+    const [deleteProcessingId, setDeleteProcessingId] = useState<number | null>(null);
+    const [pendingDeleteUser, setPendingDeleteUser] = useState<User | null>(null);
     const filterInitialized = useRef(false);
     const skipNextFilterRequest = useRef(false);
     const { sortedRows, sort, toggleSort } = useSimTableSort(
@@ -173,6 +175,17 @@ export default function Users({
         router.patch(`/users/${user.id}/status`, { is_active: nextActive }, {
             preserveScroll: true,
             onFinish: () => setStatusProcessingId(null),
+        });
+    };
+    const confirmUserDelete = () => {
+        if (!pendingDeleteUser) return;
+        const user = pendingDeleteUser;
+
+        setDeleteProcessingId(user.id);
+        setPendingDeleteUser(null);
+        router.delete(`/users/${user.id}`, {
+            preserveScroll: true,
+            onFinish: () => setDeleteProcessingId(null),
         });
     };
     const resetFilters = () => {
@@ -318,6 +331,17 @@ export default function Users({
                                                     {user.is_active ? <Ban className="size-4" /> : <CircleCheck className="size-4" />}
                                                     {user.is_active ? 'Nonaktifkan' : 'Aktifkan'}
                                                 </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-destructive hover:text-destructive"
+                                                    disabled={deleteProcessingId === user.id}
+                                                    onClick={() => setPendingDeleteUser(user)}
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                    Hapus
+                                                </Button>
                                             </div>
                                         )}
                                     </td>
@@ -411,6 +435,17 @@ export default function Users({
                                     >
                                         {user.is_active ? <Ban className="size-4" /> : <CircleCheck className="size-4" />}
                                         {user.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-destructive hover:text-destructive"
+                                        disabled={deleteProcessingId === user.id}
+                                        onClick={() => setPendingDeleteUser(user)}
+                                    >
+                                        <Trash2 className="size-4" />
+                                        Hapus
                                     </Button>
                                 </div>
                             )}
@@ -597,6 +632,30 @@ export default function Users({
                                 onClick={confirmUserStatusChange}
                             >
                                 {pendingStatusUser?.is_active ? 'Nonaktifkan akun' : 'Aktifkan akun'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                <Dialog
+                    open={pendingDeleteUser !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setPendingDeleteUser(null);
+                    }}
+                >
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Hapus pengguna?</DialogTitle>
+                            <DialogDescription>
+                                Akun {pendingDeleteUser?.name} akan dihapus permanen. Tindakan ini tidak dapat dibatalkan. Jika akun sudah dipakai pada order atau dokumen, penghapusan akan ditolak dan akun dapat dinonaktifkan sebagai gantinya.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setPendingDeleteUser(null)}>
+                                Batal
+                            </Button>
+                            <Button type="button" variant="destructive" onClick={confirmUserDelete}>
+                                <Trash2 className="size-4" />
+                                Hapus permanen
                             </Button>
                         </DialogFooter>
                     </DialogContent>

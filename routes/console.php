@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('simontok:refresh-tracking --notify')->dailyAt('07:00');
+Schedule::command('core:sync-staging')->hourly();

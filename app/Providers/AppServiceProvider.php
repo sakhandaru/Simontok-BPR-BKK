@@ -2,19 +2,22 @@
 
 namespace App\Providers;
 
-use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Auth\Events\Login;
-use Illuminate\Auth\Events\Logout;
-use Illuminate\Auth\Events\Failed;
-use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
-use Illuminate\Support\Facades\Event;
+use App\Contracts\CoreAccountProvider;
+use App\Models\User;
+use App\Services\Core\DummyCoreAccountProvider;
+use App\Services\Core\StagedCoreAccountProvider;
 use App\Support\Audit;
 use App\Support\EmergencyAccessNotifier;
-use App\Models\User;
+use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,7 +26,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(CoreAccountProvider::class, function () {
+            if (config('core.read_model') === 'staging') {
+                return new StagedCoreAccountProvider;
+            }
+
+            return match (config('core.provider')) {
+                'dummy' => new DummyCoreAccountProvider,
+                default => throw new \RuntimeException('Provider BU Core belum tersedia: '.config('core.provider')),
+            };
+        });
     }
 
     /**

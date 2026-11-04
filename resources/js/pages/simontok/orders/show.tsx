@@ -3,8 +3,10 @@ import {
     AlertCircle,
     ArrowLeft,
     BadgeCheck,
+    BriefcaseBusiness,
     CheckCircle2,
     Circle,
+    ClipboardList,
     ClipboardCheck,
     Clock3,
     ChevronDown,
@@ -39,6 +41,7 @@ import { savePaymentScheme } from '@/lib/payment-schemes';
 import { SimTimeline } from '@/components/sim-timeline';
 import { SimJourneyNodes } from '@/components/sim-journey-nodes';
 import { RupiahInput } from '@/components/rupiah-input';
+import { CoreAccountPicker, type CoreAccount } from '@/components/core-account-picker';
 import InputError from '@/components/input-error';
 import { Label } from '@/components/ui/label';
 import {
@@ -74,6 +77,7 @@ type CollateralDraft = {
 };
 type CollateralJobDraft = { id?: string; job_type_id: string; deskripsi_pekerjaan: string; sla_days: string; sla_override_reason: string };
 type OrderDraft = {
+    core_account_id: string;
     branch_id: string;
     notary_id: string;
     customer_name: string;
@@ -117,6 +121,7 @@ export default function OrdersShow({
     collateralTypes,
     paymentSchemes,
     slaPolicies,
+    coreProvider,
 }: {
     order: any;
     canEdit: boolean;
@@ -142,41 +147,16 @@ export default function OrdersShow({
     serviceFee: { main: number; steps: number; total: number };
     branches: { id: number; code: string; name: string }[];
     branchLocked: boolean;
-    notaries: { id: number; name: string }[];
+    notaries: { id: number; name: string; branch_ids: number[] }[];
     jobTypes: { id: number; code: string; name: string }[];
     collateralTypes: string[];
     paymentSchemes: string[];
     slaPolicies: Record<string, { days: number; source: string }>;
+    coreProvider: string;
 }) {
-    const draft = useForm<OrderDraft>({
-        branch_id: String(order.branch_id ?? ''),
-        notary_id: String(order.notary_id ?? ''),
-        customer_name: order.customer_name ?? '',
-        no_rekening: order.no_rekening ?? '',
-        tgl_masuk_notaris: dateInput(order.tgl_masuk_notaris),
-        tgl_realisasi: dateInput(order.tgl_realisasi),
-        plafon: order.plafon ?? '',
-        nominal: order.nominal ?? '',
-        skema_pembayaran: order.skema_pembayaran ?? '',
-        keterangan: order.keterangan ?? '',
-        collaterals:
-            order.collaterals?.map((item: any) => ({
-                id: String(item.id ?? ''),
-                agunan_id: item.agunan_id ?? '',
-                nama_agunan: item.nama_agunan ?? item.deskripsi_agunan ?? item.agunan_id ?? '',
-                deskripsi_agunan: item.deskripsi_agunan ?? '',
-                covernote_no: item.covernote_no ?? '',
-                covernote_start: dateInput(item.covernote_start),
-                covernote_end: dateInput(item.covernote_end),
-                jobs: (item.jobs?.length ? item.jobs : item.job_type_id ? [{ job_type_id: item.job_type_id, sla_days: item.sla_days, sla_source: item.sla_source, sla_override_reason: item.sla_override_reason }] : []).map((job: any) => ({
-                    id: String(job.id ?? ''),
-                    job_type_id: String(job.job_type_id ?? ''),
-                    deskripsi_pekerjaan: job.deskripsi_pekerjaan ?? '',
-                    sla_days: job.sla_source === 'override' && job.sla_days ? String(job.sla_days) : '',
-                    sla_override_reason: job.sla_override_reason ?? '',
-                })),
-            })) ?? [],
-    });
+    const draft = useForm<OrderDraft>(orderDraftFrom(order));
+    const latestDraft = useRef(draft.data);
+    latestDraft.current = draft.data;
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
     const revision = useForm({ reason: '' });
@@ -195,18 +175,35 @@ export default function OrdersShow({
     const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const persistDraft = (silent = false, onSuccess?: () => void) => {
+        if (draft.processing) return;
+        const submitted = JSON.stringify(draft.data);
+        const payload = {
+            ...draft.data,
+            collaterals: draft.data.collaterals.map((collateral) => ({
+                ...collateral,
+                jobs: collateral.jobs.filter((job) => Boolean(job.job_type_id)),
+            })),
+        };
         setDraftSaveState('saving');
+        draft.transform(() => payload);
         draft.put(`/orders/${order.id}`, {
             preserveScroll: true,
             preserveState: true,
-            only: silent ? ['order'] : undefined,
+            only: silent ? ['order', 'slaPolicies'] : undefined,
             headers: silent ? { 'X-Silent-Save': 'true' } : undefined,
-            onSuccess: () => {
-                draft.setDefaults();
-                setDraftSaveState('saved');
+            onSuccess: (page) => {
+                const saved = orderDraftFrom(page.props.order);
+                draft.setDefaults(saved);
+                if (JSON.stringify(latestDraft.current) === submitted) {
+                    draft.setData(saved);
+                    setDraftSaveState('saved');
+                } else {
+                    setDraftSaveState('pending');
+                }
                 onSuccess?.();
             },
             onError: () => setDraftSaveState('error'),
+            onFinish: () => draft.transform((data) => data),
         });
     };
 
@@ -216,7 +213,15 @@ export default function OrdersShow({
             draftInitialized.current = true;
             return;
         }
-        if (!draft.isDirty) return;
+        if (!draft.isDirty || draft.processing) return;
+
+        const hasUnselectedJob = draft.data.collaterals.some((collateral) =>
+            collateral.jobs.some((job) => !job.job_type_id),
+        );
+        if (hasUnselectedJob) {
+            setDraftSaveState('pending');
+            return;
+        }
 
         setDraftSaveState('pending');
         if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
@@ -227,7 +232,30 @@ export default function OrdersShow({
         return () => {
             if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
         };
-    }, [canEdit, draft.data]);
+    }, [canEdit, draft.data, draft.processing]);
+
+    const selectCoreAccount = (account: CoreAccount) => {
+        const branch = branches.find((item) => item.code === account.branch.code);
+        if (!branch) throw new Error('Cabang rekening belum tersedia di SIMONTOK. Hubungi admin master cabang.');
+        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        const eligible = notaries.filter((item) => item.branch_ids.includes(branch.id));
+        draft.clearErrors();
+        draft.setData({
+            ...draft.data,
+            core_account_id: account.account_id,
+            branch_id: String(branch.id),
+            notary_id: eligible.some((item) => String(item.id) === draft.data.notary_id) ? draft.data.notary_id : '',
+            customer_name: account.customer_name,
+            no_rekening: account.account_number,
+            plafon: account.credit.loan_amount === null ? '' : String(account.credit.loan_amount).replace(/\.00$/, ''),
+            collaterals: account.collaterals.map((item) => ({
+                ...emptyCollateralDraft(),
+                agunan_id: item.collateral_id,
+                nama_agunan: item.type_name,
+                deskripsi_agunan: item.description ?? '',
+            })),
+        });
+    };
 
     const submitOrderApproval = () => {
         if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
@@ -414,10 +442,13 @@ export default function OrdersShow({
         bukti: null as File | null,
         catatan: '',
     });
-    const [documentsOpen, setDocumentsOpen] = useState(true);
     const [documentEditor, setDocumentEditor] = useState<DocumentEditor | null>(
         null,
     );
+    const [viewCollateralModal, setViewCollateralModal] = useState<{
+        item: any;
+        tab: 'summary' | 'jobs' | 'documents';
+    } | null>(null);
 
     const submitUpload = (event?: FormEvent) => {
         event?.preventDefault();
@@ -519,6 +550,38 @@ export default function OrdersShow({
         paymentApproval.post(
             `/orders/${order.id}/payment-requests/${order.payment_request.id}/approve`,
             { preserveScroll: true },
+        );
+    };
+
+    const renderCollateralDocuments = (collateral: any) => {
+        if (orderSentToNotary || !canViewInitialDocuments) return null;
+
+        const checklistItems = (collateral.checklists ?? []).filter(
+            (item: any) => item.document_checklist?.is_active !== false,
+        );
+        const uploadedCount = checklistItems.filter(
+            (item: any) => item.order_document,
+        ).length;
+        const documentGroups = checklistItems.length > 0
+            ? [{ label: 'Checklist dokumen', items: checklistItems }]
+            : [];
+        const documents = [
+            ...checklistItems.filter((item: any) => item.order_document).map((item: any) => item.order_document),
+            ...(collateral.documents ?? []).filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya'),
+        ];
+
+        return (
+            <section className="mt-4 rounded-md border bg-muted/10 p-3 md:col-span-2 md:p-4">
+                <div className="border-b pb-3">
+                    <h4 className="font-medium">Dokumen <span className="text-sm font-normal text-muted-foreground">{documents.length} file diunggah</span></h4>
+                    <p className="mt-1 text-xs text-muted-foreground">Checklist dan dokumen pendukung untuk agunan ini.</p>
+                </div>
+                {documents.length > 0 ? (
+                    <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                        {documents.map((document: any) => <li key={document.id} className="flex min-w-0 items-center gap-2"><span className="size-1.5 shrink-0 rounded-full bg-green-500" /><span className="min-w-0 flex-1 truncate">{document.display_name || document.original_name || 'Dokumen'}</span></li>)}
+                    </ul>
+                ) : <p className="mt-3 text-sm text-muted-foreground">Belum ada dokumen yang diunggah.</p>}
+            </section>
         );
     };
 
@@ -811,11 +874,18 @@ export default function OrdersShow({
                         collateralTypes={collateralTypes}
                         paymentSchemes={paymentSchemes}
                         slaPolicies={slaPolicies}
+                        order={order}
                         setCollateral={setCollateral}
                         setJob={setJob}
                         setCollateralJobs={setCollateralJobs}
+                        openChecklistEditor={openChecklistEditor}
+                        openDocumentEditor={(editor) => setDocumentEditor(editor)}
                         incompleteFields={incompleteFields}
                         saveState={draftSaveState}
+                        coreProvider={coreProvider}
+                        selectCoreAccount={selectCoreAccount}
+                        canReplaceAccount={!order.collaterals?.length && !order.documents?.length}
+                        retrySave={() => persistDraft()}
                     />
                 )}
                 <OrderTrackingHero order={order} paymentAccount={paymentAccount} />
@@ -1112,83 +1182,128 @@ export default function OrdersShow({
                         <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                     </summary>
                     <div className="divide-y">
-                        {order.collaterals.map((item: any) => (
+                        {order.collaterals.map((item: any, index: number) => (
                             <div
                                 key={item.id}
-                                className="grid gap-4 p-4 md:grid-cols-[1fr_220px]"
+                                className="border-b p-4 last:border-b-0"
                             >
-                                <div>
-                                    <div className="font-medium">
-                                        {item.nama_agunan || item.deskripsi_agunan || item.agunan_id || 'Agunan'}
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <div className="font-medium">Agunan {index + 1}</div>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            {item.nama_agunan || item.agunan_id || 'Identitas agunan belum diisi'}
+                                        </p>
                                     </div>
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        {item.deskripsi_agunan || 'Deskripsi agunan belum diisi.'}
-                                    </p>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        <SimStatusBadge
-                                            label={`Dokumen: ${statusLabel(item.doc_status)}`}
-                                            tone={toneForStatus(
-                                                statusLabel(item.doc_status),
-                                            )}
-                                        />
-                                        {item.covernote_no ||
-                                        item.covernote_end ? (
-                                            <SimStatusBadge
-                                                label={`Covernote: ${statusLabel(item.covernote_status)}`}
-                                                tone={toneForStatus(
-                                                    statusLabel(
-                                                        item.covernote_status,
-                                                    ),
-                                                )}
-                                            />
-                                        ) : (
-                                            <SimStatusBadge
-                                                label="Covernote belum tersedia"
-                                                tone="warning"
-                                            />
-                                        )}
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setViewCollateralModal({ item, tab: 'summary' })}>
+                                            <ClipboardList className="size-4" />Ringkasan
+                                        </Button>
+                                        <Button type="button" size="sm" onClick={() => setViewCollateralModal({ item, tab: 'jobs' })}>
+                                            <BriefcaseBusiness className="size-4" />Pekerjaan
+                                        </Button>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setViewCollateralModal({ item, tab: 'documents' })}>
+                                            <FileText className="size-4" />Dokumen
+                                        </Button>
                                     </div>
                                 </div>
-                                <div className="text-sm text-muted-foreground">
-                                    <div className="mb-3 rounded-md border bg-muted/20 p-3">
-                                        <div className="font-medium text-foreground">Pekerjaan dan SLA</div>
-                                        <div className="mt-2 grid gap-2">
-                                            {(item.jobs?.length ? item.jobs : [item]).map((job: any, jobIndex: number) => (
-                                                <div key={job.id ?? jobIndex} className="border-t pt-2 first:border-t-0 first:pt-0">
-                                                    <div className="font-medium text-foreground">{job.job_type?.name ?? 'Pekerjaan'}</div>
-                                                    {job.deskripsi_pekerjaan && <div className="mt-1 text-foreground/80">{job.deskripsi_pekerjaan}</div>}
-                                                    <div className="mt-1">{job.sla_days ? `${job.sla_days} hari` : 'Belum ditentukan'} · jatuh tempo {dateOnly(job.sla_due_at) || 'menunggu tanggal masuk notaris'}</div>
-                                                    {job.sla_source === 'override' && <div className="mt-1 text-xs">Alasan: {job.sla_override_reason || 'Menunggu alasan'}</div>}
-                                                    {job.sla_due_at && <div className="mt-1 text-xs font-medium text-foreground">{slaState(job.sla_due_at)}</div>}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    {item.covernote_no || item.covernote_end ? (
-                                        <>
-                                            <div>
-                                                No:{' '}
-                                                {item.covernote_no ||
-                                                    'Belum tersedia'}
-                                            </div>
-                                            <div>
-                                                Jatuh tempo:{' '}
-                                                {dateOnly(item.covernote_end) ||
-                                                    'Belum tersedia'}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div>
-                                            Nomor dan tanggal jatuh tempo akan
-                                            muncul setelah notaris mengajukan
-                                            covernote.
-                                        </div>
-                                    )}
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <SimStatusBadge
+                                        label={'Dokumen: ' + statusLabel(item.doc_status)}
+                                        tone={toneForStatus(statusLabel(item.doc_status))}
+                                    />
+                                    <SimStatusBadge
+                                        label={item.covernote_no || item.covernote_end ? 'Covernote: ' + statusLabel(item.covernote_status) : 'Covernote belum tersedia'}
+                                        tone={item.covernote_no || item.covernote_end ? toneForStatus(statusLabel(item.covernote_status)) : 'warning'}
+                                    />
                                 </div>
                             </div>
                         ))}
                     </div>
                 </details>
+
+                <Dialog
+                    open={Boolean(viewCollateralModal)}
+                    onOpenChange={(open) => !open && setViewCollateralModal(null)}
+                >
+                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {viewCollateralModal?.tab === 'jobs'
+                                    ? 'Pekerjaan untuk agunan ini'
+                                    : viewCollateralModal?.tab === 'documents'
+                                      ? 'Dokumen agunan'
+                                      : 'Ringkasan agunan'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {viewCollateralModal?.item?.nama_agunan || 'Agunan'}
+                            </DialogDescription>
+                        </DialogHeader>
+                        {viewCollateralModal && (
+                            <div className="grid gap-5">
+                                {(viewCollateralModal.tab === 'summary' || viewCollateralModal.tab === 'jobs') && (
+                                    <div className="overflow-hidden rounded-md border">
+                                        <div className="bg-primary px-4 py-3 text-primary-foreground">
+                                            <div className="font-medium">Pekerjaan untuk agunan ini</div>
+                                            <div className="text-sm text-primary-foreground/75">Ringkasan pekerjaan dan SLA.</div>
+                                        </div>
+                                        <div className="grid gap-3 p-4">
+                                            {(viewCollateralModal.item.jobs?.length ? viewCollateralModal.item.jobs : [viewCollateralModal.item]).map((job: any, jobIndex: number) => (
+                                                <div key={job.id ?? jobIndex} className="border-b pb-3 last:border-b-0 last:pb-0">
+                                                    <div className="font-medium">{job.job_type?.name ?? 'Pekerjaan'}</div>
+                                                    {job.deskripsi_pekerjaan && <div className="mt-1 text-sm text-muted-foreground">{job.deskripsi_pekerjaan}</div>}
+                                                    <div className="mt-1 text-sm text-muted-foreground">{job.sla_days ? `${job.sla_days} hari` : 'Belum ditentukan'} · jatuh tempo {dateOnly(job.sla_due_at) || 'menunggu tanggal masuk notaris'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {viewCollateralModal.tab === 'summary' && (
+                                    <>
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <Info label="ID agunan" value={viewCollateralModal.item.agunan_id || `AGN-${viewCollateralModal.item.id}`} />
+                                            <Info label="Jenis agunan" value={viewCollateralModal.item.nama_agunan} />
+                                            <div className="sm:col-span-2"><Info label="Deskripsi agunan" value={viewCollateralModal.item.deskripsi_agunan} /></div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 border-t pt-4">
+                                            <SimStatusBadge label={'Dokumen: ' + statusLabel(viewCollateralModal.item.doc_status)} tone={toneForStatus(statusLabel(viewCollateralModal.item.doc_status))} />
+                                            <SimStatusBadge label={viewCollateralModal.item.covernote_no || viewCollateralModal.item.covernote_end ? 'Covernote: ' + statusLabel(viewCollateralModal.item.covernote_status) : 'Covernote belum tersedia'} tone={viewCollateralModal.item.covernote_no || viewCollateralModal.item.covernote_end ? toneForStatus(statusLabel(viewCollateralModal.item.covernote_status)) : 'warning'} />
+                                        </div>
+                                    </>
+                                )}
+                                {(viewCollateralModal.tab === 'summary' || viewCollateralModal.tab === 'documents') && (
+                                    <div className="grid gap-2 border-t pt-4">
+                                        <div className="font-medium">Dokumen yang diunggah</div>
+                                        {(() => {
+                                            const collateral = viewCollateralModal.item;
+                                            const documents = [
+                                                ...(collateral.checklists ?? []).filter((item: any) => item.order_document).map((item: any) => item.order_document),
+                                                ...(collateral.documents ?? []).filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya'),
+                                            ];
+                                            return documents.length > 0 ? (
+                                                <ul className="grid gap-2 text-sm sm:grid-cols-2">
+                                                    {documents.map((document: any) => (
+                                                        <li key={document.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border p-2">
+                                                            <span className="min-w-0 flex-1 truncate">{document.display_name || document.original_name || 'Dokumen'}</span>
+                                                            <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : <p className="text-sm text-muted-foreground">Belum ada dokumen yang diunggah.</p>;
+                                        })()}
+                                    </div>
+                                )}
+                                {viewCollateralModal.tab === 'summary' && (
+                                    <div className="grid gap-2 border-t pt-4 text-sm">
+                                        <div className="font-medium">Covernote</div>
+                                        {viewCollateralModal.item.covernote_no || viewCollateralModal.item.covernote_end ? (
+                                            <div className="text-muted-foreground">Nomor: {viewCollateralModal.item.covernote_no || 'Belum tersedia'} · Jatuh tempo: {dateOnly(viewCollateralModal.item.covernote_end) || 'Belum tersedia'}</div>
+                                        ) : <p className="text-muted-foreground">Nomor dan tanggal jatuh tempo akan muncul setelah notaris mengajukan covernote.</p>}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
 
                 {order.collaterals.some(
                     (item: any) => item.covernote_file_path,
@@ -1537,7 +1652,7 @@ export default function OrdersShow({
                                                             <Eye className="size-3.5" />
                                                             Buka preview
                                                         </span>
-                                                        <span>
+                                                        <span className="min-w-0 truncate">
                                                             {
                                                                 document.original_name
                                                             }
@@ -1698,372 +1813,6 @@ export default function OrdersShow({
                             Catat handover
                         </Button>
                     </form>
-                )}
-
-                {!orderSentToNotary && canViewInitialDocuments && (
-                    <details
-                        id="kelengkapan-dokumen"
-                        className="sim-panel group"
-                        open={documentsOpen}
-                        onToggle={(event) =>
-                            setDocumentsOpen(event.currentTarget.open)
-                        }
-                    >
-                        <summary className="sim-panel-header flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
-                            <div>
-                                <h2 className="font-medium">
-                                    {canManageOrder
-                                        ? 'Kelengkapan dokumen awal'
-                                        : 'Dokumen order'}
-                                </h2>
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    {canManageOrder
-                                        ? 'Upload setiap dokumen pada persyaratannya. Checklist akan lengkap otomatis setelah upload berhasil.'
-                                        : 'Periksa dokumen checklist dan dokumen pendukung sebelum memberikan approval.'}
-                                </p>
-                            </div>
-                            {canManageOrder && (
-                                <div className="text-sm text-muted-foreground">
-                                    Siapkan dokumen agunan dan dokumen
-                                    pendukung. PDF maksimal 10 MB per file.
-                                </div>
-                            )}
-                            <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 md:mt-0.5" />
-                        </summary>
-                        <div className="divide-y">
-                            {order.collaterals.map((collateral: any) => (
-                                <div key={collateral.id} className="p-4">
-                                    <div className="font-medium">
-                                        {collateral.nama_agunan || 'Jenis agunan'}
-                                        {collateral.agunan_id
-                                            ? ` - ${collateral.agunan_id}`
-                                            : ` - AGN-${collateral.id}`}
-                                    </div>
-                                    <div className="mt-1 text-sm text-muted-foreground">
-                                        {collateral.deskripsi_agunan || 'Deskripsi agunan belum diisi.'}
-                                    </div>
-                                    {canManageOrder && (
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                setDocumentEditor({
-                                                    collateralId: String(
-                                                        collateral.id,
-                                                    ),
-                                                    checklistId: '',
-                                                    displayName: '',
-                                                    file: null,
-                                                    kind: 'pendukung',
-                                                })
-                                            }
-                                        >
-                                            <FilePlus2 className="size-4" />
-                                            Tambah dokumen pendukung
-                                        </Button>
-                                        </div>
-                                    )}
-                                    <div className="mt-3 space-y-4">
-                                        {[
-                                            {
-                                                label: 'Dokumen wajib',
-                                                items: collateral.checklists.filter((item: any) => item.document_checklist?.is_active !== false && item.document_checklist?.is_required !== false),
-                                            },
-                                            {
-                                                label: 'Add-on',
-                                                items: collateral.checklists.filter((item: any) => item.document_checklist?.is_active !== false && item.document_checklist?.is_required === false),
-                                            },
-                                        ].map((group) => group.items.length > 0 && (
-                                            <section key={group.label} className="grid gap-2">
-                                                <h4 className="text-sm font-medium">{group.label}</h4>
-                                                <div className="grid gap-3 md:grid-cols-2">
-                                        {group.items.map(
-                                            (item: any) => {
-                                                return (
-                                                    <div
-                                                        key={item.id}
-                                                        className="group sim-metric grid gap-3 overflow-hidden text-sm"
-                                                    >
-                                                        {item.order_document && (
-                                                            <a
-                                                                href={`/orders/${order.id}/documents/${item.order_document.id}/preview`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="relative -mx-3 -mt-3 block h-36 overflow-hidden border-b border-border bg-muted/20"
-                                                                aria-label={`Preview ${item.document_checklist?.name ?? 'dokumen checklist'}`}
-                                                            >
-                                                                <iframe
-                                                                    src={`/orders/${order.id}/documents/${item.order_document.id}/preview`}
-                                                                    title={`Preview ${item.document_checklist?.name ?? 'dokumen checklist'}`}
-                                                                    className="pointer-events-none h-full w-full bg-white"
-                                                                />
-                                                                <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-background/90 px-3 py-2 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">
-                                                                    <span className="inline-flex items-center gap-1.5"><Eye className="size-3.5" />Buka preview</span>
-                                                                    <span className="max-w-[60%] truncate">{item.order_document.original_name}</span>
-                                                                </span>
-                                                            </a>
-                                                        )}
-                                                        <label className="flex items-start gap-3">
-                                                            <span
-                                                                className={
-                                                                    item.order_document
-                                                                        ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white'
-                                                                        : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'
-                                                                }
-                                                            >
-                                                                {item.order_document
-                                                                    ? '✓'
-                                                                    : ''}
-                                                            </span>
-                                                            <span className="font-medium">
-                                                                {
-                                                                    item
-                                                                        .document_checklist
-                                                                        ?.name
-                                                                }
-                                                            </span>
-                                                        </label>
-                                                        {item.order_document ? (
-                                                            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs">
-                                                                <div className="min-w-0 flex-1">
-                                                                    <a
-                                                                        className="block truncate text-primary underline-offset-4 hover:underline"
-                                                                        href={`/orders/${order.id}/documents/${item.order_document.id}/download`}
-                                                                    >
-                                                                        File:{' '}
-                                                                        {item
-                                                                            .order_document
-                                                                            .display_name ??
-                                                                            item
-                                                                                .order_document
-                                                                                .original_name}
-                                                                    </a>
-                                                                    <span className="text-muted-foreground">
-                                                                        {formatBytes(
-                                                                            item
-                                                                                .order_document
-                                                                                .file_size,
-                                                                        )}
-                                                                    </span>
-                                                                    <span className="block text-muted-foreground">
-                                                                        Versi {item.order_document.version} · {item.order_document.uploader?.name ?? '-'}
-                                                                    </span>
-                                                                </div>
-                                                                {canManageOrder && (
-                                                                    <span className="flex shrink-0 items-center gap-1">
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="icon"
-                                                                        className="size-8 shrink-0 bg-foreground text-background hover:bg-foreground/90"
-                                                                        title="Edit dokumen"
-                                                                        aria-label="Edit dokumen"
-                                                                        onClick={() =>
-                                                                            setDocumentEditor(
-                                                                                {
-                                                                                    collateralId:
-                                                                                        String(
-                                                                                            collateral.id,
-                                                                                        ),
-                                                                                    documentId:
-                                                                                        item
-                                                                                            .order_document
-                                                                                            .id,
-                                                                                    existingName:
-                                                                                        item
-                                                                                            .order_document
-                                                                                            .display_name ??
-                                                                                        item
-                                                                                            .order_document
-                                                                                            .original_name,
-                                                                                    checklistId:
-                                                                                        String(
-                                                                                            item.id,
-                                                                                        ),
-                                                                                    displayName:
-                                                                                        item
-                                                                                            .order_document
-                                                                                            .display_name ??
-                                                                                        '',
-                                                                                    file: null,
-                                                                                    kind: 'agunan',
-                                                                                },
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Pencil className="size-4" />
-                                                                    </Button>
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="icon"
-                                                                        className="size-8 shrink-0 bg-foreground text-background hover:bg-foreground/90"
-                                                                        title="Hapus dokumen"
-                                                                        aria-label="Hapus dokumen"
-                                                                        onClick={() =>
-                                                                            router.delete(
-                                                                                `/orders/${order.id}/documents/${item.order_document.id}`,
-                                                                                {
-                                                                                    preserveScroll: true,
-                                                                                },
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Trash2 className="size-4" />
-                                                                    </Button>
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        ) : canManageOrder ? (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="w-fit"
-                                                                onClick={() =>
-                                                                    openChecklistEditor(
-                                                                        String(
-                                                                            collateral.id,
-                                                                        ),
-                                                                        String(
-                                                                            item.id,
-                                                                        ),
-                                                                    )
-                                                                }
-                                                            >
-                                                                <FilePlus2 className="size-4" />
-                                                                Input dokumen
-                                                            </Button>
-                                                        ) : (
-                                                            <span className="text-xs text-muted-foreground">
-                                                                Belum ada file.
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                );
-                                            },
-                                        )}
-                                                </div>
-                                            </section>
-                                        ))}
-                                    </div>
-                                    {(
-                                        collateral.documents ?? []
-                                    ).filter(
-                                        (document: any) =>
-                                            (document.document_type?.value ??
-                                                document.document_type) ===
-                                            'lainnya',
-                                    ).length > 0 && (
-                                        <div className="mt-4 rounded-md border border-dashed p-3">
-                                            <div className="mb-2 text-sm font-medium">
-                                                Dokumen pendukung
-                                            </div>
-                                            <div className="grid gap-2 md:grid-cols-2">
-                                                {(
-                                                    collateral.documents ?? []
-                                                )
-                                                    .filter(
-                                                        (document: any) =>
-                                                            (document.document_type?.value ??
-                                                                document.document_type) ===
-                                                            'lainnya',
-                                                    )
-                                                    .map((document: any) => (
-                                                        <div
-                                                            key={document.id}
-                                                            className="group min-w-0 overflow-hidden rounded-md border bg-card text-sm"
-                                                        >
-                                                            <a
-                                                                href={`/orders/${order.id}/documents/${document.id}/preview`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="relative block h-36 overflow-hidden border-b border-border bg-muted/20"
-                                                                aria-label={`Preview ${document.display_name || document.original_name}`}
-                                                            >
-                                                                <iframe
-                                                                    src={`/orders/${order.id}/documents/${document.id}/preview`}
-                                                                    title={`Preview ${document.display_name || document.original_name}`}
-                                                                    className="pointer-events-none h-full w-full bg-white"
-                                                                />
-                                                                <span className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-background/90 px-3 py-2 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100">
-                                                                    <Eye className="size-3.5" />Buka preview
-                                                                </span>
-                                                            </a>
-                                                            <div className="flex min-w-0 items-center justify-between gap-3 p-3">
-                                                                <div className="min-w-0">
-                                                                    <a
-                                                                        className="block truncate text-primary underline-offset-4 hover:underline"
-                                                                        href={`/orders/${order.id}/documents/${document.id}/download`}
-                                                                    >
-                                                                        {document.display_name || document.original_name}
-                                                                    </a>
-                                                                    <span className="text-xs text-muted-foreground">
-                                                                        {formatBytes(document.file_size)}
-                                                                    </span>
-                                                                </div>
-                                                            {canManageOrder && (
-                                                                <span className="flex shrink-0 items-center gap-1">
-                                                                <Button
-                                                                    type="button"
-                                                                    size="icon"
-                                                                    className="size-8 bg-foreground text-background hover:bg-foreground/90"
-                                                                    title="Edit dokumen pendukung"
-                                                                    aria-label="Edit dokumen pendukung"
-                                                                    onClick={() =>
-                                                                        setDocumentEditor(
-                                                                            {
-                                                                                collateralId:
-                                                                                    String(
-                                                                                        collateral.id,
-                                                                                    ),
-                                                                                documentId:
-                                                                                    document.id,
-                                                                                existingName:
-                                                                                    document.display_name ??
-                                                                                    document.original_name,
-                                                                                checklistId:
-                                                                                    '',
-                                                                                displayName:
-                                                                                    document.display_name ??
-                                                                                    '',
-                                                                                file: null,
-                                                                                kind: 'pendukung',
-                                                                            },
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Pencil className="size-4" />
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    size="icon"
-                                                                    className="size-8 bg-foreground text-background hover:bg-foreground/90"
-                                                                    title="Hapus dokumen pendukung"
-                                                                    aria-label="Hapus dokumen pendukung"
-                                                                    onClick={() =>
-                                                                        router.delete(
-                                                                            `/orders/${order.id}/documents/${document.id}`,
-                                                                            {
-                                                                                preserveScroll: true,
-                                                                            },
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Trash2 className="size-4" />
-                                                                </Button>
-                                                                </span>
-                                                            )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </details>
                 )}
 
                 <Dialog
@@ -2498,6 +2247,7 @@ function BatchFilePreview({
 
 function DraftOrderForm({
     draft,
+    order,
     branches,
     branchLocked,
     notaries,
@@ -2508,10 +2258,17 @@ function DraftOrderForm({
     setCollateral,
     setJob,
     setCollateralJobs,
+    openChecklistEditor,
+    openDocumentEditor,
     incompleteFields,
     saveState,
+    coreProvider,
+    selectCoreAccount,
+    canReplaceAccount,
+    retrySave,
 }: {
     draft: any;
+    order: any;
     branches: any[];
     branchLocked: boolean;
     notaries: any[];
@@ -2526,9 +2283,43 @@ function DraftOrderForm({
     ) => void;
     setJob: (collateralIndex: number, jobIndex: number, key: keyof CollateralJobDraft, value: string) => void;
     setCollateralJobs: (index: number, jobs: CollateralJobDraft[]) => void;
+    openChecklistEditor: (collateralId: string, checklistId: string) => void;
+    openDocumentEditor: (editor: DocumentEditor) => void;
     incompleteFields: string[];
     saveState: 'saved' | 'pending' | 'saving' | 'error';
+    coreProvider: string;
+    selectCoreAccount: (account: CoreAccount) => void;
+    canReplaceAccount: boolean;
+    retrySave: () => void;
 }) {
+    const coreSelected = Boolean(draft.data.core_account_id);
+    const [collateralModal, setCollateralModal] = useState<{
+        index: number;
+        tab: 'summary' | 'jobs' | 'documents';
+    } | null>(null);
+    const activeCollateral = collateralModal
+        ? draft.data.collaterals[collateralModal.index]
+        : null;
+    const activeSourceCollateral = activeCollateral
+        ? order.collaterals?.find(
+              (item: any) => String(item.id) === String(activeCollateral.id),
+          )
+        : null;
+    const activeSummaryJobs = activeSourceCollateral?.jobs?.length
+        ? activeSourceCollateral.jobs
+        : activeCollateral?.jobs ?? [];
+    const activeSummaryDocuments = activeSourceCollateral
+        ? [
+              ...(activeSourceCollateral.checklists ?? [])
+                  .filter((item: any) => item.order_document)
+                  .map((item: any) => item.order_document),
+              ...(activeSourceCollateral.documents ?? []).filter(
+                  (document: any) =>
+                      (document.document_type?.value ?? document.document_type) ===
+                      'lainnya',
+              ),
+          ]
+        : [];
     return (
         <div className="sim-panel overflow-hidden">
             <div className="sim-panel-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -2549,8 +2340,18 @@ function DraftOrderForm({
                                 ? 'Gagal menyimpan'
                                 : 'Semua perubahan tersimpan'}
                     </span>
+                    {saveState === 'error' && <Button type="button" variant="outline" size="sm" disabled={draft.processing} onClick={retrySave}>Simpan ulang</Button>}
                 </div>
             </div>
+            <CoreAccountPicker
+                selected={coreSelected ? { customer_name: draft.data.customer_name, account_number: draft.data.no_rekening } : null}
+                initialQuery={draft.data.customer_name || draft.data.no_rekening}
+                disabled={draft.processing}
+                canReplace={canReplaceAccount}
+                isDummy={coreProvider === 'dummy'}
+                error={draft.errors.core_account_id}
+                onSelect={selectCoreAccount}
+            />
             {incompleteFields.length > 0 && (
                 <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                     <span className="font-medium">Belum siap dikirim.</span>{' '}
@@ -2572,29 +2373,13 @@ function DraftOrderForm({
                             label: `${item.code} - ${item.name}`,
                         }))}
                         placeholder="Pilih cabang"
-                        disabled={branchLocked}
+                        disabled={branchLocked || coreSelected}
                     />
-                    {branchLocked && (
+                    {(branchLocked || coreSelected) && (
                         <p className="text-xs text-muted-foreground">
-                            Otomatis mengikuti cabang yang terdaftar pada akun Anda.
+                            {coreSelected ? 'Mengikuti cabang rekening terpilih.' : 'Otomatis mengikuti cabang yang terdaftar pada akun Anda.'}
                         </p>
                     )}
-                </DraftField>
-                <DraftField
-                    label="Notaris"
-                    required
-                    invalid={!draft.data.notary_id}
-                    error={draft.errors.notary_id}
-                >
-                    <SimSelect
-                        value={draft.data.notary_id}
-                        onChange={(value) => draft.setData('notary_id', value)}
-                        options={notaries.map((item) => ({
-                            value: String(item.id),
-                            label: item.name,
-                        }))}
-                        placeholder="Pilih notaris"
-                    />
                 </DraftField>
                 <DraftField
                     label="Nama nasabah"
@@ -2604,6 +2389,8 @@ function DraftOrderForm({
                 >
                     <Input
                         value={draft.data.customer_name}
+                        readOnly
+                        aria-label="Nama nasabah terpilih"
                         onChange={(event) =>
                             draft.setData('customer_name', event.target.value)
                         }
@@ -2617,9 +2404,40 @@ function DraftOrderForm({
                 >
                     <Input
                         value={draft.data.no_rekening}
+                        readOnly
+                        aria-label="Nomor rekening terpilih"
                         onChange={(event) =>
                             draft.setData('no_rekening', event.target.value)
                         }
+                    />
+                </DraftField>
+                <DraftField label="Plafon">
+                    <RupiahInput
+                        value={draft.data.plafon}
+                        onChange={(value) => draft.setData('plafon', value)}
+                        readOnly={coreSelected}
+                    />
+                </DraftField>
+                <div className="md:col-span-2 border-t pt-4">
+                    <h3 className="font-medium">Lengkapi data order</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Isi data yang diperlukan sebelum menambahkan agunan.
+                    </p>
+                </div>
+                <DraftField
+                    label="Notaris"
+                    required
+                    invalid={!draft.data.notary_id}
+                    error={draft.errors.notary_id}
+                >
+                    <SimSelect
+                        value={draft.data.notary_id}
+                        onChange={(value) => draft.setData('notary_id', value)}
+                        options={notaries.filter((item) => item.branch_ids?.includes(Number(draft.data.branch_id))).map((item) => ({
+                            value: String(item.id),
+                            label: item.name,
+                        }))}
+                        placeholder="Pilih notaris"
                     />
                 </DraftField>
                 <DraftField
@@ -2654,12 +2472,6 @@ function DraftOrderForm({
                         Menjadi titik awal perhitungan SLA.
                     </p>
                 </DraftField>
-                <DraftField label="Plafon">
-                    <RupiahInput
-                        value={draft.data.plafon}
-                        onChange={(value) => draft.setData('plafon', value)}
-                    />
-                </DraftField>
                 <DraftField label="Nominal jasa">
                     <RupiahInput
                         value={draft.data.nominal}
@@ -2679,27 +2491,16 @@ function DraftOrderForm({
                 </DraftField>
             </div>
             <div className="border-t p-4">
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-4">
                     <div>
                         <h3 className="font-medium">Agunan</h3>
                         <p className="text-sm text-muted-foreground">
-                            Minimal satu agunan lengkap sebelum dikirim.
+                            Agunan diisi otomatis dari rekening yang dipilih.
                         </p>
                     </div>
-                    <Button
-                        type="button"
-                        size="sm"
-                        onClick={() =>
-                            draft.setData('collaterals', [
-                                ...draft.data.collaterals,
-                                emptyCollateralDraft(),
-                            ])
-                        }
-                    >
-                        <Plus className="size-4" />
-                        Tambah agunan
-                    </Button>
                 </div>
+                {coreSelected && draft.data.collaterals.length === 0 && <p role="status" className="mb-3 text-sm text-destructive">Rekening ini tidak memiliki agunan. Draft dapat disimpan, tetapi belum dapat diajukan.</p>}
+                {coreSelected && draft.data.collaterals.length > 0 && <p className="mb-3 text-sm text-muted-foreground">Identitas agunan terisi dari rekening terpilih. Lengkapi jenis pekerjaan dan SLA yang diperlukan.</p>}
                 <div className="grid gap-4">
                     {draft.data.collaterals.map(
                         (item: CollateralDraft, index: number) => (
@@ -2707,74 +2508,31 @@ function DraftOrderForm({
                                 key={index}
                                 className="grid gap-4 rounded-md border p-4 md:grid-cols-2"
                             >
-                                <div className="md:col-span-2 border-b pb-3">
+                                <div className="-mx-4 -mt-4 flex flex-col gap-1 rounded-t-md border-b bg-muted px-4 pb-3 pt-4 md:col-span-2">
                                     <h4 className="font-medium">Agunan {index + 1}</h4>
-                                    <p className="text-xs text-muted-foreground">Identitas agunan diisi terlebih dahulu, lalu tambahkan pekerjaan yang berlaku.</p>
+                                    <p className="text-xs text-muted-foreground">{coreSelected ? 'Identitas agunan berasal dari BU Core. Tambahkan pekerjaan dan SLA yang berlaku.' : 'Identitas agunan diisi terlebih dahulu, lalu tambahkan pekerjaan yang berlaku.'}</p>
                                 </div>
-                                <DraftField label="ID agunan">
-                                    <Input
-                                        value={item.agunan_id}
-                                        onChange={(event) =>
-                                            setCollateral(
-                                                index,
-                                                'agunan_id',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </DraftField>
-                                <DraftField label="Jenis agunan" required invalid={!item.nama_agunan} error={draft.errors[`collaterals.${index}.nama_agunan`]}>
-                                    <SimCreatableCombobox id={`collateral-type-draft-${index}`} value={item.nama_agunan} options={collateralTypes} placeholder="Pilih atau ketik jenis agunan" emptyLabel="Belum ada pilihan jenis agunan." onAdd={saveCollateralType} onChange={(value) => setCollateral(index, 'nama_agunan', value)} />
-                                </DraftField>
-                                <DraftField
-                                    label="Deskripsi agunan"
-                                    error={
-                                        draft.errors[
-                                            `collaterals.${index}.deskripsi_agunan`
-                                        ]
-                                    }
-                                >
-                                    <textarea
-                                        className="sim-input min-h-24 py-2"
-                                        value={item.deskripsi_agunan}
-                                        onChange={(event) =>
-                                            setCollateral(
-                                                index,
-                                                'deskripsi_agunan',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
-                                </DraftField>
-                                <div className="md:col-span-2 border-t pt-4">
-                                    <div className="mb-3 flex items-center justify-between gap-3">
-                                        <div>
-                                            <Label>Pekerjaan untuk agunan ini</Label>
-                                            <p className="text-xs text-muted-foreground">Satu agunan dapat memiliki lebih dari satu pekerjaan.</p>
-                                        </div>
-                                        <Button type="button" size="sm" onClick={() => setCollateralJobs(index, [...item.jobs, emptyCollateralJobDraft()])}>
-                                            <Plus className="size-4" />Tambah pekerjaan
+                                <div className="md:col-span-2 flex flex-col gap-3 rounded-md border bg-muted/10 p-3 md:flex-row md:items-center md:justify-between md:p-4">
+                                    <div>
+                                        <div className="font-medium">{item.nama_agunan || 'Jenis agunan belum diisi'}</div>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            {item.agunan_id || 'ID agunan belum diisi'}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setCollateralModal({ index, tab: 'summary' })}>
+                                            <ClipboardList className="size-4" />Ringkasan
+                                        </Button>
+                                        <Button type="button" size="sm" onClick={() => setCollateralModal({ index, tab: 'jobs' })}>
+                                            <BriefcaseBusiness className="size-4" />Pekerjaan
+                                            <span className="text-xs opacity-75">({item.jobs.length})</span>
+                                        </Button>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setCollateralModal({ index, tab: 'documents' })}>
+                                            <FileText className="size-4" />Dokumen
                                         </Button>
                                     </div>
-                                    <div className="grid gap-3">
-                                        {item.jobs.map((job: CollateralJobDraft, jobIndex: number) => (
-                                            <div key={jobIndex} className="grid gap-3 rounded-md border bg-muted/20 p-3 md:grid-cols-2">
-                                                <DraftField label={`Pekerjaan ${jobIndex + 1}`} required invalid={!job.job_type_id && Boolean(draft.errors[`collaterals.${index}.jobs.${jobIndex}.job_type_id`])} error={job.job_type_id ? undefined : draft.errors[`collaterals.${index}.jobs.${jobIndex}.job_type_id`]}>
-                                                    <SimSelect value={job.job_type_id} onChange={(value) => setJob(index, jobIndex, 'job_type_id', value)} options={jobTypes.map((type) => ({ value: String(type.id), label: type.name }))} placeholder="Pilih jenis pekerjaan" />
-                                                </DraftField>
-                                                <DraftField label="Deskripsi pekerjaan" error={draft.errors[`collaterals.${index}.jobs.${jobIndex}.deskripsi_pekerjaan`]}>
-                                                    <textarea className="sim-input min-h-20 py-2" value={job.deskripsi_pekerjaan} onChange={(event) => setJob(index, jobIndex, 'deskripsi_pekerjaan', event.target.value)} placeholder="Jelaskan pekerjaan yang diminta untuk agunan ini" />
-                                                </DraftField>
-                                                <DraftField label="SLA pekerjaan (hari)" error={draft.errors[`collaterals.${index}.jobs.${jobIndex}.sla_days`]}>
-                                                    <Input type="number" min={1} max={365} value={job.sla_days} placeholder={slaPolicies[job.job_type_id] ? String(slaPolicies[job.job_type_id].days) : 'Otomatis dari kebijakan'} onChange={(event) => setJob(index, jobIndex, 'sla_days', event.target.value)} />
-                                                </DraftField>
-                                                {job.sla_days && slaPolicies[job.job_type_id] && Number(job.sla_days) !== slaPolicies[job.job_type_id].days && <DraftField label="Alasan perubahan SLA" error={draft.errors[`collaterals.${index}.jobs.${jobIndex}.sla_override_reason`]}><textarea className="sim-input min-h-20 py-2" value={job.sla_override_reason} onChange={(event) => setJob(index, jobIndex, 'sla_override_reason', event.target.value)} placeholder="Jelaskan alasan SLA khusus" /></DraftField>}
-                                                {item.jobs.length > 1 && <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setCollateralJobs(index, item.jobs.filter((_, currentIndex) => currentIndex !== jobIndex))}><Trash2 className="size-4" />Hapus pekerjaan</Button>}
-                                            </div>
-                                        ))}
-                                    </div>
                                 </div>
-                                {draft.data.collaterals.length > 1 && (
+                                {draft.data.collaterals.length > 1 && !coreSelected && (
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -2801,6 +2559,246 @@ function DraftOrderForm({
                     )}
                 </div>
             </div>
+            <Dialog
+                open={Boolean(collateralModal)}
+                onOpenChange={(open) => !open && setCollateralModal(null)}
+            >
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {collateralModal?.tab === 'jobs'
+                                ? 'Pekerjaan untuk agunan ini'
+                                : collateralModal?.tab === 'documents'
+                                  ? 'Dokumen agunan'
+                                  : 'Ringkasan agunan'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {activeCollateral?.nama_agunan || 'Agunan'}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {activeCollateral && collateralModal?.tab === 'summary' && (
+                        coreSelected ? (
+                            <div className="grid gap-5">
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <Info label="ID agunan" value={activeCollateral.agunan_id || `AGN-${activeCollateral.id}`} />
+                                    <Info label="Jenis agunan" value={activeCollateral.nama_agunan} />
+                                    <div className="sm:col-span-2">
+                                        <Info label="Deskripsi agunan" value={activeCollateral.deskripsi_agunan} />
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2 border-t pt-4">
+                                    <SimStatusBadge
+                                        label={`Dokumen: ${statusLabel(activeSourceCollateral?.doc_status)}`}
+                                        tone={toneForStatus(statusLabel(activeSourceCollateral?.doc_status))}
+                                    />
+                                    <SimStatusBadge
+                                        label={activeSourceCollateral?.covernote_no || activeSourceCollateral?.covernote_end ? `Covernote: ${statusLabel(activeSourceCollateral?.covernote_status)}` : 'Covernote belum tersedia'}
+                                        tone={activeSourceCollateral?.covernote_no || activeSourceCollateral?.covernote_end ? toneForStatus(statusLabel(activeSourceCollateral?.covernote_status)) : 'warning'}
+                                    />
+                                </div>
+                                <div className="overflow-hidden rounded-md border">
+                                    <div className="bg-primary px-4 py-3 text-primary-foreground">
+                                        <div className="font-medium">Pekerjaan untuk agunan ini</div>
+                                        <div className="text-sm text-primary-foreground/75">Ringkasan pekerjaan dan SLA.</div>
+                                    </div>
+                                    <div className="grid gap-3 p-4">
+                                        {activeSummaryJobs.length > 0 ? activeSummaryJobs.map((job: any, jobIndex: number) => (
+                                            <div key={job.id ?? jobIndex} className="border-b pb-3 last:border-b-0 last:pb-0">
+                                                <div className="font-medium">{job.job_type?.name ?? jobTypes.find((type) => String(type.id) === String(job.job_type_id))?.name ?? 'Pekerjaan'}</div>
+                                                <div className="mt-1 text-sm text-muted-foreground">
+                                                    {job.sla_days ? `${job.sla_days} hari` : 'Belum ditentukan'} · jatuh tempo {dateOnly(job.sla_due_at) || 'menunggu tanggal masuk notaris'}
+                                                </div>
+                                                {job.deskripsi_pekerjaan && <div className="mt-1 text-sm text-muted-foreground">{job.deskripsi_pekerjaan}</div>}
+                                            </div>
+                                        )) : <p className="text-sm text-muted-foreground">Belum ada pekerjaan.</p>}
+                                    </div>
+                                </div>
+                                <div className="grid gap-2 border-t pt-4 text-sm">
+                                    <div className="font-medium">Covernote</div>
+                                    {activeSourceCollateral?.covernote_no || activeSourceCollateral?.covernote_end ? (
+                                        <>
+                                            <div className="text-muted-foreground">Nomor: {activeSourceCollateral.covernote_no || 'Belum tersedia'}</div>
+                                            <div className="text-muted-foreground">Jatuh tempo: {dateOnly(activeSourceCollateral.covernote_end) || 'Belum tersedia'}</div>
+                                        </>
+                                    ) : <p className="text-muted-foreground">Nomor dan tanggal jatuh tempo akan muncul setelah notaris mengajukan covernote.</p>}
+                                </div>
+                                <div className="grid gap-2 border-t pt-4">
+                                    <div className="font-medium">Dokumen yang diunggah</div>
+                                    {activeSummaryDocuments.length > 0 ? (
+                                        <ul className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+                                            {activeSummaryDocuments.map((document: any) => <li key={document.id} className="flex min-w-0 items-center gap-2"><span className="size-1.5 shrink-0 rounded-full bg-green-500" /><span className="min-w-0 truncate">{document.display_name || document.original_name || 'Dokumen'}</span></li>)}
+                                        </ul>
+                                    ) : <p className="text-sm text-muted-foreground">Belum ada dokumen yang diunggah.</p>}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <DraftField label="ID agunan">
+                                    <Input value={activeCollateral.agunan_id} onChange={(event) => setCollateral(collateralModal.index, 'agunan_id', event.target.value)} />
+                                </DraftField>
+                                <DraftField label="Jenis agunan" required invalid={!activeCollateral.nama_agunan} error={draft.errors[`collaterals.${collateralModal.index}.nama_agunan`]}>
+                                    <SimCreatableCombobox id={`collateral-type-draft-${collateralModal.index}`} value={activeCollateral.nama_agunan} options={collateralTypes} placeholder="Pilih atau ketik jenis agunan" emptyLabel="Belum ada pilihan jenis agunan." onAdd={saveCollateralType} onChange={(value) => setCollateral(collateralModal.index, 'nama_agunan', value)} />
+                                </DraftField>
+                                <div className="md:col-span-2">
+                                    <DraftField label="Deskripsi agunan" error={draft.errors[`collaterals.${collateralModal.index}.deskripsi_agunan`]}>
+                                        <textarea className="sim-input min-h-32 py-2" value={activeCollateral.deskripsi_agunan} onChange={(event) => setCollateral(collateralModal.index, 'deskripsi_agunan', event.target.value)} />
+                                    </DraftField>
+                                </div>
+                            </div>
+                        )
+                    )}
+
+                    {activeCollateral && collateralModal?.tab === 'jobs' && (
+                        <div className="grid gap-4">
+                            {activeCollateral.jobs.map(
+                                (job: CollateralJobDraft, jobIndex: number) => (
+                                    <div
+                                        key={jobIndex}
+                                        className="grid gap-3 rounded-md border p-3 md:grid-cols-2"
+                                    >
+                                        <DraftField
+                                            label={`Pekerjaan ${jobIndex + 1}`}
+                                            required
+                                            invalid={!job.job_type_id && Boolean(draft.errors[`collaterals.${collateralModal.index}.jobs.${jobIndex}.job_type_id`])}
+                                            error={job.job_type_id ? undefined : draft.errors[`collaterals.${collateralModal.index}.jobs.${jobIndex}.job_type_id`]}
+                                        >
+                                            <SimSelect
+                                                value={job.job_type_id}
+                                                onChange={(value) => setJob(collateralModal.index, jobIndex, 'job_type_id', value)}
+                                                options={jobTypes.map((type) => ({ value: String(type.id), label: type.name }))}
+                                                placeholder="Pilih jenis pekerjaan"
+                                            />
+                                        </DraftField>
+                                        <DraftField
+                                            label="SLA pekerjaan (hari)"
+                                            error={draft.errors[`collaterals.${collateralModal.index}.jobs.${jobIndex}.sla_days`]}
+                                        >
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                max={365}
+                                                value={job.sla_days}
+                                                placeholder={slaPolicies[job.job_type_id] ? String(slaPolicies[job.job_type_id].days) : 'Otomatis dari kebijakan'}
+                                                onChange={(event) => setJob(collateralModal.index, jobIndex, 'sla_days', event.target.value)}
+                                            />
+                                        </DraftField>
+                                        <div className="md:col-span-2">
+                                            <DraftField
+                                                label="Deskripsi pekerjaan"
+                                                error={draft.errors[`collaterals.${collateralModal.index}.jobs.${jobIndex}.deskripsi_pekerjaan`]}
+                                            >
+                                                <textarea
+                                                    className="sim-input min-h-24 py-2"
+                                                    value={job.deskripsi_pekerjaan}
+                                                    onChange={(event) => setJob(collateralModal.index, jobIndex, 'deskripsi_pekerjaan', event.target.value)}
+                                                    placeholder="Jelaskan pekerjaan yang diminta untuk agunan ini"
+                                                />
+                                            </DraftField>
+                                        </div>
+                                        {job.sla_days && slaPolicies[job.job_type_id] && Number(job.sla_days) !== slaPolicies[job.job_type_id].days && (
+                                            <DraftField
+                                                label="Alasan perubahan SLA"
+                                                error={draft.errors[`collaterals.${collateralModal.index}.jobs.${jobIndex}.sla_override_reason`]}
+                                            >
+                                                <textarea
+                                                    className="sim-input min-h-20 py-2"
+                                                    value={job.sla_override_reason}
+                                                    onChange={(event) => setJob(collateralModal.index, jobIndex, 'sla_override_reason', event.target.value)}
+                                                    placeholder="Jelaskan alasan SLA khusus"
+                                                />
+                                            </DraftField>
+                                        )}
+                                        {activeCollateral.jobs.length > 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-fit"
+                                                onClick={() => setCollateralJobs(collateralModal.index, activeCollateral.jobs.filter((_: CollateralJobDraft, currentIndex: number) => currentIndex !== jobIndex))}
+                                            >
+                                                <Trash2 className="size-4" />Hapus pekerjaan
+                                            </Button>
+                                        )}
+                                    </div>
+                                ),
+                            )}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-fit"
+                                onClick={() => setCollateralJobs(collateralModal.index, [...activeCollateral.jobs, emptyCollateralJobDraft()])}
+                            >
+                                <Plus className="size-4" />Tambah pekerjaan
+                            </Button>
+                        </div>
+                    )}
+
+                    {activeCollateral && collateralModal?.tab === 'documents' && (
+                        <div className="grid gap-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <div className="font-medium">Dokumen awal</div>
+                                    <p className="text-sm text-muted-foreground">Pilih dokumen yang akan diunggah untuk agunan ini.</p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        openDocumentEditor({ collateralId: String(activeCollateral.id), checklistId: '', displayName: '', file: null, kind: 'pendukung' });
+                                    }}
+                                >
+                                    <FilePlus2 className="size-4" />Dokumen pendukung
+                                </Button>
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-2">
+                                {(activeSourceCollateral?.checklists ?? []).filter((item: any) => item.document_checklist?.is_active !== false).map((item: any) => (
+                                    <div key={item.id} className="grid min-w-0 gap-2 rounded-md border p-3 text-sm">
+                                        <div className="flex items-start gap-2">
+                                            <span className={item.order_document ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white' : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'}>{item.order_document ? '✓' : ''}</span>
+                                            <span className="font-medium">{item.document_checklist?.name}</span>
+                                        </div>
+                                        {item.order_document ? (
+                                            <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
+                                                <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
+                                            </div>
+                                        ) : (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-fit"
+                                                onClick={() => {
+                                                    openChecklistEditor(String(activeCollateral.id), String(item.id));
+                                                }}
+                                            >
+                                                <FilePlus2 className="size-4" />Input dokumen
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {(activeSourceCollateral?.documents ?? []).filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya').length > 0 && (
+                                <div className="border-t pt-4">
+                                    <div className="font-medium">Dokumen pendukung yang sudah diunggah</div>
+                                    <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                                        {(activeSourceCollateral?.documents ?? []).filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya').map((document: any) => (
+                                            <li key={document.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border p-2">
+                                                <span className="min-w-0 flex-1 truncate">{document.display_name || document.original_name}</span>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}>
+                                                    <Eye className="size-4" />Lihat
+                                                </Button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -2832,6 +2830,48 @@ function DraftField({
 
 function dateInput(value?: string | null) {
     return value?.slice(0, 10) ?? '';
+}
+
+function orderDraftFrom(order: any): OrderDraft {
+    const saved = order.collaterals ?? [];
+    const collaterals = order.core_account_id && order.core_snapshot
+        ? order.core_snapshot.collaterals.map((source: CoreAccount['collaterals'][number]) => ({
+            ...saved.find((item: any) => item.agunan_id === source.collateral_id),
+            agunan_id: source.collateral_id,
+            nama_agunan: source.type_name,
+            deskripsi_agunan: source.description,
+        }))
+        : saved;
+
+    return {
+        core_account_id: order.core_account_id ?? '',
+        branch_id: String(order.branch_id ?? ''),
+        notary_id: String(order.notary_id ?? ''),
+        customer_name: order.customer_name ?? '',
+        no_rekening: order.no_rekening ?? '',
+        tgl_masuk_notaris: dateInput(order.tgl_masuk_notaris),
+        tgl_realisasi: dateInput(order.tgl_realisasi),
+        plafon: order.plafon ?? '',
+        nominal: order.nominal ?? '',
+        skema_pembayaran: order.skema_pembayaran ?? '',
+        keterangan: order.keterangan ?? '',
+        collaterals: collaterals.map((item: any) => ({
+            id: String(item.id ?? ''),
+            agunan_id: item.agunan_id ?? '',
+            nama_agunan: item.nama_agunan ?? '',
+            deskripsi_agunan: item.deskripsi_agunan ?? '',
+            covernote_no: item.covernote_no ?? '',
+            covernote_start: dateInput(item.covernote_start),
+            covernote_end: dateInput(item.covernote_end),
+            jobs: (item.jobs?.length ? item.jobs : item.job_type_id ? [item] : [{}]).map((job: any) => ({
+                id: String(job.id ?? ''),
+                job_type_id: String(job.job_type_id ?? ''),
+                deskripsi_pekerjaan: job.deskripsi_pekerjaan ?? '',
+                sla_days: job.sla_source === 'override' && job.sla_days ? String(job.sla_days) : '',
+                sla_override_reason: job.sla_override_reason ?? '',
+            })),
+        })),
+    };
 }
 
 function emptyCollateralDraft(): CollateralDraft {

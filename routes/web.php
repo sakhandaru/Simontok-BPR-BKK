@@ -1,13 +1,14 @@
 <?php
 
-use App\Http\Controllers\Simontok\AuditLogController;
 use App\Http\Controllers\Simontok\AnnouncementController;
+use App\Http\Controllers\Simontok\AuditLogController;
 use App\Http\Controllers\Simontok\BranchController;
 use App\Http\Controllers\Simontok\BranchMonitoringController;
+use App\Http\Controllers\Simontok\CoreAccountController;
 use App\Http\Controllers\Simontok\CovernoteController;
+use App\Http\Controllers\Simontok\DashboardController;
 use App\Http\Controllers\Simontok\DocumentArchiveController;
 use App\Http\Controllers\Simontok\DocumentRequestController;
-use App\Http\Controllers\Simontok\DashboardController;
 use App\Http\Controllers\Simontok\JobTypeController;
 use App\Http\Controllers\Simontok\NotaryController;
 use App\Http\Controllers\Simontok\NotaryPortalController;
@@ -19,8 +20,8 @@ use App\Http\Controllers\Simontok\OrderTrackingController;
 use App\Http\Controllers\Simontok\PaymentRequestController;
 use App\Http\Controllers\Simontok\ReportController;
 use App\Http\Controllers\Simontok\RoleController;
-use App\Http\Controllers\Simontok\UserController;
 use App\Http\Controllers\Simontok\SystemSettingController;
+use App\Http\Controllers\Simontok\UserController;
 use App\Http\Controllers\Simontok\WorkQueueController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,14 +38,16 @@ Route::middleware(['auth'])->group(function () {
         Route::get('tracking-orders/{order}', [OrderTrackingController::class, 'show'])->name('tracking-orders.show');
     });
     Route::middleware('permission:orders.manage')->group(function () {
-    Route::post('collateral-types', [OrderController::class, 'storeCollateralType'])->name('collateral-types.store');
-    Route::post('payment-schemes', [OrderController::class, 'storePaymentScheme'])->name('payment-schemes.store');
-    Route::post('orders/{order}/submit-approval', [OrderController::class, 'submitForApproval'])->name('orders.submit-approval');
-    Route::patch('orders/{order}/checklists', [OrderController::class, 'updateChecklist'])->name('orders.checklists.update');
-    Route::post('orders/{order}/documents', [OrderDocumentController::class, 'store'])->name('orders.documents.store');
-    Route::post('orders/{order}/documents/batch', [OrderDocumentController::class, 'storeBatch'])->name('orders.documents.batch');
-    Route::patch('orders/{order}/documents/{document}', [OrderDocumentController::class, 'update'])->name('orders.documents.update');
-    Route::delete('orders/{order}/documents/{document}', [OrderDocumentController::class, 'destroy'])->name('orders.documents.destroy');
+        Route::get('core/accounts', [CoreAccountController::class, 'search'])->middleware('throttle:60,1')->name('core.accounts.search');
+        Route::get('core/accounts/{accountId}', [CoreAccountController::class, 'show'])->middleware('throttle:60,1')->name('core.accounts.show');
+        Route::post('collateral-types', [OrderController::class, 'storeCollateralType'])->name('collateral-types.store');
+        Route::post('payment-schemes', [OrderController::class, 'storePaymentScheme'])->name('payment-schemes.store');
+        Route::post('orders/{order}/submit-approval', [OrderController::class, 'submitForApproval'])->name('orders.submit-approval');
+        Route::patch('orders/{order}/checklists', [OrderController::class, 'updateChecklist'])->name('orders.checklists.update');
+        Route::post('orders/{order}/documents', [OrderDocumentController::class, 'store'])->name('orders.documents.store');
+        Route::post('orders/{order}/documents/batch', [OrderDocumentController::class, 'storeBatch'])->name('orders.documents.batch');
+        Route::patch('orders/{order}/documents/{document}', [OrderDocumentController::class, 'update'])->name('orders.documents.update');
+        Route::delete('orders/{order}/documents/{document}', [OrderDocumentController::class, 'destroy'])->name('orders.documents.destroy');
     });
     Route::middleware('permission:documents.validate')->post('orders/{order}/documents/{document}/validate-final', [OrderDocumentController::class, 'validateFinal'])->name('orders.documents.validate-final');
     Route::middleware('permission:documents.validate')->post('orders/{order}/documents/validate-final-batch', [OrderDocumentController::class, 'validateFinalBatch'])->name('orders.documents.validate-final-batch');
@@ -148,10 +151,12 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('job-types', JobTypeController::class)->only(['index', 'store', 'update']);
     });
     Route::middleware('permission:users.manage')->group(function () {
-        Route::resource('users', UserController::class)->only(['index', 'store', 'update']);
+        Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::patch('users/{user}/status', [UserController::class, 'updateStatus'])->name('users.status');
     });
-    Route::middleware('permission:roles.manage')->group(function () { Route::resource('roles', RoleController::class)->only(['index', 'store', 'update']); });
+    Route::middleware('permission:roles.manage')->group(function () {
+        Route::resource('roles', RoleController::class)->only(['index', 'store', 'update']);
+    });
 });
 
 require __DIR__.'/settings.php';

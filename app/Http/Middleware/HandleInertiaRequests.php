@@ -2,9 +2,9 @@
 
 namespace App\Http\Middleware;
 
-use App\Support\InAppNotification;
 use App\Models\Announcement;
 use App\Models\SystemSetting;
+use App\Support\InAppNotification;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 

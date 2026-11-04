@@ -211,6 +211,7 @@ class ArchiveLegacyData extends Command
                     }
                     if ($sql[$cursor] === ',') {
                         $cursor++;
+
                         continue;
                     }
                     if ($sql[$cursor] === ')') {
@@ -271,6 +272,7 @@ class ArchiveLegacyData extends Command
                 if ($cursor < $length && $sql[$cursor] === "'") {
                     $value .= "'";
                     $cursor++;
+
                     continue;
                 }
 
@@ -288,6 +290,7 @@ class ArchiveLegacyData extends Command
                     'Z' => "\x1a",
                     default => $escaped,
                 };
+
                 continue;
             }
 

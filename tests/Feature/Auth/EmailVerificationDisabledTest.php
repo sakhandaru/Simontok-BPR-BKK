@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
+use App\Models\JobPosition;
 use App\Models\Permission;
 use App\Models\Role;
-use App\Models\JobPosition;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

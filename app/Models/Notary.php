@@ -79,7 +79,7 @@ class Notary extends Model
     public function scopeAvailableForOrders($query)
     {
         return $query
-            ->where('is_active', true)
+            ->where('notaries.is_active', true)
             ->whereNotNull('agreement_type')
             ->whereNotNull('agreement_file_path')
             ->whereNotNull('pks_no')

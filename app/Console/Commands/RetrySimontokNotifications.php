@@ -31,6 +31,7 @@ class RetrySimontokNotifications extends Command
         }
 
         $this->info("Antrian diproses: {$deliveries->count()}. Status aplikasi tidak terpengaruh oleh kegagalan kanal eksternal.");
+
         return self::SUCCESS;
     }
 }

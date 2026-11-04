@@ -5,7 +5,7 @@ Akun darurat IT adalah akun lokal tunggal dengan role IT Administrator. Akun ini
 ## Konfigurasi dan pembuatan
 
 1. Tetapkan `SSO_EMERGENCY_LOGIN` ke username khusus yang tidak digunakan akun lain.
-2. Tetapkan `EMERGENCY_ACCOUNT_PASSWORD` minimal 16 karakter jika akun akan dibuat melalui `db:seed`.
+2. Tetapkan `EMERGENCY_ACCOUNT_PASSWORD` jika akun akan dibuat melalui `db:seed`.
 3. Tetapkan `SSO_EMERGENCY_ALERT_EMAIL` ke email penanggung jawab IT dan pastikan mailer Laravel memakai transport yang benar-benar mengirim email, bukan `log` atau `array`.
 4. Muat ulang konfigurasi aplikasi bila konfigurasi di-cache: `php artisan config:cache`.
 5. Setelah migrasi dan seeder menyediakan role IT Administrator, jalankan `php artisan db:seed --class=DatabaseSeeder` atau buat/rotasi akun melalui `php artisan simontok:emergency-account` dari terminal server.

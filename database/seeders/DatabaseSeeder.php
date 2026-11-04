@@ -10,6 +10,7 @@ use App\Models\Notary;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\SlaPolicy;
+use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -221,7 +222,11 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call(UserSeeder::class);
+        if (app()->environment(['local', 'testing', 'staging']) && config('core.provider') === 'dummy') {
+            $this->call(UatPartnerSeeder::class);
+        }
         $this->call(EmergencyAccountSeeder::class);
+        $this->call(CoreAccountSeeder::class);
 
         // Data demo hanya dibuat jika diaktifkan secara eksplisit. Ini aman untuk
         // staging dengan APP_ENV=production tanpa mengisi demo secara tidak sengaja.

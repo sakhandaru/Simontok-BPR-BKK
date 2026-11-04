@@ -22,11 +22,14 @@ class DocumentRequestController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'reason' => ['required', 'string', 'max:2000'],
         ]);
-        if ($data['order_collateral_id'] ?? null) abort_unless($order->collaterals()->whereKey($data['order_collateral_id'])->exists(), 403);
+        if ($data['order_collateral_id'] ?? null) {
+            abort_unless($order->collaterals()->whereKey($data['order_collateral_id'])->exists(), 403);
+        }
         abort_unless(! $order->documentRequests()->where('name', $data['name'])->whereIn('status', ['diminta', 'diunggah'])->exists(), 422, 'Permintaan dokumen yang sama masih terbuka.');
         $documentRequest = $order->documentRequests()->create([...$data, 'requested_by' => $request->user()->id, 'status' => 'diminta']);
         Audit::record($request, 'document_requests', $order, 'request', 'Notaris meminta dokumen susulan.', ['request_id' => $documentRequest->id]);
         InAppNotification::forOrderMaker($order, 'Permintaan dokumen susulan', "Notaris meminta dokumen {$data['name']} untuk order {$order->order_no}.");
+
         return back()->with('success', 'Permintaan dokumen susulan dikirim ke Admin Legal.');
     }
 
@@ -54,6 +57,7 @@ class DocumentRequestController extends Controller
             Audit::record($request, 'document_requests', $order, 'fulfill', 'Admin Legal mengunggah dokumen susulan.', ['request_id' => $documentRequest->id, 'document_id' => $document->id]);
             InAppNotification::forNotary($order, 'Dokumen susulan tersedia', "Dokumen {$documentRequest->name} untuk order {$order->order_no} sudah diunggah Admin Legal.");
         });
+
         return back()->with('success', 'Dokumen susulan berhasil diunggah.');
     }
 }
