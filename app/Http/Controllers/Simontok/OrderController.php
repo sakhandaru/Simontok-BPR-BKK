@@ -136,7 +136,7 @@ class OrderController extends Controller
             ],
             'createOptions' => [
                 'branches' => Branch::where('is_active', true)->when($branchScopeId, fn ($query) => $query->whereKey($branchScopeId))->orderBy('name')->get(['id', 'code', 'name']),
-                'notaries' => Notary::availableForOrders()->whereHas('users', fn ($query) => $query->where('is_active', true))->when($branchScopeId, fn ($query) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchScopeId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
+                'notaries' => Notary::availableForOrders()->when(! config('uat.emergency_only'), fn ($query) => $query->whereHas('users', fn ($query) => $query->where('is_active', true)))->when($branchScopeId, fn ($query) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchScopeId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
                 'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             ],
         ]);
@@ -171,14 +171,14 @@ class OrderController extends Controller
             ->when($branchId, fn ($query) => $query->whereKey($branchId))
             ->whereHas('notaries', fn ($query) => $query->availableForOrders()
                 ->where('branch_notary.is_active', true)
-                ->whereHas('users', fn ($users) => $users->where('is_active', true)))
+                ->when(! config('uat.emergency_only'), fn ($query) => $query->whereHas('users', fn ($users) => $users->where('is_active', true))))
             ->orderBy('name')
             ->first();
 
         abort_unless($branch, 422, 'Belum ada cabang dengan notaris rekanan siap menerima order. Lengkapi PKS, akun portal aktif, dan hubungan cabang pada master notaris.');
 
         $notary = Notary::availableForOrders()
-            ->whereHas('users', fn ($query) => $query->where('is_active', true))
+            ->when(! config('uat.emergency_only'), fn ($query) => $query->whereHas('users', fn ($query) => $query->where('is_active', true)))
             ->whereHas('branches', fn ($query) => $query->whereKey($branch->id)->where('branch_notary.is_active', true))
             ->orderBy('name')
             ->first();
@@ -319,7 +319,7 @@ class OrderController extends Controller
             'canApproveOrder' => $request->user()->hasPermission('orders.approve') && $order->status === TrackAStatus::MenungguApproval,
             'branches' => Branch::where('is_active', true)->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
             'branchLocked' => $this->userBranchScope($request) !== null,
-            'notaries' => Notary::availableForOrders()->with(['branches' => fn ($query) => $query->where('branches.is_active', true)->where('branch_notary.is_active', true)])->whereHas('users', fn ($query) => $query->where('is_active', true))->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name'])->map(fn (Notary $notary) => ['id' => $notary->id, 'name' => $notary->name, 'branch_ids' => $notary->branches->pluck('id')]),
+            'notaries' => Notary::availableForOrders()->with(['branches' => fn ($query) => $query->where('branches.is_active', true)->where('branch_notary.is_active', true)])->when(! config('uat.emergency_only'), fn ($query) => $query->whereHas('users', fn ($query) => $query->where('is_active', true)))->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name'])->map(fn (Notary $notary) => ['id' => $notary->id, 'name' => $notary->name, 'branch_ids' => $notary->branches->pluck('id')]),
             'jobTypes' => JobType::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'collateralTypes' => $this->collateralTypeOptions(),
             'paymentSchemes' => $this->paymentSchemeOptions(),
@@ -781,7 +781,7 @@ class OrderController extends Controller
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
 
         if (! Notary::availableForOrders()->whereKey($data['notary_id'])
-            ->whereHas('users', fn ($query) => $query->where('is_active', true))
+            ->when(! config('uat.emergency_only'), fn ($query) => $query->whereHas('users', fn ($query) => $query->where('is_active', true)))
             ->whereHas('branches', fn ($query) => $query->whereKey($data['branch_id'])->where('branch_notary.is_active', true))
             ->exists()) {
             throw ValidationException::withMessages([

@@ -73,7 +73,7 @@ class UatPartnerSeeder extends Seeder
             $notary->branches()->syncWithoutDetaching([$branch->id => ['is_active' => true]]);
 
             $portal = $notary->users()->first();
-            if (! $portal) {
+            if (! config('uat.emergency_only') && ! $portal) {
                 $login = 'notaris.demo@example.com';
                 if (User::where('email', $login)->exists()) {
                     throw new RuntimeException('Login portal UAT sudah dipakai pengguna lain.');
@@ -109,7 +109,8 @@ class UatPartnerSeeder extends Seeder
                 ]);
             }
 
-            $this->command?->info("Rekanan UAT siap: cabang {$branch->code}, {$notary->name}, portal {$portal->email}.");
+            $portalLabel = $portal?->email ?? 'tanpa akun portal (mode admin-only)';
+            $this->command?->info("Rekanan UAT siap: cabang {$branch->code}, {$notary->name}, portal {$portalLabel}.");
         });
     }
 }

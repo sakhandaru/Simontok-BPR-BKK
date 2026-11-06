@@ -221,8 +221,10 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Notaris', 'role_id' => $roles['notaris']->id]
         );
 
-        $this->call(UserSeeder::class);
-        if (app()->environment(['local', 'testing', 'staging']) && config('core.provider') === 'dummy') {
+        if (! config('uat.emergency_only')) {
+            $this->call(UserSeeder::class);
+        }
+        if ((app()->environment(['local', 'testing', 'staging']) || config('uat.enabled')) && config('core.provider') === 'dummy') {
             $this->call(UatPartnerSeeder::class);
         }
         $this->call(EmergencyAccountSeeder::class);
