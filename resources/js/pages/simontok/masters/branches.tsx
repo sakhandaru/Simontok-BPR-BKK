@@ -70,7 +70,7 @@ export default function Branches({ branches, positions, filters }: { branches: {
                         <div className="flex gap-2"><Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => editBranch(branch)}><Edit3 className="size-4" />Edit kantor cabang</Button><Button type="button" size="sm" className="flex-1" onClick={() => openManageUsers(branch)}><UsersRound className="size-4" />Pengguna</Button></div>
                     </article>)}
                 </div>
-                <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{editingId ? 'Edit kantor cabang' : 'Tambah kantor cabang'}</DialogTitle><DialogDescription>Atur identitas dan alamat kantor cabang.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-4">
+                <Dialog open={formOpen} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>{editingId ? 'Edit kantor cabang' : 'Tambah kantor cabang'}</DialogTitle><DialogDescription>Atur identitas dan alamat kantor cabang.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-4">
                         <div className="grid gap-2">
                             <Label>Kode</Label>
                             <Input value={data.code} onChange={(e) => setData('code', e.target.value)} />
@@ -95,7 +95,7 @@ export default function Branches({ branches, positions, filters }: { branches: {
                     </DialogContent>
                 </Dialog>
                 <Dialog open={userFormOpen} onOpenChange={(open) => { if (!open) closeUserForm(); }}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
                         <DialogHeader><DialogTitle>{editingUser ? 'Edit pengguna cabang' : 'Tambah pegawai SSO'}</DialogTitle><DialogDescription>{accountBranch?.name} · akun menggunakan identitas dan password SSO.</DialogDescription></DialogHeader>
                         <form onSubmit={submitUser} className="grid gap-4">
                             <Field label="ID pegawai SSO" error={internalForm.errors.sso_employee_id}><Input value={internalForm.data.sso_employee_id} disabled={Boolean(editingUser)} onChange={(event) => internalForm.setData('sso_employee_id', event.target.value)} placeholder="Contoh: 102-119" /></Field>

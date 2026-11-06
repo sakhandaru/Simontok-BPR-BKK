@@ -611,7 +611,7 @@ export default function Users({
                         if (!open) setPendingStatusUser(null);
                     }}
                 >
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
                         <DialogHeader>
                             <DialogTitle>
                                 {pendingStatusUser?.is_active ? 'Nonaktifkan akun?' : 'Aktifkan kembali akun?'}
@@ -642,7 +642,7 @@ export default function Users({
                         if (!open) setPendingDeleteUser(null);
                     }}
                 >
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
                         <DialogHeader>
                             <DialogTitle>Hapus pengguna?</DialogTitle>
                             <DialogDescription>
