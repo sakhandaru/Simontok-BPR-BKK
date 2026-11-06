@@ -675,7 +675,7 @@ class NotaryPortalController extends Controller
         }
         $evidencePath = $request->file('evidence')?->store("documents/{$order->order_no}/progress", 'local');
 
-        DB::transaction(function () use ($request, $order, $data, $evidencePath, $collateral, $finalDocuments, $isFinalStep) {
+        DB::transaction(function () use ($request, $order, $data, $evidencePath, $collateral, $job, $finalDocuments, $isFinalStep) {
             $existingFinalProgress = $job->progress()->where('status', $data['status'])->latest('id')->first();
             $progressData = [
                 ...collect($data)->except(['evidence', 'final_documents'])->all(),
