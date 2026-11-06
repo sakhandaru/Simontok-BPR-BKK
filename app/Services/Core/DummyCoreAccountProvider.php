@@ -30,6 +30,8 @@ class DummyCoreAccountProvider implements CoreAccountProvider
                 'account_number' => $account->account_number,
                 'customer_id' => $account->customer_id,
                 'customer_name' => $account->customer_name,
+                'customer_marital_status' => $account->marital_status,
+                'customer' => ['customer_id' => $account->customer_id, 'name' => $account->customer_name, 'marital_status' => $account->marital_status],
                 'credit' => ['loan_amount' => $account->plafon],
                 'branch' => ['code' => $account->branch_code, 'name' => $account->branch_name],
                 'collateral_count' => $account->collaterals_count,
@@ -50,6 +52,8 @@ class DummyCoreAccountProvider implements CoreAccountProvider
             'account_number' => $account->account_number,
             'customer_id' => $account->customer_id,
             'customer_name' => $account->customer_name,
+            'customer_marital_status' => $account->marital_status,
+            'customer' => ['customer_id' => $account->customer_id, 'name' => $account->customer_name, 'marital_status' => $account->marital_status],
             'credit' => ['loan_amount' => $account->plafon],
             'branch' => ['code' => $account->branch_code, 'name' => $account->branch_name],
             'collaterals' => $account->collaterals->map(fn ($collateral) => [

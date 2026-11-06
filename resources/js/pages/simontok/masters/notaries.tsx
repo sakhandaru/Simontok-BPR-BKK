@@ -16,6 +16,7 @@ import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTable
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 import { SimTableToolbar } from '@/components/sim-table-toolbar';
 import { SimCreatableCombobox } from '@/components/sim-creatable-combobox';
+import { SimFileUpload } from '@/components/sim-file-upload';
 import { saveBankName } from '@/lib/bank-names';
 
 type PortalUser = { id: number; name: string; email: string; is_active: boolean };
@@ -242,8 +243,7 @@ function NotaryProfileDialog({ open, editingId, data, errors, processing, branch
                                     {editingId && <a href={`/document-archives?notary_id=${editingId}`} className="shrink-0 text-sm font-medium text-primary underline underline-offset-4">Lihat arsip</a>}
                                 </div>
                                 <div className="grid gap-3">
-                                    <Input type="file" accept="application/pdf,.pdf" onChange={(event) => setData('agreement_file', event.target.files?.[0] ?? null)} />
-                                    {data.agreement_file && <p className="text-sm text-foreground">File baru: {data.agreement_file.name}</p>}
+                                    <SimFileUpload value={data.agreement_file} accept="application/pdf,.pdf" label="Pilih file perjanjian" description="PDF, maksimal 10 MB per file" onChange={(file) => setData('agreement_file', file)} />
                                     {previewSource && <div className="overflow-hidden rounded-md border border-border bg-muted/20"><div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-sm"><span className="flex min-w-0 items-center gap-2"><FileText className="size-4 shrink-0" /><span className="truncate">{data.agreement_file?.name ?? existingFileName}</span></span>{editingId && <a className="shrink-0 underline underline-offset-4" href={`/notaries/${editingId}/agreement/preview`} target="_blank" rel="noreferrer">Buka</a>}</div><iframe title="Preview file perjanjian" src={previewSource} className="h-48 w-full bg-white" /></div>}
                                     <InputError message={errors.agreement_file} />
                                 </div>

@@ -36,7 +36,7 @@ Berdasarkan dokumentasi skema BU Core yang tersedia di `bu_core-docs.html`, sumb
 | Sumber BU Core | Kegunaan di SIMONTOK | Field sumber utama |
 |---|---|---|
 | `kredit` | Rekening dan detail fasilitas kredit | `no_rekening`, `nasabah_id`, `jml_pinjaman`, `tgl_realisasi`, `tgl_jatuh_tempo`, `kode_kantor`, `kode_produk`, `type_kredit`, `status`, `tgl_lunas`, `tgl_pengikatan`, `kode_notaris`, `status_rek` |
-| `nasabah` | Identitas dan data kontak nasabah | `nasabah_id`, `nama_nasabah`, `alamat`, `jenis_id`, `no_id`, `telpon`, `hp`, `email`, `alamat_ktp`, `alamat_surat`, `npwp` |
+| `nasabah` | Identitas dan data kontak nasabah | `nasabah_id`, `nama_nasabah`, `status_perkawinan`, `alamat`, `jenis_id`, `no_id`, `telpon`, `hp`, `email`, `alamat_ktp`, `alamat_surat`, `npwp` |
 | `kre_agunan_relasi` | Relasi rekening dan agunan | `agunan_id`, `no_rekening`, `kode_kantor`, `primer`, `status` |
 | `kre_agunan` | Detail agunan dan data legalnya | `AGUNAN_ID`, `KODE_JENIS_AGUNAN`, `DESKRIPSI_RINGKAS`, `JENIS_AGUNAN`, `JENIS_PENGIKATAN`, `PEMILIK_AGUNAN`, `BUKTI_MILIK`, `ALAMAT_AGUNAN`, `NILAI_AGUNAN`, `NILAI_AGUNAN_BANK`, `NILAI_AGUNAN_PENILAI`, `TGL_PENILAIAN`, serta field detail tanah/kendaraan sesuai jenis agunan |
 | `app_kode_kantor` | Master cabang | `KODE_KANTOR`, `NAMA_KANTOR`, `ALAMAT_KANTOR`, `KOTA_KANTOR`, status/keterangan cabang yang aman untuk diekspos |
@@ -54,7 +54,7 @@ Untuk pembuatan order SIMONTOK, field minimal yang perlu tersedia adalah:
 | Kelompok | Field response API | Keterangan |
 |---|---|---|
 | Rekening | `account_id`, `account_number` | Identifier stabil dan nomor rekening sebagai string. |
-| Nasabah | `customer_id`, `customer_name` | Nama untuk snapshot order. |
+| Nasabah | `customer_id`, `customer_name`, `customer.marital_status` | Identitas nasabah dan status perkawinan untuk menentukan kebutuhan dokumen pasangan. |
 | Cabang | `branch.code`, `branch.name` | Cabang pemilik rekening dan scope akses. |
 | Kredit | `credit.loan_amount`, `credit.realization_date` | `credit.loan_amount` ditampilkan sebagai **Plafon** di SIMONTOK dan bersumber dari `kredit.jml_pinjaman`, bukan baki debet. |
 | Agunan | `collateral_id`, `collateral_code`, `type_code`, `type_name`, `description` | Seluruh agunan yang terhubung ke rekening. |
@@ -189,6 +189,7 @@ Field detail:
 | `account_number` | Ya | Nomor rekening sebagai string. |
 | `customer.customer_id` | Disarankan | ID unik nasabah. |
 | `customer.name` | Ya | Nama nasabah untuk snapshot order. |
+| `customer.marital_status` | Ya | Status perkawinan yang dinormalisasi, minimal `married` atau `single`; diperlukan untuk aturan KTP pasangan. |
 | `branch.code` | Ya | Kode cabang resmi. |
 | `branch.name` | Ya | Nama cabang resmi. |
 | `credit.loan_amount` | Jika digunakan | Nilai pinjaman/plafon dari `kredit.jml_pinjaman`; di form SIMONTOK dipetakan menjadi `plafon`. Bukan `baki_debet`. |
@@ -196,6 +197,10 @@ Field detail:
 | `collaterals` | Ya | Array seluruh agunan yang terhubung. |
 
 `credit.loan_amount` adalah sumber field **Plafon** pada form order SIMONTOK. Setelah rekening dipilih, SIMONTOK mengisi nilai ini otomatis, menjadikannya read-only, dan menyimpannya sebagai bagian dari snapshot order.
+
+### Aturan dokumen pasangan
+
+Jika `customer.marital_status` bernilai `married`/`kawin`/`menikah`, checklist **KTP pasangan** harus diperlakukan sebagai dokumen wajib. Jika bernilai `single`/`belum_menikah`, checklist tersebut bersifat opsional. Jika status tidak tersedia atau tidak dapat dinormalisasi, SIMONTOK sebaiknya menahan pengajuan sampai status dikonfirmasi; jangan menganggap KTP pasangan otomatis tidak diperlukan.
 
 Jangan mengirim data sensitif yang tidak diperlukan oleh proses order.
 

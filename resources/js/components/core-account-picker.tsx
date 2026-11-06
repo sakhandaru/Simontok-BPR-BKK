@@ -8,6 +8,8 @@ export type CoreAccount = {
     account_number: string;
     customer_id: string;
     customer_name: string;
+    customer_marital_status?: string | null;
+    customer?: { customer_id: string; name: string; marital_status?: string | null };
     credit: { loan_amount: number | string | null };
     branch: { code: string; name: string };
     collaterals: { collateral_id: string; type_name: string; description: string | null }[];

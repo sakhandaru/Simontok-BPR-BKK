@@ -34,6 +34,7 @@ class SyncCoreStaging extends Command
                             'account_number' => $source->account_number,
                             'customer_id' => $source->customer_id,
                             'customer_name' => $source->customer_name,
+                            'marital_status' => $source->marital_status,
                             'loan_amount' => $source->plafon,
                             'branch_code' => $source->branch_code,
                             'branch_name' => $source->branch_name,

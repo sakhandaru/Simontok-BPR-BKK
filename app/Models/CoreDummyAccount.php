@@ -13,7 +13,7 @@ class CoreDummyAccount extends Model
     protected $table = 'core_dummy_accounts';
 
     protected $fillable = [
-        'account_id', 'account_number', 'customer_id', 'customer_name', 'plafon', 'branch_code', 'branch_name',
+        'account_id', 'account_number', 'customer_id', 'customer_name', 'marital_status', 'plafon', 'branch_code', 'branch_name',
     ];
 
     public function collaterals(): HasMany

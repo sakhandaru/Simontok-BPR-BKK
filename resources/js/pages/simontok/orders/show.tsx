@@ -390,7 +390,7 @@ export default function OrdersShow({
         ]),
         order.collaterals?.some((item: any) =>
             item.checklists?.some(
-                (checklist: any) => checklist.document_checklist?.is_active !== false && checklist.document_checklist?.is_required !== false && (!checklist.is_checked || !checklist.order_document_id),
+                (checklist: any) => isRequiredChecklist(order, checklist) && (!checklist.is_checked || !checklist.order_document_id),
             ),
         ) && 'Dokumen checklist agunan',
         draft.data.collaterals.some((item) => item.jobs.some((job) => job.sla_days && !job.sla_override_reason)) && 'Alasan perubahan SLA',
@@ -2206,6 +2206,15 @@ function Info({ label, value }: { label: string; value?: string | null }) {
     );
 }
 
+function SummaryInfo({ label, value }: { label: string; value?: string | null }) {
+    return (
+        <div>
+            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="mt-0.5 text-sm font-medium leading-5">{value || '-'}</div>
+        </div>
+    );
+}
+
 function BatchFilePreview({
     file,
     onChange,
@@ -2303,7 +2312,9 @@ function DraftOrderForm({
     const activeSourceCollateral = activeCollateral
         ? order.collaterals?.find(
               (item: any) => String(item.id) === String(activeCollateral.id),
-          )
+          ) ?? order.collaterals?.find(
+              (item: any) => item.agunan_id && item.agunan_id === activeCollateral.agunan_id,
+          ) ?? order.collaterals?.[collateralModal?.index ?? 0]
         : null;
     const activeSummaryJobs = activeSourceCollateral?.jobs?.length
         ? activeSourceCollateral.jobs
@@ -2320,6 +2331,9 @@ function DraftOrderForm({
               ),
           ]
         : [];
+    const activeChecklistItems = (activeSourceCollateral?.checklists ?? []).filter(
+        (item: any) => item.document_checklist?.is_active !== false,
+    );
     return (
         <div className="sim-panel overflow-hidden">
             <div className="sim-panel-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -2752,32 +2766,53 @@ function DraftOrderForm({
                                     <FilePlus2 className="size-4" />Dokumen pendukung
                                 </Button>
                             </div>
-                            <div className="grid gap-2 md:grid-cols-2">
-                                {(activeSourceCollateral?.checklists ?? []).filter((item: any) => item.document_checklist?.is_active !== false).map((item: any) => (
-                                    <div key={item.id} className="grid min-w-0 gap-2 rounded-md border p-3 text-sm">
-                                        <div className="flex items-start gap-2">
-                                            <span className={item.order_document ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white' : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'}>{item.order_document ? '✓' : ''}</span>
-                                            <span className="font-medium">{item.document_checklist?.name}</span>
+                            <div className="grid gap-5">
+                                {[
+                                    {
+                                        label: 'Dokumen wajib',
+                                        description: 'Harus dilengkapi sebelum order dapat diajukan.',
+                                        items: activeChecklistItems.filter((item: any) => isRequiredChecklist(order, item)),
+                                    },
+                                    {
+                                        label: 'Dokumen tambahan',
+                                        description: 'Opsional, diunggah jika relevan dengan pekerjaan atau kondisi agunan.',
+                                        items: activeChecklistItems.filter((item: any) => !isRequiredChecklist(order, item)),
+                                    },
+                                ].filter((group) => group.items.length > 0).map((group) => (
+                                    <section key={group.label} className="grid gap-2">
+                                        <div>
+                                            <div className="font-medium">{group.label}</div>
+                                            <p className="text-xs text-muted-foreground">{group.description}</p>
                                         </div>
-                                        {item.order_document ? (
-                                            <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
-                                                <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
-                                                <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
-                                            </div>
-                                        ) : (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="w-fit"
-                                                onClick={() => {
-                                                    openChecklistEditor(String(activeCollateral.id), String(item.id));
-                                                }}
-                                            >
-                                                <FilePlus2 className="size-4" />Input dokumen
-                                            </Button>
-                                        )}
-                                    </div>
+                                        <div className="grid gap-2 md:grid-cols-2">
+                                            {group.items.map((item: any) => (
+                                                <div key={item.id} className="grid min-w-0 gap-2 rounded-md border p-3 text-sm">
+                                                    <div className="flex items-start gap-2">
+                                                        <span className={item.order_document ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white' : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'}>{item.order_document ? '✓' : ''}</span>
+                                                        <span className="font-medium">{item.document_checklist?.name}</span>
+                                                    </div>
+                                                    {item.order_document ? (
+                                                        <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
+                                                            <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
+                                                            <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
+                                                        </div>
+                                                    ) : (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-fit"
+                                                            onClick={() => {
+                                                                openChecklistEditor(String(activeCollateral.id), String(item.id));
+                                                            }}
+                                                        >
+                                                            <FilePlus2 className="size-4" />Input dokumen
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
                                 ))}
                             </div>
                             {(activeSourceCollateral?.documents ?? []).filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya').length > 0 && (
@@ -2835,12 +2870,16 @@ function dateInput(value?: string | null) {
 function orderDraftFrom(order: any): OrderDraft {
     const saved = order.collaterals ?? [];
     const collaterals = order.core_account_id && order.core_snapshot
-        ? order.core_snapshot.collaterals.map((source: CoreAccount['collaterals'][number]) => ({
-            ...saved.find((item: any) => item.agunan_id === source.collateral_id),
-            agunan_id: source.collateral_id,
-            nama_agunan: source.type_name,
-            deskripsi_agunan: source.description,
-        }))
+        ? order.core_snapshot.collaterals.map((source: CoreAccount['collaterals'][number]) => {
+            const savedCollateral = saved.find((item: any) => item.agunan_id === source.collateral_id);
+            return {
+                ...savedCollateral,
+                id: savedCollateral?.id ?? '',
+                agunan_id: source.collateral_id,
+                nama_agunan: source.type_name,
+                deskripsi_agunan: source.description,
+            };
+        })
         : saved;
 
     return {
@@ -3092,7 +3131,7 @@ function OrderTrackingHero({
                         <h3 className="inline-flex items-center rounded-full border-[3px] border-[var(--brand-blue)] bg-[var(--brand-yellow-middle)] px-3 py-1 text-sm font-bold text-[var(--brand-blue)]">
                             Ringkasan order
                         </h3>
-                        <div className="mt-4 border-t-2 border-dashed border-sidebar-border pt-3">
+                        <div className="mt-3 border-t-2 border-dashed border-sidebar-border pt-3">
                             <div className="text-xs text-muted-foreground">
                                 Nomor order
                             </div>
@@ -3104,25 +3143,25 @@ function OrderTrackingHero({
                             </div>
                         </div>
                     </div>
-                    <div className="grid gap-x-4 gap-y-4 border-t-2 border-dashed border-sidebar-border pt-4 sm:grid-cols-2 lg:grid-cols-1">
-                        <Info label="Notaris" value={order.notary?.name} />
-                        <Info
+                    <div className="grid gap-x-4 gap-y-2.5 border-t-2 border-dashed border-sidebar-border pt-3 sm:grid-cols-2 lg:grid-cols-1">
+                        <SummaryInfo label="Notaris" value={order.notary?.name} />
+                        <SummaryInfo
                             label="Nomor rekening nasabah"
                             value={order.no_rekening}
                         />
                         {paymentAccount && (
                             <>
-                                <Info label="Bank notaris" value={paymentAccount.bank_name} />
-                                <Info label="Nomor rekening notaris" value={paymentAccount.bank_account_number} />
-                                <Info label="Atas nama rekening" value={paymentAccount.bank_account_name} />
+                                <SummaryInfo label="Bank notaris" value={paymentAccount.bank_name} />
+                                <SummaryInfo label="Nomor rekening notaris" value={paymentAccount.bank_account_number} />
+                                <SummaryInfo label="Atas nama rekening" value={paymentAccount.bank_account_name} />
                             </>
                         )}
-                        <Info label="Plafon" value={money(order.plafon)} />
-                        <Info
+                        <SummaryInfo label="Plafon" value={money(order.plafon)} />
+                        <SummaryInfo
                             label="Tanggal akad"
                             value={formatTimelineDate(order.tgl_realisasi)}
                         />
-                        <Info
+                        <SummaryInfo
                             label="Update terakhir"
                             value={formatTimelineDate(history[0]?.created_at)}
                         />
@@ -3562,6 +3601,25 @@ function checklistNameForDocument(
             return checklist.document_checklist.name;
     }
     return null;
+}
+
+function isRequiredChecklist(order: any, checklist: any): boolean {
+    const status = String(
+        order.core_snapshot?.customer?.marital_status ??
+            order.core_snapshot?.customer_marital_status ??
+            '',
+    ).toLowerCase().trim();
+    const name = String(checklist.document_checklist?.name ?? '').toLowerCase().trim();
+    const knownSingle = ['single', 'unmarried', 'belum_menikah', 'belum menikah'];
+    const spouseRequired = name === 'ktp pasangan' && (
+        ['married', 'kawin', 'menikah'].includes(status) ||
+        (Boolean(order.core_account_id) && !knownSingle.includes(status))
+    );
+
+    return checklist.document_checklist?.is_active !== false && (
+        checklist.document_checklist?.is_required !== false ||
+        spouseRequired
+    );
 }
 
 OrdersShow.layout = {

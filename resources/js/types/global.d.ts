@@ -16,3 +16,29 @@ declare module '@inertiajs/core' {
         };
     }
 }
+
+declare module 'jscanify/client' {
+    type JscanifyCanvas = HTMLCanvasElement;
+
+    class Jscanify {
+        highlightPaper(
+            image: HTMLCanvasElement,
+            options?: { color?: string; thickness?: number },
+        ): HTMLCanvasElement;
+        extractPaper(
+            image: HTMLCanvasElement,
+            resultWidth: number,
+            resultHeight: number,
+        ): JscanifyCanvas;
+    }
+
+    export default Jscanify;
+}
+
+declare global {
+    interface Window {
+        cv?: {
+            onRuntimeInitialized?: () => void;
+        };
+    }
+}

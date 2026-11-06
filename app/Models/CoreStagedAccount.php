@@ -13,7 +13,7 @@ class CoreStagedAccount extends Model
     protected $table = 'core_staged_accounts';
 
     protected $fillable = [
-        'account_id', 'account_number', 'customer_id', 'customer_name', 'loan_amount',
+        'account_id', 'account_number', 'customer_id', 'customer_name', 'marital_status', 'loan_amount',
         'realization_date', 'branch_code', 'branch_name', 'source_provider', 'synced_at', 'expires_at',
     ];
 
