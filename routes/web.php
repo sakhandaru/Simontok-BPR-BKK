@@ -75,6 +75,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('orders/{order}/collaterals/{collateral}/covernote/preview', [CovernoteController::class, 'preview'])->name('orders.collaterals.covernote.preview');
         Route::get('orders/{order}/collaterals/{collateral}/covernote-extensions/{extension}/preview', [CovernoteController::class, 'previewExtension'])->name('orders.collaterals.covernote-extensions.preview');
         Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('orders.payment-requests.payments.download');
+    Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/preview', [PaymentRequestController::class, 'previewProof'])->name('orders.payment-requests.payments.preview');
     });
     Route::post('notary/orders/{order}/document-requests', [DocumentRequestController::class, 'store'])->middleware('permission:notary.actions')->name('notary.orders.document-requests.store');
     Route::post('orders/{order}/document-requests/{documentRequest}/fulfill', [DocumentRequestController::class, 'fulfill'])->middleware('permission:orders.manage')->name('orders.document-requests.fulfill');
@@ -121,6 +122,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('notary/orders/{order}/documents/{document}/preview', [OrderDocumentController::class, 'preview'])->name('notary.orders.documents.preview');
         Route::get('notary/orders/{order}/progress/{progress}/evidence', [NotaryPortalController::class, 'progressEvidence'])->name('notary.orders.progress.evidence');
         Route::get('notary/orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('notary.orders.payment-requests.payments.download');
+    Route::get('notary/orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/preview', [PaymentRequestController::class, 'previewProof'])->name('notary.orders.payment-requests.payments.preview');
     });
     Route::middleware('permission:covernotes.approve')->group(function () {
         Route::post('orders/{order}/covernote/approve', [NotaryPortalController::class, 'approveCovernote'])->name('orders.covernote.approve');

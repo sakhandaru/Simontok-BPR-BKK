@@ -247,6 +247,19 @@ class PaymentRequestController extends Controller
         return Storage::disk('local')->download($record->bukti_path);
     }
 
+    public function previewProof(Request $request, Order $order, PaymentRequest $paymentRequest, int $payment): mixed
+    {
+        $this->ensureBelongsToOrder($order, $paymentRequest);
+        $this->authorizePaymentAccess($request, $order);
+        $record = $paymentRequest->payments()->whereKey($payment)->firstOrFail();
+
+        abort_if(! $record->bukti_path || ! Storage::disk('local')->exists($record->bukti_path), 404);
+
+        return response()->file(Storage::disk('local')->path($record->bukti_path), [
+            'Content-Disposition' => 'inline; filename="'.addslashes(basename($record->bukti_path)).'"',
+        ]);
+    }
+
     private function authorizeNotary(Request $request, Order $order): void
     {
         abort_unless($request->user()?->notary_id && $order->notary_id === $request->user()->notary_id, 403);

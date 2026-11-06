@@ -445,6 +445,7 @@ export default function OrdersShow({
     const [documentEditor, setDocumentEditor] = useState<DocumentEditor | null>(
         null,
     );
+    const [paymentProofPreview, setPaymentProofPreview] = useState<any | null>(null);
     const [viewCollateralModal, setViewCollateralModal] = useState<{
         item: any;
         tab: 'summary' | 'jobs' | 'documents';
@@ -1154,12 +1155,15 @@ export default function OrdersShow({
                                                 {payment.bukti_path &&
                                                     order.payment_request
                                                         ?.id && (
-                                                        <a
-                                                            className="font-medium underline-offset-4 hover:underline"
-                                                            href={`/orders/${order.id}/payment-requests/${order.payment_request.id}/payments/${payment.id}/download`}
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setPaymentProofPreview(payment)}
                                                         >
-                                                            Unduh bukti
-                                                        </a>
+                                                            <Eye className="size-4" />
+                                                            Lihat bukti
+                                                        </Button>
                                                     )}
                                             </div>
                                         ),
@@ -1169,6 +1173,37 @@ export default function OrdersShow({
                         )}
                     </details>
                 )}
+
+                <Dialog
+                    open={Boolean(paymentProofPreview)}
+                    onOpenChange={(open) => !open && setPaymentProofPreview(null)}
+                >
+                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>Bukti pembayaran</DialogTitle>
+                            <DialogDescription>
+                                Pratinjau bukti pembayaran sebelum diunduh.
+                            </DialogDescription>
+                        </DialogHeader>
+                        {paymentProofPreview && order.payment_request?.id && (
+                            <div className="grid gap-3">
+                                <iframe
+                                    title="Preview bukti pembayaran"
+                                    src={`/orders/${order.id}/payment-requests/${order.payment_request.id}/payments/${paymentProofPreview.id}/preview`}
+                                    className="h-[min(70vh,42rem)] w-full rounded-md border bg-white"
+                                />
+                                <div className="flex justify-end">
+                                    <Button asChild>
+                                        <a href={`/orders/${order.id}/payment-requests/${order.payment_request.id}/payments/${paymentProofPreview.id}/download`}>
+                                            <Download className="size-4" />
+                                            Unduh bukti
+                                        </a>
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
 
                 <details className="sim-panel group">
                     <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
