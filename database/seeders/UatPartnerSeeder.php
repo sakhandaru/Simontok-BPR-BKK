@@ -85,9 +85,9 @@ class UatPartnerSeeder extends Seeder
                     'job_position_id' => $position->id,
                     'is_active' => true,
                 ]);
-            } elseif ($portal->sso_employee_id) {
+            } elseif ($portal && $portal->sso_employee_id) {
                 throw new RuntimeException('Akun notaris demo terhubung ke pegawai SSO.');
-            } else {
+            } elseif ($portal) {
                 $portal->update(['is_active' => true, 'job_position_id' => $position->id]);
             }
 
