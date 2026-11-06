@@ -13,6 +13,13 @@ import {
 
 const OPENCV_URL = 'https://docs.opencv.org/4.x/opencv.js';
 type ScanPage = { id: string; canvas: HTMLCanvasElement; previewUrl: string };
+type ScanPoint = { x: number; y: number };
+type ScanCorners = {
+    topLeftCorner: ScanPoint;
+    topRightCorner: ScanPoint;
+    bottomLeftCorner: ScanPoint;
+    bottomRightCorner: ScanPoint;
+};
 
 export function SimFileUpload({ value, onChange, accept = 'application/pdf', label = 'Pilih file PDF', description, maxSizeMb = 10, enableScan = true }: { value?: File | null; onChange: (file: File | null) => void; accept?: string; label?: string; description?: string; maxSizeMb?: number; enableScan?: boolean }) {
     const id = useId();
@@ -25,7 +32,12 @@ export function SimFileUpload({ value, onChange, accept = 'application/pdf', lab
     const videoRef = useRef<HTMLVideoElement>(null);
     const overlayRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const scannerRef = useRef<{ highlightPaper: (image: HTMLCanvasElement, options?: { color?: string; thickness?: number }) => HTMLCanvasElement; extractPaper: (image: HTMLCanvasElement, resultWidth: number, resultHeight: number) => HTMLCanvasElement | null } | null>(null);
+    const scannerRef = useRef<{
+        highlightPaper: (image: HTMLCanvasElement, options?: { color?: string; thickness?: number }) => HTMLCanvasElement;
+        findPaperContour: (image: unknown) => unknown;
+        getCornerPoints: (contour: unknown, image: unknown) => ScanCorners;
+        extractPaper: (image: HTMLCanvasElement, resultWidth: number, resultHeight: number) => HTMLCanvasElement | null;
+    } | null>(null);
 
     useEffect(() => {
         if (!value) {
@@ -65,7 +77,15 @@ export function SimFileUpload({ value, onChange, accept = 'application/pdf', lab
             // @ts-expect-error The client entry is the documented browser build.
             const { default: Jscanify } = await import('jscanify/client');
             scannerRef.current = new Jscanify();
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1920 },
+                    height: { ideal: 2560 },
+                    frameRate: { ideal: 30, max: 30 },
+                },
+                audio: false,
+            });
             streamRef.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
@@ -113,13 +133,49 @@ export function SimFileUpload({ value, onChange, accept = 'application/pdf', lab
             canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
             const scanner = scannerRef.current;
             if (!scanner) throw new Error('Scanner belum siap');
-            // Gunakan rasio F4 portrait agar hasil scan tidak mengikuti rasio frame kamera.
-            const result = scanner.extractPaper(canvas, 1700, 2600);
+            const cv = window.cv as {
+                imread: (image: HTMLCanvasElement) => unknown;
+            } | undefined;
+            if (!cv) throw new Error('Scanner belum siap');
+            const sourceImage = cv.imread(canvas);
+            const contour = scanner.findPaperContour(sourceImage);
+            const releaseOpenCvObjects = () => {
+                (sourceImage as { delete?: () => void }).delete?.();
+                (contour as { delete?: () => void } | null)?.delete?.();
+            };
+            if (!contour) {
+                releaseOpenCvObjects();
+                throw new Error('Dokumen tidak terdeteksi');
+            }
+            const corners = scanner.getCornerPoints(contour, sourceImage);
+            const sourceWidth = Math.max(
+                distanceBetween(corners.topLeftCorner, corners.topRightCorner),
+                distanceBetween(corners.bottomLeftCorner, corners.bottomRightCorner),
+            );
+            const sourceHeight = Math.max(
+                distanceBetween(corners.topLeftCorner, corners.bottomLeftCorner),
+                distanceBetween(corners.topRightCorner, corners.bottomRightCorner),
+            );
+            if (sourceWidth < 700 || sourceHeight < 900) {
+                releaseOpenCvObjects();
+                throw new Error('Dokumen terlalu jauh');
+            }
+
+            // Jangan meng-upscale dokumen kecil ke ukuran F4 tetap: teks akan burik.
+            const resultWidth = Math.min(2400, Math.round(sourceWidth));
+            const resultHeight = Math.min(
+                3400,
+                Math.round(resultWidth * (sourceHeight / sourceWidth)),
+            );
+            const result = scanner.extractPaper(canvas, resultWidth, resultHeight);
+            releaseOpenCvObjects();
             if (!result) throw new Error('Dokumen tidak terdeteksi');
             const previewUrl = URL.createObjectURL(await canvasToBlob(result));
             setScanPages((pages) => [...pages, { id: `${Date.now()}-${pages.length}`, canvas: result, previewUrl }]);
-        } catch {
-            setError('Dokumen belum dapat dipindai. Pastikan kertas terlihat utuh dan memiliki latar yang kontras.');
+        } catch (captureError) {
+            setError(captureError instanceof Error && captureError.message === 'Dokumen terlalu jauh'
+                ? 'Dokumen terlalu jauh dari kamera. Dekatkan iPhone sampai kertas memenuhi bidang kamera.'
+                : 'Dokumen belum dapat dipindai. Pastikan kertas terlihat utuh dan memiliki latar yang kontras.');
         } finally {
             setProcessing(false);
         }
@@ -192,15 +248,15 @@ export function SimFileUpload({ value, onChange, accept = 'application/pdf', lab
         {error && <div className="px-3 pb-3 text-xs font-medium text-destructive">{error}</div>}
     </div>
     <Dialog open={scanOpen} onOpenChange={(open) => { if (!open) { stopCamera(); clearScanPages(); setScanOpen(false); } }}>
-        <DialogContent className="sm:max-w-2xl">
+    <DialogContent className="max-h-[calc(100dvh-1rem)] overflow-y-auto p-4 sm:max-w-2xl sm:p-6">
             <DialogHeader><DialogTitle>Scan dokumen</DialogTitle><DialogDescription>Letakkan dokumen di bidang kamera. Hasil scan akan dipotong dan dikompres otomatis.</DialogDescription></DialogHeader>
-            <div className="relative mx-auto max-h-[70vh] w-full max-w-md overflow-hidden rounded-md border bg-black"><video ref={videoRef} muted playsInline className="aspect-[8.5/13] h-full w-full object-cover" /><canvas ref={overlayRef} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full object-cover" /></div>
+            <div className="relative mx-auto max-h-[52dvh] w-full max-w-md overflow-hidden rounded-md border bg-black"><video ref={videoRef} muted playsInline className="aspect-[8.5/13] h-full w-full object-cover" /><canvas ref={overlayRef} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full object-cover" /></div>
             {!cameraReady && <p className="text-sm text-muted-foreground"><LoaderCircle className="mr-2 inline size-4 animate-spin" />Menyiapkan kamera…</p>}
-            {scanPages.length > 0 && <div className="grid grid-cols-4 gap-2 rounded-md border bg-muted/20 p-2 sm:grid-cols-5">
+            {scanPages.length > 0 && <div className="grid grid-cols-3 gap-2 rounded-md border bg-muted/20 p-2 sm:grid-cols-5">
                 {scanPages.map((page, index) => <div key={page.id} className="relative overflow-hidden rounded border bg-background">
                     <img src={page.previewUrl} alt={`Halaman ${index + 1}`} className="aspect-[8.5/13] w-full object-cover" />
                     <span className="absolute bottom-1 left-1 rounded bg-background/90 px-1.5 text-[11px] font-medium">{index + 1}</span>
-                    <button type="button" aria-label={`Hapus halaman ${index + 1}`} className="absolute top-1 right-1 rounded bg-background/90 p-1 text-muted-foreground hover:text-foreground" onClick={() => removeScanPage(page.id)}><X className="size-3.5" /></button>
+                    <button type="button" aria-label={`Hapus halaman ${index + 1}`} className="absolute top-1 right-1 flex size-9 items-center justify-center rounded bg-background/90 text-muted-foreground hover:text-foreground" onClick={() => removeScanPage(page.id)}><X className="size-3.5" /></button>
                 </div>)}
             </div>}
             <DialogFooter><Button type="button" variant="outline" onClick={() => { stopCamera(); clearScanPages(); setScanOpen(false); }}>Batal</Button><Button type="button" variant="secondary" onClick={() => void captureScan()} disabled={!cameraReady || processing}><Camera className="size-4" />{processing ? 'Memproses…' : 'Scan halaman'}</Button><Button type="button" onClick={() => void finishScan()} disabled={scanPages.length === 0 || processing}><FileUp className="size-4" />Selesai ({scanPages.length})</Button></DialogFooter>
@@ -238,7 +294,7 @@ async function loadOpenCv(): Promise<void> {
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-    return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Canvas kosong')), 'image/jpeg', 0.86));
+    return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Canvas kosong')), 'image/jpeg', 0.92));
 }
 
 async function canvasesToPdfBlob(canvases: HTMLCanvasElement[]): Promise<Blob> {
@@ -288,6 +344,10 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
     let offset = 0;
     chunks.forEach((chunk) => { result.set(chunk, offset); offset += chunk.length; });
     return result;
+}
+
+function distanceBetween(first: ScanPoint, second: ScanPoint): number {
+    return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
 async function compressImage(file: File): Promise<File> {
