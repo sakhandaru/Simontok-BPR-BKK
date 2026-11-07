@@ -1178,7 +1178,7 @@ export default function OrdersShow({
                     open={Boolean(paymentProofPreview)}
                     onOpenChange={(open) => !open && setPaymentProofPreview(null)}
                 >
-                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>Bukti pembayaran</DialogTitle>
                             <DialogDescription>
@@ -1260,7 +1260,7 @@ export default function OrdersShow({
                     open={Boolean(viewCollateralModal)}
                     onOpenChange={(open) => !open && setViewCollateralModal(null)}
                 >
-                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>
                                 {viewCollateralModal?.tab === 'jobs'
@@ -1854,7 +1854,7 @@ export default function OrdersShow({
                     open={Boolean(documentEditor)}
                     onOpenChange={(open) => !open && setDocumentEditor(null)}
                 >
-                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>
                                 {documentEditor?.kind === 'pendukung'
@@ -2052,7 +2052,7 @@ export default function OrdersShow({
                         }
                     }}
                 >
-                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>Dokumen final progres selesai</DialogTitle>
                             <DialogDescription>
@@ -2612,7 +2612,7 @@ function DraftOrderForm({
                 open={Boolean(collateralModal)}
                 onOpenChange={(open) => !open && setCollateralModal(null)}
             >
-                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+                <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>
                             {collateralModal?.tab === 'jobs'

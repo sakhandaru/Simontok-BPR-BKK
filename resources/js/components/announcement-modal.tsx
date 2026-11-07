@@ -45,7 +45,7 @@ export function AnnouncementModal() {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl">
                 <DialogHeader>
                     <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <Megaphone className="size-4" />

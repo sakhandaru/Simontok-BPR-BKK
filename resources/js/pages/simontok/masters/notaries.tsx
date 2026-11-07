@@ -126,7 +126,7 @@ export default function Notaries({ notaries, branches, bankNames, filters }: { n
                     ))}
                 </div>
                 <NotaryProfileDialog open={formOpen} editingId={editingId} data={data} errors={errors} processing={processing} branches={branches} bankNames={bankNames} notaries={notaries.data} agreementPreviewUrl={agreementPreviewUrl} setData={setData} onSubmit={submit} onClose={cancelEdit} />
-                <Dialog open={false} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-5xl md:overflow-visible"><DialogHeader><DialogTitle>{editingId ? 'Edit notaris' : 'Tambah notaris'}</DialogTitle><DialogDescription>Atur identitas, kontak, legalitas, dan cabang rekanan notaris.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
+                <Dialog open={false} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl md:overflow-visible"><DialogHeader><DialogTitle>{editingId ? 'Edit notaris' : 'Tambah notaris'}</DialogTitle><DialogDescription>Atur identitas, kontak, legalitas, dan cabang rekanan notaris.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
                         <Field label="Nama notaris" error={errors.name}><Input value={data.name} onChange={(e) => setData('name', e.target.value)} /></Field>
                         <Field label="Email" error={errors.email}><Input value={data.email} onChange={(e) => setData('email', e.target.value)} /></Field>
                         <Field label="Telepon" error={errors.phone}><Input value={data.phone} onChange={(e) => setData('phone', e.target.value)} /></Field>
@@ -153,7 +153,7 @@ export default function Notaries({ notaries, branches, bankNames, filters }: { n
                 <SimPagination links={notaries.links} />
             </div>
             <Dialog open={Boolean(managedNotary)} onOpenChange={(open) => !open && setManagedNotary(null)}>
-                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>Kelola akun portal</DialogTitle>
                     <DialogDescription>{managedNotary?.name} · akun portal milik notaris ini.</DialogDescription>
@@ -189,7 +189,7 @@ function NotaryProfileDialog({ open, editingId, data, errors, processing, branch
 
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-            <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-5xl">
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
                 <DialogHeader className="-mx-6 -mt-6 border-b border-border bg-muted/30 px-6 py-5 pr-14">
                     <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">

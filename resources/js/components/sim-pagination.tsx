@@ -13,7 +13,7 @@ export function SimPagination({ links }: { links: SimPaginationLink[] }) {
                 key={`${link.label}-${index}`}
                 size={index === 0 || index === links.length - 1 ? 'icon' : 'sm'}
                 variant={link.active ? 'default' : index === 0 || index === links.length - 1 ? 'ghost' : 'outline'}
-                className={link.active ? 'bg-primary text-primary-foreground hover:bg-primary/90' : index === 0 || index === links.length - 1 ? 'px-1 text-muted-foreground hover:bg-muted hover:text-foreground' : 'border-border bg-background text-foreground hover:bg-muted'}
+                className={link.active ? 'min-h-11 min-w-11 bg-primary text-primary-foreground hover:bg-primary/90' : index === 0 || index === links.length - 1 ? 'min-h-11 min-w-11 px-1 text-muted-foreground hover:bg-muted hover:text-foreground' : 'min-h-11 border-border bg-background text-foreground hover:bg-muted'}
                 disabled={!link.url}
                 asChild={Boolean(link.url)}
             >

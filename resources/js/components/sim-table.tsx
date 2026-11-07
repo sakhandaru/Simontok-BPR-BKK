@@ -22,7 +22,7 @@ export function useSimTableSort<T extends object>(rows: T[], initialKey: keyof T
 }
 
 export function SimTable({ children, minWidth = '720px', className = '', mobileContent, raw = false }: SimTableProps) {
-    if (raw) return <div className={`sim-panel overflow-hidden ${className}`}><div className="overflow-x-auto">{children}</div></div>;
+    if (raw) return <div className={`sim-panel overflow-hidden ${className}`}><div className="overflow-x-auto" role="region" aria-label="Tabel dapat digeser ke samping" tabIndex={0}>{children}</div><div className="border-t px-4 py-2 text-xs text-muted-foreground md:hidden">Geser ke samping untuk melihat kolom lain.</div></div>;
     const parts = Children.toArray(children);
     const header = parts.find((part) => isValidElement(part) && part.type === 'thead');
     const body = parts.find((part) => isValidElement(part) && part.type === 'tbody');

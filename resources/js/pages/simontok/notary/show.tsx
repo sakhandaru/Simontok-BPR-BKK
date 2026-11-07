@@ -1280,7 +1280,7 @@ export default function NotaryOrdersShow({
                     open={Boolean(evidencePreview)}
                     onOpenChange={(open) => !open && setEvidencePreview(null)}
                 >
-                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl">
                         <DialogHeader>
                             <DialogTitle>
                                 Bukti progres —{' '}
@@ -1308,7 +1308,7 @@ export default function NotaryOrdersShow({
                         !open && setFinalDocumentsPreview(null)
                     }
                 >
-                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>Dokumen final</DialogTitle>
                             <DialogDescription>
@@ -1341,7 +1341,7 @@ export default function NotaryOrdersShow({
                     open={Boolean(paymentProofPreview)}
                     onOpenChange={(open) => !open && setPaymentProofPreview(null)}
                 >
-                    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>Bukti pembayaran</DialogTitle>
                             <DialogDescription>

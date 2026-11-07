@@ -29,7 +29,7 @@ export function SimFilterBar({ search, searchPlaceholder = 'Cari...', onSearchCh
             </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="outline" size="icon" className="relative shrink-0" aria-label="Buka filter" title="Buka filter">
+                    <Button type="button" variant="outline" size="icon" className="relative size-11 shrink-0" aria-label="Buka filter" title="Buka filter">
                         <SlidersHorizontal className="size-4" />
                         {activeFilterCount > 0 && <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">{activeFilterCount}</span>}
                     </Button>

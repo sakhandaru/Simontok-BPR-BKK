@@ -9,6 +9,7 @@ use App\Services\SsoAuthenticationService;
 use App\Support\Audit;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -66,6 +67,17 @@ class FortifyServiceProvider extends ServiceProvider
                 (string) $request->input('email'),
                 (string) $request->input('password'),
             );
+        });
+
+        Fortify::confirmPasswordsUsing(function (User $user, ?string $password): bool {
+            if ($user->sso_employee_id) {
+                return app(SsoAuthenticationService::class)->authenticate(
+                    $user->sso_employee_id,
+                    (string) $password,
+                ) !== null;
+            }
+
+            return Hash::check((string) $password, $user->password);
         });
     }
 

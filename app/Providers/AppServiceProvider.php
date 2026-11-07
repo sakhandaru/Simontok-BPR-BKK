@@ -15,6 +15,7 @@ use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
@@ -44,6 +45,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // Production must always use the compiled manifest, even if a stale
+        // Vite hot file was left behind by a local development process.
+        if ($this->app->isProduction()) {
+            Vite::useHotFile(storage_path('framework/vite.hot.production-disabled'));
+        }
 
         Event::listen(Login::class, function (Login $event): void {
             Audit::security(request(), 'login_success', 'Pengguna berhasil masuk.', $event->user);

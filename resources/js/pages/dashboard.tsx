@@ -444,8 +444,8 @@ export default function Dashboard({
 
                     <Panel className="lg:col-span-5 lg:h-full" title="Pergerakan aktivitas" subtitle="Delapan minggu terakhir: masuk, selesai, berisiko.">
                         {trendHasData ? (
-                            <div className="h-full p-4">
-                                <ChartContainer config={trendConfig} className="aspect-auto h-full min-h-56 w-full">
+                            <div className="p-4 lg:h-full">
+                                <ChartContainer config={trendConfig} className="aspect-auto h-72 min-h-0 w-full lg:h-full lg:min-h-56">
                                     <LineChart data={analytics.weeklyTrend} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                                         <CartesianGrid vertical={false} stroke="var(--border)" />
                                         <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} tick={{ fontSize: 12 }} />

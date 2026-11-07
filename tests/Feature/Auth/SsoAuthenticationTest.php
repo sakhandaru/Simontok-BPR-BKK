@@ -78,6 +78,53 @@ class SsoAuthenticationTest extends TestCase
             && $request->hasHeader('Authorization', 'Bearer sso-token'));
     }
 
+    public function test_employee_can_confirm_password_through_sso_after_login(): void
+    {
+        $role = Role::create(['code' => 'legal_admin', 'name' => 'Admin Legal']);
+        $position = JobPosition::create([
+            'code' => 'LEGAL',
+            'name' => 'Admin Legal',
+            'role_id' => $role->id,
+        ]);
+        $branch = Branch::create(['code' => '000', 'name' => 'Kantor Pusat']);
+        $user = User::factory()->create([
+            'email' => 'pegawai@example.com',
+            'sso_employee_id' => '102-119',
+            'job_position_id' => $position->id,
+            'branch_id' => $branch->id,
+            'is_active' => true,
+        ]);
+
+        config([
+            'services.sso.enabled' => true,
+            'services.sso.url' => 'https://apisso.test',
+            'services.sso.app' => 'monbis',
+        ]);
+
+        Http::fake([
+            'https://apisso.test/api/auth/login' => Http::response([
+                'data' => ['token' => 'sso-token'],
+            ]),
+            'https://apisso.test/api/auth/whoami' => Http::response([
+                'data' => [
+                    'employee_id' => '102-119',
+                    'full_name' => 'Nama Pegawai',
+                ],
+            ]),
+        ]);
+
+        $this->post(route('login.store'), [
+            'email' => '102-119',
+            'password' => 'password-sso',
+        ]);
+
+        $this->assertAuthenticatedAs($user);
+
+        $this->post(route('password.confirm.store'), [
+            'password' => 'password-sso',
+        ])->assertRedirect()->assertSessionHas('auth.password_confirmed_at');
+    }
+
     public function test_sso_rejects_an_authenticated_employee_without_a_simontok_user(): void
     {
         $role = Role::create(['code' => 'legal_admin', 'name' => 'Admin Legal']);
