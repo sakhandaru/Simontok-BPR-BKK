@@ -19,8 +19,17 @@ declare module '@inertiajs/core' {
 
 declare module 'jscanify/client' {
     type JscanifyCanvas = HTMLCanvasElement;
+    type JscanifyPoint = { x: number; y: number };
+    type JscanifyCorners = {
+        topLeftCorner: JscanifyPoint;
+        topRightCorner: JscanifyPoint;
+        bottomLeftCorner: JscanifyPoint;
+        bottomRightCorner: JscanifyPoint;
+    };
 
     class Jscanify {
+        findPaperContour(image: unknown): unknown;
+        getCornerPoints(contour: unknown, image: unknown): JscanifyCorners;
         highlightPaper(
             image: HTMLCanvasElement,
             options?: { color?: string; thickness?: number },
@@ -29,6 +38,7 @@ declare module 'jscanify/client' {
             image: HTMLCanvasElement,
             resultWidth: number,
             resultHeight: number,
+            cornerPoints?: JscanifyCorners,
         ): JscanifyCanvas;
     }
 
