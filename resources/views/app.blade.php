@@ -32,9 +32,18 @@
 
         <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <meta name="application-name" content="SIMONTOK">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="SIMONTOK">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <meta name="color-scheme" content="light dark">
+        <meta name="simontok-build" content="{{ \Illuminate\Support\Facades\Vite::asset('resources/js/app.tsx') }}">
+
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
         <link rel="manifest" href="/manifest.webmanifest">
-        <meta name="theme-color" content="#111111">
+        <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
+        <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
 
         @fonts
 

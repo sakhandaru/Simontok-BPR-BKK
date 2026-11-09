@@ -1,41 +1,92 @@
-const CACHE_NAME = 'simontok-shell-v3';
-const SHELL = [
-    '/offline.html',
+const workerUrl = new URL(self.location.href);
+const buildVersion = workerUrl.searchParams.get('v') || 'standalone';
+const cachePrefix = 'simontok-shell-';
+const cacheName = cachePrefix + buildVersion;
+const offlinePage = '/offline.html';
+const shellFiles = [
+    offlinePage,
     '/favicon.svg',
-    '/logo_web2.svg',
+    '/icons/icon-192.png',
+    '/icons/icon-512.png',
+    '/icons/icon-maskable-512.png',
     '/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
-    event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)));
-    self.skipWaiting();
+    event.waitUntil(
+        caches.open(cacheName).then((cache) => cache.addAll(shellFiles)),
+    );
 });
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((keys) => Promise.all(
-            keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
-        )),
+        caches
+            .keys()
+            .then((keys) =>
+                Promise.all(
+                    keys
+                        .filter(
+                            (key) =>
+                                key.startsWith(cachePrefix) &&
+                                key !== cacheName,
+                        )
+                        .map((key) => caches.delete(key)),
+                ),
+            )
+            .then(() => self.clients.claim()),
     );
-    self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
 });
 
 self.addEventListener('fetch', (event) => {
     const request = event.request;
-    if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
-    if (request.mode === 'navigate') {
-        event.respondWith(fetch(request).catch(() => caches.match('/offline.html')));
+    if (request.method !== 'GET') {
         return;
     }
 
-    if (request.destination === 'script' || request.destination === 'style' || request.destination === 'font' || request.destination === 'image') {
-        event.respondWith(
-            caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-                const copy = response.clone();
-                caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-                return response;
-            })),
-        );
+    const url = new URL(request.url);
+
+    if (url.origin !== self.location.origin) {
+        return;
     }
+
+    if (request.mode === 'navigate') {
+        event.respondWith(
+            fetch(request).catch(() => caches.match(offlinePage)),
+        );
+        return;
+    }
+
+    if (!url.pathname.startsWith('/build/assets/')) {
+        return;
+    }
+
+    event.respondWith(
+        caches.match(request).then((cached) => {
+            if (cached) {
+                return cached;
+            }
+
+            return fetch(request).then((response) => {
+                if (!response.ok || response.type !== 'basic') {
+                    return response;
+                }
+
+                const copy = response.clone();
+                event.waitUntil(
+                    caches
+                        .open(cacheName)
+                        .then((cache) => cache.put(request, copy)),
+                );
+
+                return response;
+            });
+        }),
+    );
 });
