@@ -5,6 +5,7 @@ import {
     Image as ImageIcon,
     LoaderCircle,
     ScanLine,
+    TriangleAlert,
     X,
 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -77,6 +78,7 @@ export function SimFileUpload({
     const [error, setError] = useState<string | null>(null);
     const [scanOpen, setScanOpen] = useState(false);
     const [cameraReady, setCameraReady] = useState(false);
+    const [scannerWarning, setScannerWarning] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
     const [scanPages, setScanPages] = useState<ScanPage[]>([]);
     const [scanMode, setScanMode] = useState<ScanMode>('document');
@@ -135,6 +137,7 @@ export function SimFileUpload({
 
     const openScanner = async () => {
         setError(null);
+        setScannerWarning(null);
         clearScanPages();
         setScanOpen(true);
         try {
@@ -156,6 +159,9 @@ export function SimFileUpload({
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 await videoRef.current.play();
+                setScannerWarning(
+                    getScannerCapabilityWarning(stream, videoRef.current),
+                );
                 setCameraReady(true);
             }
         } catch {
@@ -599,6 +605,25 @@ export function SimFileUpload({
                             Menyiapkan kamera…
                         </p>
                     )}
+                    {cameraReady && scannerWarning && (
+                        <div
+                            role="status"
+                            className="flex gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+                        >
+                            <TriangleAlert
+                                aria-hidden="true"
+                                className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-400"
+                            />
+                            <div>
+                                <p className="font-medium">
+                                    Perangkat mungkin kurang optimal
+                                </p>
+                                <p className="mt-1 text-muted-foreground">
+                                    {scannerWarning}
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     {selectedScanPage && (
                         <div className="space-y-3 rounded-md border bg-muted/20 p-3">
                             <div className="flex min-w-0 justify-center rounded-md border bg-background p-2">
@@ -925,6 +950,33 @@ async function enhanceDocument(
 
 function clamp(value: number, minimum: number, maximum: number): number {
     return Math.min(maximum, Math.max(minimum, value));
+}
+
+function getScannerCapabilityWarning(
+    stream: MediaStream,
+    video: HTMLVideoElement,
+): string | null {
+    const settings = stream.getVideoTracks()[0]?.getSettings();
+    const width = settings?.width ?? video.videoWidth;
+    const height = settings?.height ?? video.videoHeight;
+    const memory = (navigator as Navigator & { deviceMemory?: number })
+        .deviceMemory;
+    const hasLimitedPerformance =
+        navigator.hardwareConcurrency <= 4 ||
+        (memory !== undefined && memory <= 4);
+    const hasLimitedCamera =
+        Math.min(width, height) < 720 || width * height < 900_000;
+
+    if (hasLimitedPerformance && hasLimitedCamera) {
+        return 'Kemampuan perangkat dan resolusi kamera terdeteksi terbatas. Proses scan mungkin lebih lambat dan teks kecil bisa kurang tajam. Gunakan pencahayaan terang dan tunggu sampai pemrosesan selesai.';
+    }
+    if (hasLimitedPerformance) {
+        return 'Pemrosesan scan mungkin terasa lebih lambat. Ambil halaman satu per satu dan tunggu sampai pemrosesan selesai sebelum melanjutkan.';
+    }
+    if (hasLimitedCamera) {
+        return 'Resolusi kamera yang tersedia cukup rendah, sehingga teks kecil mungkin kurang tajam. Dekatkan dokumen dan gunakan pencahayaan terang.';
+    }
+    return null;
 }
 
 async function loadOpenCv(): Promise<void> {
