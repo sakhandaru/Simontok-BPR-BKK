@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Filter, Maximize2, Minimize2, RotateCcw, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Filter, Maximize2, Minimize2, RotateCcw, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { SimPageHeader } from '@/components/sim-page-header';
 import { Button } from '@/components/ui/button';
@@ -28,13 +28,16 @@ type AuditItem = {
     payload?: unknown;
 };
 
+type SortKey = 'created_at' | 'actor_name' | 'module' | 'action' | 'description' | 'entity_type' | 'entity_id' | 'ip_address';
+type SortDirection = 'asc' | 'desc';
+
 export default function AuditIndex({
     filters,
     modules,
     actions,
     logs,
 }: {
-    filters: { search: string; module: string; action: string; date_from: string; date_to: string };
+    filters: { search: string; module: string; action: string; date_from: string; date_to: string; sort: SortKey; direction: SortDirection };
     modules: string[];
     actions: string[];
     logs: Paginated<AuditItem>;
@@ -59,7 +62,7 @@ export default function AuditIndex({
         };
     }, [isFullscreen]);
     const resetFilters = () => {
-        const emptyFilters = { search: '', module: '', action: '', date_from: '', date_to: '' };
+        const emptyFilters = { search: '', module: '', action: '', date_from: '', date_to: '', sort: 'created_at' as SortKey, direction: 'desc' as SortDirection };
         skipNextFilterRequest.current = true;
         setData(emptyFilters);
         router.get('/audit-logs', emptyFilters, { preserveState: true, preserveScroll: true, replace: true });
@@ -77,7 +80,13 @@ export default function AuditIndex({
             router.get('/audit-logs', data, { preserveState: true, preserveScroll: true, replace: true });
         }, 300);
         return () => window.clearTimeout(timeout);
-    }, [data.search, data.module, data.action, data.date_from, data.date_to]);
+    }, [data.search, data.module, data.action, data.date_from, data.date_to, data.sort, data.direction]);
+
+    const sortBy = (sort: SortKey) => {
+        const direction = data.sort === sort && data.direction === 'asc' ? 'desc' : 'asc';
+        setData('sort', sort);
+        setData('direction', direction);
+    };
 
     return (
         <>
@@ -117,16 +126,27 @@ export default function AuditIndex({
                 </div>
 
                 <div className={isFullscreen ? 'hidden min-h-0 flex-1 md:block' : 'hidden md:block'}><SimTable raw className={isFullscreen ? 'h-full min-h-0' : ''} scrollClassName={isFullscreen ? 'h-full overflow-auto' : 'max-h-[calc(100vh-18rem)] overflow-auto'}>
-                        <table className="sim-table w-full min-w-[1040px] border-collapse text-sm">
+                        <table className={`${isFullscreen ? 'table-fixed' : ''} sim-table w-full min-w-[1040px] border-collapse text-sm`}>
+                            {isFullscreen && (
+                                <colgroup>
+                                    <col className="w-[150px]" />
+                                    <col className="w-[175px]" />
+                                    <col className="w-[90px]" />
+                                    <col className="w-[220px]" />
+                                    <col />
+                                    <col className="w-[190px]" />
+                                    <col className="w-[120px]" />
+                                </colgroup>
+                            )}
                             <thead className="bg-background text-left text-muted-foreground">
                                 <tr className="sticky top-0 z-10 bg-background">
-                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Waktu</th>
-                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Pelaku</th>
-                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Modul</th>
-                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Aksi</th>
-                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Deskripsi</th>
-                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Entitas</th>
-                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">IP</th>
+                                    <SortHeader label="Waktu" sortKey="created_at" sort={data.sort} direction={data.direction} onSort={sortBy} />
+                                    <SortHeader label="Pelaku" sortKey="actor_name" sort={data.sort} direction={data.direction} onSort={sortBy} />
+                                    <SortHeader label="Modul" sortKey="module" sort={data.sort} direction={data.direction} onSort={sortBy} />
+                                    <SortHeader label="Aksi" sortKey="action" sort={data.sort} direction={data.direction} onSort={sortBy} />
+                                    <SortHeader label="Deskripsi" sortKey="description" sort={data.sort} direction={data.direction} onSort={sortBy} />
+                                    <SortHeader label="Entitas" sortKey="entity_type" sort={data.sort} direction={data.direction} onSort={sortBy} />
+                                    <SortHeader label="IP" sortKey="ip_address" sort={data.sort} direction={data.direction} onSort={sortBy} />
                                 </tr>
                             </thead>
                             <tbody>
@@ -140,7 +160,7 @@ export default function AuditIndex({
                                             <div className="text-muted-foreground">{log.actor_type}</div>
                                         </td>
                                         <td className="px-4 py-3">{log.module ?? '-'}</td>
-                                        <td className="px-4 py-3"><SimStatusBadge label={actionLabel(log.action)} tone={toneForStatus(log.action)} /></td>
+                                        <td className="whitespace-nowrap px-4 py-3"><SimStatusBadge label={actionLabel(log.action)} tone={toneForStatus(log.action)} /></td>
                                         <td className="max-w-[320px] px-4 py-3">
                                             <div>{log.description ?? '-'}</div>
                                             <div className="mt-1 text-muted-foreground">{log.method ?? ''} {log.route ?? ''}</div>
@@ -179,6 +199,18 @@ function FilterSelect({ label, value, onChange, options, placeholder = 'Pilih...
 
 function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
     return <div className="grid gap-2"><Label>{label}</Label><Input type="date" value={value} onChange={(event) => onChange(event.target.value)} /></div>;
+}
+
+function SortHeader({ label, sortKey, sort, direction, onSort }: { label: string; sortKey: SortKey; sort: SortKey; direction: SortDirection; onSort: (sort: SortKey) => void }) {
+    const active = sort === sortKey;
+    const Icon = active ? (direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+    return <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">
+        <button type="button" onClick={() => onSort(sortKey)} className="inline-flex min-h-6 items-center gap-1.5 text-left hover:text-foreground" aria-label={`Urutkan berdasarkan ${label}`}>
+            {label}
+            <Icon className={`size-3.5 shrink-0 ${active ? 'text-foreground' : 'text-muted-foreground/60'}`} aria-hidden="true" />
+        </button>
+    </th>;
 }
 
 function actionLabel(action: string): string {

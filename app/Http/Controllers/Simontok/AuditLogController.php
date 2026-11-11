@@ -31,7 +31,22 @@ class AuditLogController extends Controller
             'action' => ['nullable', 'string', 'max:50'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'sort' => ['nullable', 'string', 'in:created_at,actor_name,module,action,description,entity_type,entity_id,ip_address'],
+            'direction' => ['nullable', 'string', 'in:asc,desc'],
         ]);
+
+        $sortColumns = [
+            'created_at' => 'created_at',
+            'actor_name' => 'actor_name',
+            'module' => 'module',
+            'action' => 'action',
+            'description' => 'description',
+            'entity_type' => 'entity_type',
+            'entity_id' => 'entity_id',
+            'ip_address' => 'ip_address',
+        ];
+        $sort = $filters['sort'] ?? 'created_at';
+        $direction = $filters['direction'] ?? 'desc';
 
         $logs = AuditLog::query()
             ->when($filters['search'] ?? null, function ($query, string $search) {
@@ -46,7 +61,8 @@ class AuditLogController extends Controller
             ->when($filters['action'] ?? null, fn ($query, string $action) => $query->where('action', $action))
             ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date))
-            ->latest('created_at');
+            ->orderBy($sortColumns[$sort], $direction)
+            ->when($sort !== 'created_at', fn ($query) => $query->orderByDesc('created_at'));
 
         return Inertia::render('simontok/audit/index', [
             'filters' => [
@@ -55,6 +71,8 @@ class AuditLogController extends Controller
                 'action' => $filters['action'] ?? '',
                 'date_from' => $filters['date_from'] ?? '',
                 'date_to' => $filters['date_to'] ?? '',
+                'sort' => $sort,
+                'direction' => $direction,
             ],
             'modules' => AuditLog::query()->whereNotNull('module')->distinct()->orderBy('module')->pluck('module'),
             'actions' => AuditLog::query()->distinct()->orderBy('action')->pluck('action'),
