@@ -1,6 +1,6 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { RotateCcw, Search } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Filter, Maximize2, Minimize2, RotateCcw, Search } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { SimPageHeader } from '@/components/sim-page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,8 +40,24 @@ export default function AuditIndex({
     logs: Paginated<AuditItem>;
 }) {
     const { data, setData } = useForm(filters);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [showFullscreenFilters, setShowFullscreenFilters] = useState(false);
     const filterInitialized = useRef(false);
     const skipNextFilterRequest = useRef(false);
+
+    useEffect(() => {
+        if (!isFullscreen) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setIsFullscreen(false);
+        };
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isFullscreen]);
     const resetFilters = () => {
         const emptyFilters = { search: '', module: '', action: '', date_from: '', date_to: '' };
         skipNextFilterRequest.current = true;
@@ -66,9 +82,32 @@ export default function AuditIndex({
     return (
         <>
             <Head title="Audit Log" />
-            <div className="sim-workspace">
-                <SimPageHeader title="Audit Log" description="Jejak aktivitas append-only untuk pemeriksaan internal." />
-                <div className="sim-panel grid gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto] md:items-end">
+            <div className={isFullscreen ? 'fixed inset-0 z-50 flex min-h-0 flex-col gap-4 overflow-hidden bg-background p-4 md:p-6' : 'sim-workspace'}>
+                {isFullscreen ? (
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border pb-3">
+                        <div className="text-sm font-semibold">Audit Log</div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                            <Button type="button" variant="outline" onClick={() => setShowFullscreenFilters((current) => !current)} aria-expanded={showFullscreenFilters}>
+                                <Filter className="size-4" />
+                                {showFullscreenFilters ? 'Sembunyikan filter' : 'Tampilkan filter'}
+                            </Button>
+                            <Button type="button" variant="outline" onClick={() => setIsFullscreen(false)} aria-label="Keluar dari layar penuh">
+                                <Minimize2 className="size-4" />
+                                Keluar layar penuh
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <SimPageHeader
+                        title="Audit Log"
+                        description="Jejak aktivitas append-only untuk pemeriksaan internal."
+                        actions={<Button type="button" variant="outline" className="hidden md:inline-flex" onClick={() => setIsFullscreen(true)} aria-label="Buka audit log dalam layar penuh">
+                            <Maximize2 className="size-4" />
+                            Layar penuh
+                        </Button>}
+                    />
+                )}
+                <div className={`${isFullscreen && !showFullscreenFilters ? 'hidden' : ''} sim-panel grid shrink-0 gap-3 p-4 md:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(140px,1fr))_auto] md:items-end`}>
                     <div className="grid gap-2"><Label htmlFor="audit-search">Cari aktivitas</Label><div className="relative"><Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="audit-search" className="pl-9" value={data.search} onChange={(event) => setData('search', event.target.value)} placeholder="Pelaku, deskripsi, entitas" /></div></div>
                     <FilterSelect label="Modul" value={data.module} onChange={(value) => setData('module', value)} options={modules.map((module) => ({ value: module, label: module }))} placeholder="Semua modul" />
                     <FilterSelect label="Aksi" value={data.action} onChange={(value) => setData('action', value)} options={actions.map((action) => ({ value: action, label: action }))} placeholder="Semua aksi" />
@@ -77,17 +116,17 @@ export default function AuditIndex({
                     <Button type="button" variant="outline" onClick={resetFilters}><RotateCcw className="size-4" />Reset</Button>
                 </div>
 
-                <div className="hidden md:block"><SimTable raw>
-                        <table className="sim-table w-full min-w-[1040px] text-sm">
-                            <thead className="sticky top-14 z-10 bg-background text-left text-muted-foreground shadow-[0_1px_0_var(--border)]">
-                                <tr>
-                                    <th className="px-4 py-3 font-medium">Waktu</th>
-                                    <th className="px-4 py-3 font-medium">Pelaku</th>
-                                    <th className="px-4 py-3 font-medium">Modul</th>
-                                    <th className="px-4 py-3 font-medium">Aksi</th>
-                                    <th className="px-4 py-3 font-medium">Deskripsi</th>
-                                    <th className="px-4 py-3 font-medium">Entitas</th>
-                                    <th className="px-4 py-3 font-medium">IP</th>
+                <div className={isFullscreen ? 'hidden min-h-0 flex-1 md:block' : 'hidden md:block'}><SimTable raw className={isFullscreen ? 'h-full min-h-0' : ''} scrollClassName={isFullscreen ? 'h-full overflow-auto' : 'max-h-[calc(100vh-18rem)] overflow-auto'}>
+                        <table className="sim-table w-full min-w-[1040px] border-collapse text-sm">
+                            <thead className="bg-background text-left text-muted-foreground">
+                                <tr className="sticky top-0 z-10 bg-background">
+                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Waktu</th>
+                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Pelaku</th>
+                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Modul</th>
+                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Aksi</th>
+                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Deskripsi</th>
+                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">Entitas</th>
+                                    <th className="sim-audit-table-head-cell bg-muted/40 px-4 py-3 font-medium">IP</th>
                                 </tr>
                             </thead>
                             <tbody>
