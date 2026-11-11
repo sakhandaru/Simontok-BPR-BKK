@@ -124,7 +124,7 @@ class SsoAuthenticationService
             return false;
         }
 
-        if ($user->notary_id) {
+        if ($user->notary_id || $user->roleCode() === 'auditor') {
             return true;
         }
 

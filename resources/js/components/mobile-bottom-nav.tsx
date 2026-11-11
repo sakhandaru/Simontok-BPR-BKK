@@ -5,13 +5,16 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useCanGoBack } from '@/hooks/use-can-go-back';
 
 export function MobileBottomNav() {
-    const { auth } = usePage<{ auth: { permissions?: string[] } }>().props;
+    const { auth } = usePage<{ auth: { user?: { notary_id?: number | null }; permissions?: string[] } }>().props;
     const canGoBack = useCanGoBack();
 
     const can = (permission: string) => auth.permissions?.includes(permission) ?? false;
+    const isNotary = Boolean(auth.user?.notary_id);
     const items = [
-        can('dashboard.view') && { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
-        can('orders.view') && { label: 'Order', href: '/orders', icon: FileText },
+        isNotary
+            ? can('notary.portal') && { label: 'Portal Notaris', href: '/notary/orders', icon: LayoutGrid }
+            : can('dashboard.view') && { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+        !isNotary && can('orders.view') && { label: 'Order', href: '/orders', icon: FileText },
     ].filter(Boolean) as { label: string; href: string; icon: typeof LayoutGrid }[];
 
     return <div className="fixed bottom-4 left-1/2 z-50 flex w-max max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-2 lg:hidden">

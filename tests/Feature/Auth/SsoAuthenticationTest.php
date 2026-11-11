@@ -247,6 +247,36 @@ class SsoAuthenticationTest extends TestCase
         Http::assertSent(fn ($request) => $request['id_peg'] === 'legal');
     }
 
+    public function test_external_auditor_can_login_with_a_local_account_while_sso_is_enabled(): void
+    {
+        $role = Role::create(['code' => 'auditor', 'name' => 'Auditor / OJK']);
+        $position = JobPosition::create([
+            'code' => 'AUDITOR_EKSTERNAL',
+            'name' => 'Auditor Eksternal',
+            'role_id' => $role->id,
+        ]);
+        $user = User::factory()->create([
+            'email' => 'auditor-eksternal',
+            'password' => 'local-password',
+            'job_position_id' => $position->id,
+            'sso_employee_id' => null,
+        ]);
+
+        config([
+            'services.sso.enabled' => true,
+            'services.sso.emergency_login' => 'admin',
+        ]);
+        Http::fake();
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'local-password',
+        ]);
+
+        $this->assertAuthenticatedAs($user);
+        Http::assertNothingSent();
+    }
+
     public function test_local_mode_keeps_existing_login_flow(): void
     {
         config(['services.sso.enabled' => false]);

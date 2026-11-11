@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\JobPosition;
+use App\Models\Notary;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -30,6 +31,19 @@ class DashboardTest extends TestCase
 
         $response = $this->get(route('dashboard'));
         $response->assertOk();
+    }
+
+    public function test_notary_dashboard_opens_the_notary_portal(): void
+    {
+        $dashboard = Permission::create(['code' => 'dashboard.view', 'name' => 'Lihat dashboard', 'module' => 'dashboard']);
+        $portal = Permission::create(['code' => 'notary.portal', 'name' => 'Portal Notaris', 'module' => 'notary']);
+        $role = Role::create(['code' => 'notaris', 'name' => 'Notaris']);
+        $role->permissions()->attach([$dashboard->id, $portal->id]);
+        $notary = Notary::create(['name' => 'Notaris Demo', 'is_active' => true]);
+        $user = User::factory()->create(['notary_id' => $notary->id, 'is_active' => true]);
+        $this->actingAs($user);
+
+        $this->get(route('dashboard'))->assertRedirect(route('notary.orders.index'));
     }
 
     public function test_dashboard_payload_contains_deltas_and_traceable_counts()

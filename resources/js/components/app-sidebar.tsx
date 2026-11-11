@@ -64,12 +64,15 @@ function useVisibleItems(items: NavItem[], permission: string) {
 }
 
 export function AppSidebar() {
-    const { auth } = usePage<{ auth: { permissions?: string[] } }>().props;
+    const { auth } = usePage<{ auth: { user?: { notary_id?: number | null }; permissions?: string[] } }>().props;
     const can = (permission: string) => auth.permissions?.includes(permission) ?? false;
+    const isNotary = Boolean(auth.user?.notary_id);
     const canWorkQueue = ['orders.approve', 'documents.validate', 'covernotes.approve', 'payments.verify', 'payments.approve', 'handovers.manage', 'orders.manage'].some(can);
     const canGoBack = useCanGoBack();
     const { resolvedAppearance, updateAppearance } = useAppearance();
-    const operations = [
+    const operations = isNotary
+        ? (can('notary.portal') ? [{ title: 'Portal Notaris', href: '/notary/orders', icon: UserCheck }] : [])
+        : [
         ...(can('dashboard.view') ? [operationsNavItems[0]] : []),
         ...(can('orders.view') ? [operationsNavItems[1]] : []),
         ...(canWorkQueue ? [operationsNavItems[2]] : []),
@@ -121,6 +124,7 @@ export function AppSidebar() {
                     return false;
                 })} label="Referensi" />
                 <NavMain items={administrationNavItems.filter((item) => {
+                    if (isNotary) return false;
                     if (item.href === '/document-archives') return can('documents.archive.view');
                     if (item.href === '/announcements') return can('announcements.manage');
                     if (item.href === '/notary/orders') return can('notary.portal');
