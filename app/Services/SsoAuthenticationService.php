@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\Audit;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -14,6 +15,10 @@ class SsoAuthenticationService
     {
         if ($this->isEmergencyIdentifier($identifier)) {
             return $this->authenticateEmergency($identifier, $password);
+        }
+
+        if (app()->environment('local') && config('services.sso.local_bypass')) {
+            return $this->authenticateLocalEmployee($identifier, $password);
         }
 
         if (! config('services.sso.enabled')) {
@@ -118,6 +123,28 @@ class SsoAuthenticationService
             : null;
     }
 
+    private function authenticateLocalEmployee(string $identifier, string $password): ?User
+    {
+        $user = User::query()
+            ->with('jobPosition.role', 'branch')
+            ->where('sso_employee_id', $identifier)
+            ->first();
+
+        if (! $user) {
+            return $this->authenticateLocally($identifier, $password);
+        }
+
+        $localPassword = config('services.sso.local_password');
+        if (! is_string($localPassword) || $localPassword === '' || ! hash_equals($localPassword, $password)) {
+            return null;
+        }
+
+        $this->ensureEmployeeCanLogin($user);
+        Audit::security(request(), 'sso_local_bypass', 'Login pegawai memakai bypass SSO lokal.', $user);
+
+        return $user;
+    }
+
     private function canAuthenticateLocally(User $user): bool
     {
         if (! $user->isOperationallyActive() || $user->sso_employee_id) {
@@ -161,6 +188,36 @@ class SsoAuthenticationService
             ]);
         }
 
+        $this->ensureEmployeeCanLogin($user);
+
+        $updates = ['name' => $name];
+        $ssoEmail = $profile['email'] ?? null;
+
+        if (is_string($ssoEmail) && filter_var($ssoEmail, FILTER_VALIDATE_EMAIL)) {
+            $pendingEmail = $employeeId.'@pending.sso.local';
+            $existingEmail = User::query()
+                ->where('email', $ssoEmail)
+                ->where('id', '!=', $user->id)
+                ->exists();
+
+            if ($existingEmail) {
+                throw ValidationException::withMessages([
+                    'email' => 'Email SSO sudah digunakan akun lain di SIMONTOK. Hubungi administrator.',
+                ]);
+            }
+
+            if ($user->email === $pendingEmail || blank($user->email)) {
+                $updates['email'] = $ssoEmail;
+            }
+        }
+
+        $user->update($updates);
+
+        return $user->fresh();
+    }
+
+    private function ensureEmployeeCanLogin(User $user): void
+    {
         if (! $user->is_active) {
             throw ValidationException::withMessages([
                 'email' => 'Akun SIMONTOK Anda sedang nonaktif. Hubungi administrator.',
@@ -190,31 +247,5 @@ class SsoAuthenticationService
                 'email' => 'Cabang akun SSO belum diatur di SIMONTOK. Hubungi administrator.',
             ]);
         }
-
-        $updates = ['name' => $name];
-        $ssoEmail = $profile['email'] ?? null;
-
-        if (is_string($ssoEmail) && filter_var($ssoEmail, FILTER_VALIDATE_EMAIL)) {
-            $pendingEmail = $employeeId.'@pending.sso.local';
-            $existingEmail = User::query()
-                ->where('email', $ssoEmail)
-                ->where('id', '!=', $user->id)
-                ->exists();
-
-            if ($existingEmail) {
-                throw ValidationException::withMessages([
-                    'email' => 'Email SSO sudah digunakan akun lain di SIMONTOK. Hubungi administrator.',
-                ]);
-            }
-
-            if ($user->email === $pendingEmail || blank($user->email)) {
-                $updates['email'] = $ssoEmail;
-            }
-        }
-
-        $user->update($updates);
-
-        return $user->fresh();
-
     }
 }

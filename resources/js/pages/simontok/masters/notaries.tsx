@@ -15,19 +15,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTableSort } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 import { SimTableToolbar } from '@/components/sim-table-toolbar';
-import { SimCreatableCombobox } from '@/components/sim-creatable-combobox';
 import { SimFileUpload } from '@/components/sim-file-upload';
-import { saveBankName } from '@/lib/bank-names';
 
 type PortalUser = { id: number; name: string; email: string; is_active: boolean };
 type Notary = { id: number; name: string; email?: string; phone?: string; address?: string; bank_name?: string; bank_account_number?: string; bank_account_name?: string; is_active: boolean; agreement_type?: 'PKS' | 'MoU' | null; agreement_file_name?: string | null; pks_no?: string | null; pks_start?: string | null; pks_end?: string | null; partnership_status?: string; branches: Option[]; users?: PortalUser[] };
 
-export default function Notaries({ notaries, branches, bankNames, filters }: { notaries: { data: Notary[]; links: SimPaginationLink[] }; branches: Option[]; bankNames: string[]; filters: { search: string; status: string } }) {
+export default function Notaries({ notaries, branches, filters }: { notaries: { data: Notary[]; links: SimPaginationLink[] }; branches: Option[]; filters: { search: string; status: string } }) {
     const { data, setData, post, processing, reset, errors, transform } = useForm({
         name: '',
         email: '',
         phone: '',
-        bank_name: '',
+        bank_name: 'BKK JATENG',
         bank_account_number: '',
         bank_account_name: '',
         address: '',
@@ -74,7 +72,7 @@ export default function Notaries({ notaries, branches, bankNames, filters }: { n
         }
     };
 
-    const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', bank_name: notary.bank_name ?? '', bank_account_number: notary.bank_account_number ?? '', bank_account_name: notary.bank_account_name ?? '', address: notary.address ?? '', agreement_type: notary.agreement_type ?? 'PKS', pks_no: notary.pks_no ?? '', pks_start: notary.pks_start?.slice(0, 10) ?? '', pks_end: notary.pks_end?.slice(0, 10) ?? '', agreement_file: null, branch_ids: notary.branches.map((branch) => branch.id), is_active: notary.is_active }); setFormOpen(true); };
+    const editNotary = (notary: Notary) => { setEditingId(notary.id); setData({ name: notary.name, email: notary.email ?? '', phone: notary.phone ?? '', bank_name: 'BKK JATENG', bank_account_number: notary.bank_account_number ?? '', bank_account_name: notary.bank_account_name ?? '', address: notary.address ?? '', agreement_type: notary.agreement_type ?? 'PKS', pks_no: notary.pks_no ?? '', pks_start: notary.pks_start?.slice(0, 10) ?? '', pks_end: notary.pks_end?.slice(0, 10) ?? '', agreement_file: null, branch_ids: notary.branches.map((branch) => branch.id), is_active: notary.is_active }); setFormOpen(true); };
     const openCreate = () => { reset(); setEditingId(null); setFormOpen(true); };
     const cancelEdit = () => { reset(); setEditingId(null); setFormOpen(false); };
     const openManageAccounts = (notary: Notary) => {
@@ -125,7 +123,7 @@ export default function Notaries({ notaries, branches, bankNames, filters }: { n
                         </article>
                     ))}
                 </div>
-                <NotaryProfileDialog open={formOpen} editingId={editingId} data={data} errors={errors} processing={processing} branches={branches} bankNames={bankNames} notaries={notaries.data} agreementPreviewUrl={agreementPreviewUrl} setData={setData} onSubmit={submit} onClose={cancelEdit} />
+                <NotaryProfileDialog open={formOpen} editingId={editingId} data={data} errors={errors} processing={processing} branches={branches} notaries={notaries.data} agreementPreviewUrl={agreementPreviewUrl} setData={setData} onSubmit={submit} onClose={cancelEdit} />
                 <Dialog open={false} onOpenChange={(open) => { if (!open) cancelEdit(); }}><DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl md:overflow-visible"><DialogHeader><DialogTitle>{editingId ? 'Edit notaris' : 'Tambah notaris'}</DialogTitle><DialogDescription>Atur identitas, kontak, legalitas, dan cabang rekanan notaris.</DialogDescription></DialogHeader><form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
                         <Field label="Nama notaris" error={errors.name}><Input value={data.name} onChange={(e) => setData('name', e.target.value)} /></Field>
                         <Field label="Email" error={errors.email}><Input value={data.email} onChange={(e) => setData('email', e.target.value)} /></Field>
@@ -183,7 +181,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
     return <div className="grid gap-2"><Label>{label}</Label>{children}<InputError message={error} /></div>;
 }
 
-function NotaryProfileDialog({ open, editingId, data, errors, processing, branches, bankNames, notaries, agreementPreviewUrl, setData, onSubmit, onClose }: any) {
+function NotaryProfileDialog({ open, editingId, data, errors, processing, branches, notaries, agreementPreviewUrl, setData, onSubmit, onClose }: any) {
     const existingFileName = editingId ? notaries.find((item: Notary) => item.id === editingId)?.agreement_file_name : null;
     const previewSource = agreementPreviewUrl ?? (editingId && existingFileName ? `/notaries/${editingId}/agreement/preview` : null);
 
@@ -217,7 +215,9 @@ function NotaryProfileDialog({ open, editingId, data, errors, processing, branch
                                 <p className="mt-1 text-sm text-muted-foreground">Referensi pembayaran jasa notaris.</p>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2">
-                                <Field label="Nama bank" error={errors.bank_name}><SimCreatableCombobox value={data.bank_name} options={bankNames} placeholder="Pilih atau ketik nama bank" emptyLabel="Ketik nama bank baru." onAdd={saveBankName} onChange={(value) => setData('bank_name', value)} /></Field>
+                                <Field label="Nama bank" error={errors.bank_name}>
+                                    <Input value="BKK JATENG" readOnly className="bg-muted/40" />
+                                </Field>
                                 <Field label="Nomor rekening" error={errors.bank_account_number}><Input value={data.bank_account_number} onChange={(event) => setData('bank_account_number', event.target.value)} placeholder="Nomor rekening" /></Field>
                                 <div className="sm:col-span-2"><Field label="Nama pemilik rekening" error={errors.bank_account_name}><Input value={data.bank_account_name} onChange={(event) => setData('bank_account_name', event.target.value)} placeholder="Sesuai buku rekening" /></Field></div>
                             </div>

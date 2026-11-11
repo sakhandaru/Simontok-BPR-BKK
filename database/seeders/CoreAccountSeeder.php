@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class CoreAccountSeeder extends Seeder
 {
-    public function run(): void
+    public function run(?string $branchCode = null): void
     {
         if (config('core.provider') !== 'dummy') {
             $this->command?->warn('Seeder nasabah dummy dilewati karena CORE_PROVIDER bukan dummy.');
@@ -124,7 +124,16 @@ class CoreAccountSeeder extends Seeder
             '010' => 'KC. Purwodadi',
         ];
 
-        DB::transaction(function () use ($accounts, $branchNames): void {
+        if ($branchCode !== null) {
+            if (! array_key_exists($branchCode, $branchNames)) {
+                throw new \InvalidArgumentException('Kode cabang dummy harus berada pada rentang 001–010.');
+            }
+
+            $branchNames = [$branchCode => $branchNames[$branchCode]];
+            $accounts = array_values(array_filter($accounts, fn (array $account) => $account['branch_code'] === $branchCode));
+        }
+
+        $count = DB::transaction(function () use ($accounts, $branchNames): int {
             $branches = collect($branchNames)->map(fn (string $name, string $code) => Branch::withTrashed()->firstOrCreate(
                 ['code' => $code],
                 ['name' => $name, 'is_active' => true],
@@ -145,9 +154,13 @@ class CoreAccountSeeder extends Seeder
                 }
                 $account->collaterals()->whereNotIn('collateral_id', array_column($collaterals, 'collateral_id'))->delete();
             }
+
+            return count($accounts);
         });
 
-        $this->command?->info('Nasabah dummy siap: 200 rekening tambahan (20 per cabang 001–010) dan 10 rekening contoh lama.');
+        $this->command?->info($branchCode !== null
+            ? "Nasabah dummy siap: {$count} rekening cabang {$branchCode}."
+            : 'Nasabah dummy siap: 200 rekening tambahan (20 per cabang 001–010) dan 10 rekening contoh lama.');
     }
 
     private function additionalAccounts(Branch $branch): array

@@ -39,6 +39,15 @@ class NotaryPortalController extends Controller
             'status' => ['nullable', 'string', 'max:50'],
         ]);
         $status = TrackAStatus::tryFrom($filters['status'] ?? '');
+        $visibleSentOrders = Order::query()
+            ->when(! $isMonitor, fn ($query) => $query->where('notary_id', $notaryId))
+            ->whereNotNull('sent_to_notary_at');
+        $statusCounts = (clone $visibleSentOrders)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->map(fn ($total) => (int) $total);
+        $countStatuses = fn (array $statuses): int => collect($statuses)->sum(fn (TrackAStatus $status) => $statusCounts->get($status->value, 0));
 
         return Inertia::render('simontok/notary/index', [
             'orders' => Order::query()
@@ -61,6 +70,12 @@ class NotaryPortalController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'status' => $status?->value ?? '',
+            ],
+            'statusSummary' => [
+                ['key' => 'total', 'label' => 'Total pekerjaan', 'value' => $statusCounts->sum()],
+                ['key' => 'verification', 'label' => 'Menunggu verifikasi', 'value' => $countStatuses([TrackAStatus::MenungguVerifikasiNotaris])],
+                ['key' => 'action', 'label' => 'Perlu tindakan', 'value' => $countStatuses([TrackAStatus::PerbaikanDokumen, TrackAStatus::PerbaikanCovernote, TrackAStatus::PersiapanPekerjaan])],
+                ['key' => 'completed', 'label' => 'Selesai', 'value' => $countStatuses([TrackAStatus::Selesai])],
             ],
             'statusOptions' => array_map(fn (TrackAStatus $status) => ['value' => $status->value, 'label' => $status->label()], TrackAStatus::cases()),
             'isNotaryUser' => (bool) $notaryId,

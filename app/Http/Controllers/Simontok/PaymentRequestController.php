@@ -36,7 +36,7 @@ class PaymentRequestController extends Controller
         $data = $request->validate([
             'invoice_no' => ['required', 'string', 'max:50'],
             'nominal' => ['required', 'numeric', 'min:1'],
-            'skema_pembayaran' => ['required', 'string', 'max:30'],
+            'skema_pembayaran' => ['required', 'string', Rule::in(['Bayar awal', 'Bayar sebagian'])],
             'catatan_notaris' => ['nullable', 'string', 'max:2000'],
         ]);
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Simontok;
 
+use App\Enums\OrderDocumentType;
 use App\Enums\TrackAStatus;
 use App\Enums\TrackBDocStatus;
 use App\Enums\TrackCCovernoteStatus;
@@ -13,17 +14,20 @@ use App\Models\DocumentChecklist;
 use App\Models\JobType;
 use App\Models\Notary;
 use App\Models\Order;
+use App\Models\OrderChecklist;
 use App\Models\OrderCollateral;
-use App\Models\PaymentSchemeOption;
+use App\Models\OrderDocument;
 use App\Models\SlaPolicy;
 use App\Services\Core\CoreOrderSnapshot;
 use App\Support\Audit;
+use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
 use App\Support\OrderStages;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -31,6 +35,8 @@ use Inertia\Response;
 
 class OrderController extends Controller
 {
+    private const PAYMENT_SCHEMES = ['Bayar awal', 'Bayar sebagian'];
+
     public function __construct(private readonly CoreOrderSnapshot $coreSnapshot) {}
 
     public function index(Request $request): Response
@@ -51,10 +57,11 @@ class OrderController extends Controller
         $closedStatuses = OrderStages::closedStatuses();
         $branchScopeId = $request->user()->branchScopeId();
 
-        $visibleOrders = Order::query()->visibleTo($request->user());
+        $visibleOrders = Order::query()->submitted()->visibleTo($request->user());
 
         return Inertia::render('simontok/orders/index', [
             'orders' => Order::query()
+                ->submitted()
                 ->visibleTo($request->user())
                 ->with(['branch:id,code,name', 'notary:id,name', 'paymentRequest:id,order_id,status'])
                 ->withCount(['collaterals', 'documents', 'handovers'])
@@ -153,17 +160,6 @@ class OrderController extends Controller
         return back()->with('success', 'Jenis agunan ditambahkan ke pilihan.');
     }
 
-    public function storePaymentScheme(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-        ]);
-
-        $this->rememberPaymentScheme($data['name']);
-
-        return back()->with('success', 'Skema pembayaran ditambahkan ke pilihan.');
-    }
-
     public function create(Request $request): RedirectResponse
     {
         $branchId = $this->userBranchScope($request);
@@ -218,7 +214,6 @@ class OrderController extends Controller
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
 
         $order = DB::transaction(function () use ($data, $request) {
-            $this->rememberPaymentScheme($data['skema_pembayaran'] ?? null);
             $order = Order::create([
                 ...collect($data)->except('collaterals')->all(),
                 'order_no' => $this->makeOrderNo(),
@@ -276,6 +271,7 @@ class OrderController extends Controller
             'collaterals.jobs.jobType:id,code,name',
             'stepFees' => fn ($query) => $query->orderBy('order_collateral_id')->orderBy('sort_order')->orderBy('id'),
             'collaterals.checklists.documentChecklist:id,name,is_active,is_required',
+            'collaterals.checklists.job:id,job_type_id',
             'collaterals.checklists.orderDocument:id,display_name,original_name,file_size,version,order_collateral_id,uploaded_by,created_at,mime_type',
             'collaterals.checklists.orderDocument.uploader:id,name',
             'collaterals.documents.uploader:id,name',
@@ -314,6 +310,9 @@ class OrderController extends Controller
         return Inertia::render('simontok/orders/show', [
             'order' => $order,
             'coreProvider' => config('core.provider'),
+            'documentChecklists' => $this->canEditDraft($order)
+                ? DocumentChecklist::where('is_active', true)->get(['id', 'name', 'job_type_id', 'is_required', 'is_active'])
+                : [],
             'canEdit' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canSubmitApproval' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canApproveOrder' => $request->user()->hasPermission('orders.approve') && $order->status === TrackAStatus::MenungguApproval,
@@ -394,60 +393,62 @@ class OrderController extends Controller
         $data = $this->validatedDraftData($request, $order);
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
 
-        DB::transaction(function () use ($data, $request, $order) {
-            $before = $order->load('collaterals')->toArray();
+        DB::transaction(fn () => $this->saveDraftData($request, $order, $data));
 
-            $this->rememberPaymentScheme($data['skema_pembayaran'] ?? null);
-            $order->update(collect($data)->except('collaterals')->all());
+        return to_route('orders.show', $order)->with('success', 'Order diperbarui.');
+    }
 
-            $submittedCollateralIds = collect($data['collaterals'])
-                ->pluck('id')
-                ->filter()
-                ->map(fn ($id) => (int) $id);
-            $order->collaterals()
-                ->whereNotIn('id', $submittedCollateralIds)
-                ->whereDoesntHave('documents')
-                ->whereDoesntHave('progress')
-                ->whereDoesntHave('handovers')
-                ->delete();
+    private function saveDraftData(Request $request, Order $order, array $data): array
+    {
+        $before = $order->load('collaterals')->toArray();
 
-            foreach ($data['collaterals'] as $collateralData) {
-                $this->rememberCollateralType($collateralData['nama_agunan'] ?? null);
-                $jobs = $collateralData['jobs'] ?? [];
-                if ($jobs === []) {
-                    continue;
-                }
-                $primaryJob = $jobs[0];
-                $collateral = ! empty($collateralData['id'])
-                    ? $order->collaterals()->findOrFail($collateralData['id'])
-                    : $order->collaterals()->create([
-                        ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'deskripsi_pekerjaan', 'sla_days', 'sla_override_reason'])->all(),
-                        'job_type_id' => $primaryJob['job_type_id'],
-                        'doc_status' => TrackBDocStatus::MenungguVerifikasi,
-                        'covernote_status' => null,
-                        ...$this->resolveSla($primaryJob, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
-                    ]);
+        $order->update(collect($data)->except('collaterals')->all());
 
-                $collateral->update([
+        $submittedCollateralIds = collect($data['collaterals'])
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (int) $id);
+        $order->collaterals()
+            ->whereNotIn('id', $submittedCollateralIds)
+            ->whereDoesntHave('documents')
+            ->whereDoesntHave('progress')
+            ->whereDoesntHave('handovers')
+            ->delete();
+
+        $savedCollaterals = [];
+        foreach ($data['collaterals'] as $index => $collateralData) {
+            $this->rememberCollateralType($collateralData['nama_agunan'] ?? null);
+            $jobs = $collateralData['jobs'] ?? [];
+            if ($jobs === []) {
+                continue;
+            }
+            $primaryJob = $jobs[0];
+            $collateral = ! empty($collateralData['id'])
+                ? $order->collaterals()->findOrFail($collateralData['id'])
+                : $order->collaterals()->create([
                     ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'deskripsi_pekerjaan', 'sla_days', 'sla_override_reason'])->all(),
                     'job_type_id' => $primaryJob['job_type_id'],
+                    'doc_status' => TrackBDocStatus::MenungguVerifikasi,
+                    'covernote_status' => null,
                     ...$this->resolveSla($primaryJob, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
                 ]);
-                $this->syncCollateralJobs($collateral, $jobs, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null);
-                $this->seedOrderChecklists($order, $collateral, collect($jobs)->pluck('job_type_id')->map(fn ($id) => (int) $id)->all());
-            }
 
-            Audit::record($request, 'orders', $order, 'update', 'Draft order diperbarui.', [
-                'before' => $before,
-                'after' => $order->fresh('collaterals')->toArray(),
+            $collateral->update([
+                ...collect($collateralData)->except(['id', 'jobs', 'job_type_id', 'deskripsi_pekerjaan', 'sla_days', 'sla_override_reason'])->all(),
+                'job_type_id' => $primaryJob['job_type_id'],
+                ...$this->resolveSla($primaryJob, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null),
             ]);
-        });
+            $this->syncCollateralJobs($collateral, $jobs, (int) $data['branch_id'], $data['tgl_masuk_notaris'] ?? null);
+            $this->seedOrderChecklists($order, $collateral, collect($jobs)->pluck('job_type_id')->map(fn ($id) => (int) $id)->all());
+            $savedCollaterals[$index] = $collateral->fresh(['jobs', 'checklists.documentChecklist']);
+        }
 
-        $response = to_route('orders.show', $order);
+        Audit::record($request, 'orders', $order, 'update', 'Draft order diperbarui.', [
+            'before' => $before,
+            'after' => $order->fresh('collaterals')->toArray(),
+        ]);
 
-        return $request->boolean('silent_save') || $request->header('X-Silent-Save') === 'true'
-            ? $response
-            : $response->with('success', 'Order diperbarui.');
+        return $savedCollaterals;
     }
 
     public function send(Request $request, Order $order): RedirectResponse
@@ -492,25 +493,115 @@ class OrderController extends Controller
     {
         $this->authorizeVisibleOrder($request, $order);
         abort_unless($this->canEditDraft($order), 403);
-        $this->ensureReadyToSend($order);
+        $uploads = $request->validate([
+            'draft_documents' => ['nullable', 'array'],
+            'draft_documents.*.collateral_index' => ['required', 'integer', 'min:0'],
+            'draft_documents.*.checklist_master_id' => ['nullable', 'integer', 'exists:document_checklists,id'],
+            'draft_documents.*.job_type_id' => ['nullable', 'integer', 'exists:job_types,id'],
+            'draft_documents.*.display_name' => ['nullable', 'string', 'max:255'],
+            'draft_documents.*.file' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ])['draft_documents'] ?? [];
+        $storedPaths = [];
+        try {
+            DB::transaction(function () use ($request, $order, $uploads, &$storedPaths) {
+                $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+                abort_unless($this->canEditDraft($order), 422, 'Order sudah diajukan. Muat ulang halaman.');
 
-        $fromStatus = $order->status->value;
-        $isResubmission = $order->status === TrackAStatus::PerluPerbaikanOrder;
-        $order->update(['status' => TrackAStatus::MenungguApproval]);
-        $order->statusHistories()->create([
-            'track' => 'A',
-            'from_status' => $fromStatus,
-            'to_status' => TrackAStatus::MenungguApproval->value,
-            'actor_type' => 'user',
-            'actor_id' => $request->user()->id,
-            'reason' => $isResubmission
-                ? 'Order diperbaiki dan diajukan ulang untuk approval cabang.'
-                : 'Order diajukan untuk approval cabang.',
-        ]);
-        Audit::record($request, 'orders', $order, 'submit_approval', 'Order diajukan untuk approval.', []);
-        InAppNotification::forBranchApprovers($order, 'Order menunggu approval', "Order {$order->order_no} menunggu review approver cabang.");
+                $data = $this->validatedDraftData($request, $order);
+                $saved = $this->saveDraftData($request, $order, $data);
+                $this->storeDraftDocuments($request, $order, $uploads, $saved, $storedPaths);
+
+                $this->ensureReadyToSend($order->fresh());
+                $fromStatus = $order->status->value;
+                $isResubmission = $order->status === TrackAStatus::PerluPerbaikanOrder;
+                $order->update(['status' => TrackAStatus::MenungguApproval]);
+                $order->statusHistories()->create([
+                    'track' => 'A',
+                    'from_status' => $fromStatus,
+                    'to_status' => TrackAStatus::MenungguApproval->value,
+                    'actor_type' => 'user',
+                    'actor_id' => $request->user()->id,
+                    'reason' => $isResubmission
+                        ? 'Order diperbaiki dan diajukan ulang untuk approval cabang.'
+                        : 'Order diajukan untuk approval cabang.',
+                ]);
+                Audit::record($request, 'orders', $order, 'submit_approval', 'Order diajukan untuk approval.', []);
+                InAppNotification::forBranchApprovers($order, 'Order menunggu approval', "Order {$order->order_no} menunggu review approver cabang.");
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($storedPaths);
+            throw $exception;
+        }
 
         return back()->with('success', 'Order diajukan untuk approval cabang.');
+    }
+
+    private function storeDraftDocuments(Request $request, Order $order, array $uploads, array $savedCollaterals, array &$storedPaths): void
+    {
+        foreach ($uploads as $upload) {
+            $collateral = $savedCollaterals[(int) $upload['collateral_index']] ?? null;
+            if (! $collateral instanceof OrderCollateral) {
+                throw ValidationException::withMessages(['draft_documents' => 'Agunan dokumen tidak sesuai dengan order.']);
+            }
+
+            $checklist = null;
+            if (! empty($upload['checklist_master_id'])) {
+                $checklist = OrderChecklist::query()
+                    ->where('order_id', $order->id)
+                    ->where('order_collateral_id', $collateral->id)
+                    ->where('document_checklist_id', $upload['checklist_master_id'])
+                    ->when($upload['job_type_id'] ?? null, function ($query, $jobTypeId) use ($collateral) {
+                        $job = $collateral->jobs()->where('job_type_id', $jobTypeId)->first();
+                        $query->where('order_collateral_job_id', $job?->id);
+                    })
+                    ->when(! ($upload['job_type_id'] ?? null), fn ($query) => $query->whereNull('order_collateral_job_id'))
+                    ->first();
+
+                if (! $checklist) {
+                    throw ValidationException::withMessages(['draft_documents' => 'Checklist dokumen tidak sesuai dengan pekerjaan agunan.']);
+                }
+            } elseif (blank($upload['display_name'] ?? null)) {
+                throw ValidationException::withMessages(['draft_documents' => 'Nama dokumen pendukung wajib diisi.']);
+            }
+
+            $file = $upload['file'];
+            $path = $file->store("documents/{$order->order_no}", 'local');
+            $storedPaths[] = $path;
+            $type = $checklist ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
+            $version = OrderDocument::query()
+                ->where('order_id', $order->id)
+                ->where('order_collateral_id', $collateral->id)
+                ->where('document_type', $type->value)
+                ->max('version') + 1;
+            $document = $order->documents()->create([
+                'order_collateral_id' => $collateral->id,
+                'document_type' => $type,
+                'display_name' => $upload['display_name'] ?? $checklist?->documentChecklist?->name,
+                'version' => $version,
+                'original_name' => $file->getClientOriginalName(),
+                'stored_name' => basename($path),
+                'stored_path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'uploaded_by' => $request->user()->id,
+            ]);
+
+            if ($checklist) {
+                $checklist->update([
+                    'order_document_id' => $document->id,
+                    'is_checked' => true,
+                    'checked_by' => $request->user()->id,
+                    'checked_at' => now(),
+                ]);
+            }
+
+            DocumentArchiveService::archiveOrderDocument($request, $document);
+            Audit::record($request, 'documents', $order, 'upload', 'Dokumen awal disimpan bersama pengajuan order.', [
+                'document_id' => $document->id,
+                'document_type' => $type->value,
+                'collateral_id' => $collateral->id,
+            ]);
+        }
     }
 
     public function approve(Request $request, Order $order): RedirectResponse
@@ -692,7 +783,7 @@ class OrderController extends Controller
             'tgl_masuk_notaris' => ['nullable', 'date'],
             'plafon' => ['nullable', 'numeric', 'min:0'],
             'nominal' => ['nullable', 'numeric', 'min:0'],
-            'skema_pembayaran' => ['nullable', 'string', 'max:30'],
+            'skema_pembayaran' => ['nullable', 'string', Rule::in(self::PAYMENT_SCHEMES)],
             'keterangan' => ['nullable', 'string'],
             'collaterals' => ['required', 'array', 'min:1'],
             'collaterals.*.job_type_id' => ['required', 'integer', 'exists:job_types,id'],
@@ -752,7 +843,7 @@ class OrderController extends Controller
             'tgl_masuk_notaris' => ['nullable', 'date'],
             'plafon' => ['nullable', 'numeric', 'min:0'],
             'nominal' => ['nullable', 'numeric', 'min:0'],
-            'skema_pembayaran' => ['nullable', 'string', 'max:30'],
+            'skema_pembayaran' => ['nullable', 'string', Rule::in(self::PAYMENT_SCHEMES)],
             'keterangan' => ['nullable', 'string'],
             'collaterals' => ['nullable', 'array'],
             'collaterals.*.job_type_id' => ['nullable', 'integer', 'exists:job_types,id'],
@@ -903,6 +994,7 @@ class OrderController extends Controller
     private function syncCollateralJobs(OrderCollateral $collateral, array $jobs, int $branchId, ?string $startDate): void
     {
         $jobTypeIds = collect($jobs)->pluck('job_type_id')->map(fn ($id) => (int) $id)->values();
+        $collateral->checklists()->whereHas('documentChecklist', fn ($query) => $query->whereNotNull('job_type_id')->whereNotIn('job_type_id', $jobTypeIds))->delete();
         $collateral->jobs()->whereNotIn('job_type_id', $jobTypeIds)->delete();
 
         foreach ($jobs as $jobData) {
@@ -988,16 +1080,7 @@ class OrderController extends Controller
 
     private function paymentSchemeOptions(): array
     {
-        return PaymentSchemeOption::query()->orderBy('name')->pluck('name')->all();
-    }
-
-    private function rememberPaymentScheme(?string $name): void
-    {
-        $name = trim((string) $name);
-
-        if ($name !== '') {
-            PaymentSchemeOption::query()->firstOrCreate(['name' => $name]);
-        }
+        return self::PAYMENT_SCHEMES;
     }
 
     private function resolveSla(array $collateralData, int $branchId, ?string $startDate): array

@@ -30,7 +30,6 @@ export function NavMain({ items, label = 'Navigasi' }: { items: NavItem[]; label
                         >
                             <Link
                                 href={item.href}
-                                prefetch
                                 onClick={() => {
                                     if (isMobile) setOpenMobile(false);
                                 }}

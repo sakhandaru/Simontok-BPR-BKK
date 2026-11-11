@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Core\DummyCoreAccountProvider;
 use App\Services\Core\StagedCoreAccountProvider;
 use Database\Seeders\CoreAccountSeeder;
+use Database\Seeders\KudusUatAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -125,5 +126,45 @@ class CoreAccountSeederTest extends TestCase
         $this->assertDatabaseCount('core_dummy_accounts', 0);
         $this->assertDatabaseCount('core_dummy_collaterals', 0);
         $this->assertDatabaseCount('branches', 0);
+    }
+
+    public function test_kudus_seeder_and_scoped_sync_leave_other_branches_unchanged(): void
+    {
+        $other = CoreDummyAccount::create([
+            'account_id' => 'UAT-ACCOUNT-001-001', 'account_number' => '001990000001',
+            'customer_id' => 'UAT-CUSTOMER-001-001', 'customer_name' => 'Nasabah cabang lain',
+            'branch_code' => '001', 'branch_name' => 'Cabang lain', 'plafon' => 123_000_000,
+        ]);
+        $this->artisan('core:sync-staging')->assertSuccessful();
+        $otherStaged = CoreStagedAccount::sole();
+        $otherStaged->update(['expires_at' => now()->subDay()]);
+        $original = $other->fresh()->getRawOriginal();
+        $stagedOriginal = $otherStaged->fresh()->getRawOriginal();
+
+        $this->seed(KudusUatAccountSeeder::class);
+        $this->artisan('core:sync-staging', ['--branch' => '002', '--ttl' => 1440])->assertSuccessful();
+        $this->seed(KudusUatAccountSeeder::class);
+        $this->artisan('core:sync-staging', ['--branch' => '002', '--ttl' => 1440])->assertSuccessful();
+
+        $this->assertDatabaseCount('core_dummy_accounts', 21);
+        $this->assertDatabaseCount('core_staged_accounts', 21);
+        $this->assertDatabaseCount('branches', 1);
+        $this->assertDatabaseHas('branches', ['code' => '002', 'name' => 'KC. Kudus']);
+        $this->assertSame($original, $other->fresh()->getRawOriginal());
+        $this->assertSame($stagedOriginal, $otherStaged->fresh()->getRawOriginal());
+        $this->assertSame(20, CoreStagedAccount::where('branch_code', '002')->where('expires_at', '>', now()->addHours(23))->count());
+        $provider = new StagedCoreAccountProvider;
+        $this->assertCount(20, $provider->search('002990', '002'));
+        $this->assertSame('KC. Kudus', $provider->find('UAT-ACCOUNT-002-001', '002')['branch']['name']);
+    }
+
+    public function test_invalid_branch_filter_does_not_sync_all_accounts(): void
+    {
+        $this->seed(KudusUatAccountSeeder::class);
+
+        $this->artisan('core:sync-staging', ['--branch' => '2'])->assertFailed();
+        $this->artisan('core:sync-staging', ['--branch' => ''])->assertFailed();
+
+        $this->assertDatabaseCount('core_staged_accounts', 0);
     }
 }

@@ -15,7 +15,7 @@ class WorkQueueController extends Controller
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
-        $orders = Order::query()->visibleTo($user)->with(['branch:id,name', 'notary:id,name', 'paymentRequest:id,order_id,status']);
+        $orders = Order::query()->submitted()->visibleTo($user)->with(['branch:id,name', 'notary:id,name', 'paymentRequest:id,order_id,status']);
         $tasks = collect();
 
         if ($user->hasPermission('orders.approve')) {
@@ -34,7 +34,7 @@ class WorkQueueController extends Controller
             $this->add($tasks, (clone $orders)->where('status', TrackAStatus::DokumenFinalDiunggah->value)->get(), 'Handover dokumen', 'Dokumen final siap dicatat serah terimanya.', 'normal');
         }
         if ($user->hasPermission('orders.manage')) {
-            $this->add($tasks, (clone $orders)->whereIn('status', [TrackAStatus::Draft->value, TrackAStatus::PerluPerbaikanOrder->value])->get(), 'Lengkapi order', 'Order masih draft atau dikembalikan untuk diperbaiki.', 'normal');
+            $this->add($tasks, (clone $orders)->where('status', TrackAStatus::PerluPerbaikanOrder->value)->get(), 'Lengkapi order', 'Order dikembalikan untuk diperbaiki.', 'normal');
         }
 
         $tasks = $tasks->unique(fn (array $task) => $task['id'].'-'.$task['title'])->sortByDesc(fn (array $task) => ($task['priority'] === 'important' ? 2 : 1).'-'.$task['created_at'])->values();

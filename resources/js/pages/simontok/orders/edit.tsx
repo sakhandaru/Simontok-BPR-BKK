@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { SimSelect } from '@/components/sim-select';
 import { SimCreatableCombobox } from '@/components/sim-creatable-combobox';
 import { saveCollateralType } from '@/lib/collateral-types';
-import { savePaymentScheme } from '@/lib/payment-schemes';
 import type { Option } from '@/types';
 
 type CollateralForm = {
@@ -120,7 +119,7 @@ export default function OrdersEdit({ order, branches, notaries, jobTypes, collat
                     <Field label="Tanggal masuk notaris" error={errors.tgl_masuk_notaris}><Input type="date" value={data.tgl_masuk_notaris} onChange={(e) => setData('tgl_masuk_notaris', e.target.value)} /></Field>
                     <Field label="Plafon"><RupiahInput value={data.plafon} onChange={(value) => setData('plafon', value)} /></Field>
                     <Field label="Nominal jasa"><RupiahInput value={data.nominal} onChange={(value) => setData('nominal', value)} /></Field>
-                    <Field label="Skema pembayaran"><SimCreatableCombobox id="payment-schemes-edit" value={data.skema_pembayaran} options={paymentSchemes} placeholder="Pilih atau ketik skema" emptyLabel="Ketik skema pembayaran baru." onAdd={savePaymentScheme} onChange={(value) => setData('skema_pembayaran', value)} /></Field>
+                    <Field label="Skema pembayaran"><SimSelect value={data.skema_pembayaran} options={['Bayar awal', 'Bayar sebagian'].map((value) => ({ value, label: value }))} placeholder="Pilih skema pembayaran" onChange={(value) => setData('skema_pembayaran', value)} /></Field>
                 </section>
 
                 <section className="flex flex-col gap-4 rounded-lg border p-4">

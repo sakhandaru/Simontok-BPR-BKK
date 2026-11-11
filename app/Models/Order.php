@@ -25,6 +25,11 @@ class Order extends Model
         return $query;
     }
 
+    public function scopeSubmitted(Builder $query): Builder
+    {
+        return $query->where('status', '!=', TrackAStatus::Draft->value);
+    }
+
     public function isVisibleTo(User $user): bool
     {
         return ($user->branchScopeId() === null || $this->branch_id === $user->branchScopeId())

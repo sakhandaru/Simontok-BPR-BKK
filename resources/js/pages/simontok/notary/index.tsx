@@ -15,8 +15,9 @@ type NotaryOrder = {
     branch: string | null;
     sent_to_notary_at: string | null;
 };
+type StatusSummary = { key: string; label: string; value: number };
 
-export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, filters, statusOptions }: { orders: Paginated<NotaryOrder>; isNotaryUser: boolean; isMonitor: boolean; filters: { search: string; status: string }; statusOptions: { value: string; label: string }[] }) {
+export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, filters, statusOptions, statusSummary }: { orders: Paginated<NotaryOrder>; isNotaryUser: boolean; isMonitor: boolean; filters: { search: string; status: string }; statusOptions: { value: string; label: string }[]; statusSummary: StatusSummary[] }) {
     const [search, setSearch] = useState(filters.search);
     const [status, setStatus] = useState(filters.status);
 
@@ -27,6 +28,15 @@ export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, fil
                 <div>
                     <h1 className="text-2xl font-semibold">Portal Notaris</h1>
                     <p className="mt-1 text-sm text-muted-foreground">Daftar pekerjaan yang sudah dikirim oleh BPR untuk ditindaklanjuti.</p>
+                </div>
+
+                <div className="grid grid-cols-2 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card md:grid-cols-4">
+                    {statusSummary.map((item) => (
+                        <div key={item.key} className="min-w-0 px-4 py-3 md:px-5">
+                            <div className="text-xs text-muted-foreground">{item.label}</div>
+                            <div className="mt-1 text-xl font-semibold tracking-tight">{item.value.toLocaleString('id-ID')}</div>
+                        </div>
+                    ))}
                 </div>
 
                 <SimTableToolbar search={search} searchPlaceholder="No. order, nasabah, atau rekening" onSearchChange={setSearch} onSubmit={() => router.get('/notary/orders', { search, status }, { preserveState: true, replace: true })} onReset={() => { setSearch(''); setStatus(''); router.get('/notary/orders'); }}>

@@ -95,6 +95,33 @@ Variasi data meliputi nasabah dengan beberapa rekening, nasabah berbeda dengan n
 
 Untuk membuat order, cabang harus aktif dan memiliki notaris rekanan yang memenuhi syarat aplikasi. Seeder nasabah mengikuti nama master cabang yang sudah ada dan menambahkan cabang yang belum tersedia; seeder ini tidak mengaktifkan kembali cabang nonaktif atau mengatur relasi notaris. Akun portal notaris tidak tersedia setelah reset; pengujian sebagai notaris membutuhkan akun portal yang disiapkan tersendiri.
 
+## Login pegawai saat SSO tidak tersedia di lokal
+
+Untuk pengujian di laptop, aktifkan konfigurasi berikut pada `.env` lokal:
+
+```env
+APP_ENV=local
+SSO_LOCAL_BYPASS=true
+SSO_LOCAL_PASSWORD=password
+```
+
+Login memakai ID pegawai yang sudah terdaftar di SIMONTOK dan password uji dari `SSO_LOCAL_PASSWORD`. Akun lokal Kudus yang sudah tersedia: `102-145` (Admin Legal Cabang) dan `102-146` (Kabid Operasional Cabang). Akun tetap harus aktif, memiliki role, dan memiliki cabang aktif jika role-nya membutuhkan cabang. Bypass tidak membuat akun baru, tidak mengubah password akun di database, dan tidak menghubungi SSO. Akun IT darurat dan notaris tetap memakai password masing-masing.
+
+Bypass hanya berlaku jika `APP_ENV=local`; pengaturan ini diabaikan pada staging dan production. Template `.env.example` menonaktifkannya secara default. Untuk kembali menggunakan SSO, set `SSO_LOCAL_BYPASS=false`. Setelah mengubah konfigurasi, jalankan `php artisan config:clear`.
+
+## Mengisi khusus Kudus (002)
+
+Untuk menyiapkan master kredit nasabah dummy Kudus tanpa menjalankan reset, gunakan perintah ini dari direktori project lokal:
+
+```bash
+php artisan db:seed --class=KudusUatAccountSeeder
+php artisan core:sync-staging --branch=002 --ttl=1440
+```
+
+Seeder membuat atau memperbarui 20 rekening untuk 19 nasabah pada cabang `002`. Sinkronisasi dibatasi ke cabang tersebut, dengan masa berlaku staging 24 jam. Order, akun pengguna, serta data rekening cabang lain tetap dipertahankan. Konfigurasi harus memakai `CORE_PROVIDER=dummy`.
+
+Cari `002990` pada form order. Contoh rekening: Budi Santoso `002990000001` (plafon Rp150 juta, satu agunan) dan Andi Pratama `002990000004` (plafon Rp125 juta, satu agunan).
+
 ## Jika nasabah tidak muncul setelah beberapa waktu
 
 Data staging memiliki masa berlaku. Perintah `core:sync-staging` saat ini memakai default `--ttl=60` menit, dan sinkronisasi terjadwal setiap jam di `routes/console.php`. Scheduler Laravel harus berjalan di server agar jadwal tersebut dieksekusi.

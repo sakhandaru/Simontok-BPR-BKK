@@ -61,6 +61,7 @@ class UatPartnerSeeder extends Seeder
 
             $notary->update([
                 'is_active' => true,
+                'bank_name' => 'BKK JATENG',
                 'agreement_type' => 'PKS',
                 'agreement_file_path' => $path,
                 'agreement_file_name' => 'PKS Notaris Demo - KHUSUS UAT.pdf',

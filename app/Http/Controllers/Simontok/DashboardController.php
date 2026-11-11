@@ -14,8 +14,8 @@ use App\Models\PaymentRequest;
 use App\Models\User;
 use App\Support\OrderStages;
 use Carbon\CarbonInterface;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,8 +29,8 @@ class DashboardController extends Controller
         }
 
         $closedStatuses = OrderStages::closedStatuses();
-        $visibleOrders = Order::query()->visibleTo($request->user());
-        $visibleCollaterals = OrderCollateral::whereHas('order', fn ($query) => $query->visibleTo($request->user()));
+        $visibleOrders = Order::query()->submitted()->visibleTo($request->user());
+        $visibleCollaterals = OrderCollateral::whereHas('order', fn ($query) => $query->submitted()->visibleTo($request->user()));
         $activeOrders = (clone $visibleOrders)->whereNotIn('status', $closedStatuses);
         $totalOrders = (clone $visibleOrders)->count();
         $completedOrders = (clone $visibleOrders)->where('status', TrackAStatus::Selesai->value)->count();
@@ -171,7 +171,7 @@ class DashboardController extends Controller
      */
     private function activeOrdersAt(User $user, CarbonInterface $at, array $closedStatuses): int
     {
-        $visible = Order::query()->visibleTo($user);
+        $visible = Order::query()->submitted()->visibleTo($user);
 
         $createdByAt = (clone $visible)
             ->where('created_at', '<=', $at)
@@ -202,7 +202,7 @@ class DashboardController extends Controller
      */
     private function completedOrdersAt(User $user, CarbonInterface $at): int
     {
-        $visible = Order::query()->visibleTo($user);
+        $visible = Order::query()->submitted()->visibleTo($user);
         $selesai = TrackAStatus::Selesai->value;
 
         return (clone $visible)
@@ -226,6 +226,7 @@ class DashboardController extends Controller
         $start = now()->startOfWeek()->subWeeks(7);
         $end = now()->endOfWeek();
         $orders = Order::query()
+            ->submitted()
             ->visibleTo($user)
             ->whereBetween('created_at', [$start, $end])
             ->get(['risk_flag', 'created_at']);
@@ -234,7 +235,7 @@ class DashboardController extends Controller
         $completions = OrderStatusHistory::query()
             ->where('track', 'A')
             ->where('to_status', TrackAStatus::Selesai->value)
-            ->whereHas('order', fn ($query) => $query->visibleTo($user))
+            ->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user))
             ->whereBetween('created_at', [$start, $end])
             ->get(['order_id', 'created_at']);
 
@@ -259,6 +260,7 @@ class DashboardController extends Controller
         $stages = OrderStages::activeGroups();
 
         $rows = Order::query()
+            ->submitted()
             ->visibleTo($user)
             ->whereNotIn('status', $closedStatuses)
             ->get(['status', 'created_at']);
@@ -298,19 +300,19 @@ class DashboardController extends Controller
         return [
             [
                 'label' => 'Kedaluwarsa',
-                'total' => OrderCollateral::where('covernote_end', '<', $now)->whereHas('order', fn ($query) => $query->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
+                'total' => OrderCollateral::where('covernote_end', '<', $now)->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
             ],
             [
                 'label' => '0-7 hari',
-                'total' => OrderCollateral::whereBetween('covernote_end', [$now, $now->copy()->addDays(7)])->whereHas('order', fn ($query) => $query->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
+                'total' => OrderCollateral::whereBetween('covernote_end', [$now, $now->copy()->addDays(7)])->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
             ],
             [
                 'label' => '8-14 hari',
-                'total' => OrderCollateral::whereBetween('covernote_end', [$now->copy()->addDays(8), $now->copy()->addDays(14)])->whereHas('order', fn ($query) => $query->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
+                'total' => OrderCollateral::whereBetween('covernote_end', [$now->copy()->addDays(8), $now->copy()->addDays(14)])->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
             ],
             [
                 'label' => '15-30 hari',
-                'total' => OrderCollateral::whereBetween('covernote_end', [$now->copy()->addDays(15), $now->copy()->addDays(30)])->whereHas('order', fn ($query) => $query->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
+                'total' => OrderCollateral::whereBetween('covernote_end', [$now->copy()->addDays(15), $now->copy()->addDays(30)])->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user)->whereNotIn('status', $closedStatuses))->count(),
             ],
         ];
     }
@@ -318,17 +320,17 @@ class DashboardController extends Controller
     private function paymentFunnel(User $user): array
     {
         return [
-            ['label' => 'Diajukan', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::Diajukan->value)->whereHas('order', fn ($query) => $query->visibleTo($user))->count()],
-            ['label' => 'Diverifikasi', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::DiverifikasiAdmin->value)->whereHas('order', fn ($query) => $query->visibleTo($user))->count()],
-            ['label' => 'Disetujui', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::Disetujui->value)->whereHas('order', fn ($query) => $query->visibleTo($user))->count()],
-            ['label' => 'Dibayar', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::Dibayar->value)->whereHas('order', fn ($query) => $query->visibleTo($user))->count()],
+            ['label' => 'Diajukan', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::Diajukan->value)->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user))->count()],
+            ['label' => 'Diverifikasi', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::DiverifikasiAdmin->value)->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user))->count()],
+            ['label' => 'Disetujui', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::Disetujui->value)->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user))->count()],
+            ['label' => 'Dibayar', 'total' => PaymentRequest::where('status', TrackDPaymentStatus::Dibayar->value)->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user))->count()],
         ];
     }
 
     private function riskCollaterals(callable $constraint, User $user)
     {
         return OrderCollateral::query()
-            ->whereHas('order', fn ($query) => $query->visibleTo($user))
+            ->whereHas('order', fn ($query) => $query->submitted()->visibleTo($user))
             ->with(['order:id,order_no,customer_name,no_rekening,branch_id,notary_id,status', 'order.branch:id,code,name', 'order.notary:id,name', 'jobType:id,name'])
             ->tap($constraint)
             ->latest('updated_at')

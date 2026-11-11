@@ -80,8 +80,8 @@ class OrderFilterTest extends TestCase
 
     public function test_age_filter_follows_the_dashboard_aging_buckets()
     {
-        $fresh = $this->makeOrder('ORD-AGE-07', TrackAStatus::Draft->value, now()->subDays(3));
-        $old = $this->makeOrder('ORD-AGE-31', TrackAStatus::Draft->value, now()->subDays(40));
+        $fresh = $this->makeOrder('ORD-AGE-07', TrackAStatus::MenungguApproval->value, now()->subDays(3));
+        $old = $this->makeOrder('ORD-AGE-31', TrackAStatus::MenungguApproval->value, now()->subDays(40));
 
         $this->actingAs($this->user)
             ->get(route('orders.index', ['age' => '0-7']))

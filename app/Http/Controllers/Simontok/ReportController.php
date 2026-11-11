@@ -28,7 +28,7 @@ class ReportController extends Controller
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
 
-        $orders = Order::query()->visibleTo($request->user())
+        $orders = Order::query()->submitted()->visibleTo($request->user())
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))
             ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
@@ -134,6 +134,7 @@ class ReportController extends Controller
     private function applyOrderFilters($query, array $filters, User $user): void
     {
         $query
+            ->submitted()
             ->visibleTo($user)
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))

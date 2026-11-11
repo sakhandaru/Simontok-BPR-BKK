@@ -4,6 +4,8 @@ return [
 
     'sso' => [
         'enabled' => (bool) env('SSO_ENABLED', false),
+        'local_bypass' => (bool) env('SSO_LOCAL_BYPASS', false),
+        'local_password' => env('SSO_LOCAL_PASSWORD'),
         'url' => env('SSO_URL', 'https://apisso.bkkjateng.co.id'),
         'app' => env('SSO_APP', 'monbis'),
         'timeout' => env('SSO_TIMEOUT', 10),

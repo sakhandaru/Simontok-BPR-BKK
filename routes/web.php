@@ -41,7 +41,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('core/accounts', [CoreAccountController::class, 'search'])->middleware('throttle:60,1')->name('core.accounts.search');
         Route::get('core/accounts/{accountId}', [CoreAccountController::class, 'show'])->middleware('throttle:60,1')->name('core.accounts.show');
         Route::post('collateral-types', [OrderController::class, 'storeCollateralType'])->name('collateral-types.store');
-        Route::post('payment-schemes', [OrderController::class, 'storePaymentScheme'])->name('payment-schemes.store');
         Route::post('orders/{order}/submit-approval', [OrderController::class, 'submitForApproval'])->name('orders.submit-approval');
         Route::patch('orders/{order}/checklists', [OrderController::class, 'updateChecklist'])->name('orders.checklists.update');
         Route::post('orders/{order}/documents', [OrderDocumentController::class, 'store'])->name('orders.documents.store');
@@ -144,7 +143,6 @@ Route::middleware(['auth'])->group(function () {
     });
     Route::middleware('permission:notaries.manage')->group(function () {
         Route::resource('notaries', NotaryController::class)->only(['index', 'store', 'update']);
-        Route::post('bank-names', [NotaryController::class, 'storeBankName'])->name('bank-names.store');
         Route::post('notaries/{notary}/portal-account', [NotaryController::class, 'createPortalAccount'])->name('notaries.portal-account.store');
         Route::put('notaries/{notary}/portal-account/{user}', [NotaryController::class, 'updatePortalAccount'])->name('notaries.portal-account.update');
         Route::get('notaries/{notary}/agreement/preview', [NotaryController::class, 'previewAgreement'])->name('notaries.agreement.preview');

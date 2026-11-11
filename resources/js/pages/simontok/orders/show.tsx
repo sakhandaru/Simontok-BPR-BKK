@@ -37,7 +37,6 @@ import { SimFileUpload } from '@/components/sim-file-upload';
 import { SimSelect } from '@/components/sim-select';
 import { SimCreatableCombobox } from '@/components/sim-creatable-combobox';
 import { saveCollateralType } from '@/lib/collateral-types';
-import { savePaymentScheme } from '@/lib/payment-schemes';
 import { SimTimeline } from '@/components/sim-timeline';
 import { SimJourneyNodes } from '@/components/sim-journey-nodes';
 import { RupiahInput } from '@/components/rupiah-input';
@@ -56,15 +55,14 @@ import { orderJourneyStages } from '@/lib/sim-journey';
 
 type Option = { value: string; label: string };
 type DocumentEditor = {
-    collateralId: string;
-    id?: string;
-    documentId?: number;
-    existingName?: string;
-    checklistId: string;
+    collateralIndex: number;
+    checklistMasterId?: number;
+    jobTypeId?: number | null;
     displayName: string;
     file: File | null;
     kind: 'agunan' | 'pendukung';
 };
+type PendingDocument = DocumentEditor & { file: File };
 type CollateralDraft = {
     id?: string;
     agunan_id: string;
@@ -122,6 +120,7 @@ export default function OrdersShow({
     paymentSchemes,
     slaPolicies,
     coreProvider,
+    documentChecklists,
 }: {
     order: any;
     canEdit: boolean;
@@ -153,10 +152,9 @@ export default function OrdersShow({
     paymentSchemes: string[];
     slaPolicies: Record<string, { days: number; source: string }>;
     coreProvider: string;
+    documentChecklists: { id: number; name: string; job_type_id: number | null; is_required: boolean; is_active: boolean }[];
 }) {
     const draft = useForm<OrderDraft>(orderDraftFrom(order));
-    const latestDraft = useRef(draft.data);
-    latestDraft.current = draft.data;
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
     const revision = useForm({ reason: '' });
@@ -168,77 +166,68 @@ export default function OrdersShow({
     const [progressDocumentPreview, setProgressDocumentPreview] = useState<any | null>(null);
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
     const canViewInitialDocuments = canManageOrder || canApproveOrder;
-    const [draftSaveState, setDraftSaveState] = useState<
-        'saved' | 'pending' | 'saving' | 'error'
-    >('saved');
-    const draftInitialized = useRef(false);
-    const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const persistDraft = (silent = false, onSuccess?: () => void) => {
-        if (draft.processing) return;
-        const submitted = JSON.stringify(draft.data);
-        const payload = {
-            ...draft.data,
-            collaterals: draft.data.collaterals.map((collateral) => ({
-                ...collateral,
-                jobs: collateral.jobs.filter((job) => Boolean(job.job_type_id)),
-            })),
-        };
-        setDraftSaveState('saving');
-        draft.transform(() => payload);
-        draft.put(`/orders/${order.id}`, {
-            preserveScroll: true,
-            preserveState: true,
-            only: silent ? ['order', 'slaPolicies'] : undefined,
-            headers: silent ? { 'X-Silent-Save': 'true' } : undefined,
-            onSuccess: (page) => {
-                const saved = orderDraftFrom(page.props.order);
-                draft.setDefaults(saved);
-                if (JSON.stringify(latestDraft.current) === submitted) {
-                    draft.setData(saved);
-                    setDraftSaveState('saved');
-                } else {
-                    setDraftSaveState('pending');
-                }
-                onSuccess?.();
-            },
-            onError: () => setDraftSaveState('error'),
-            onFinish: () => draft.transform((data) => data),
-        });
-    };
+    const [pendingDocuments, setPendingDocuments] = useState<PendingDocument[]>([]);
+    const [submitProcessing, setSubmitProcessing] = useState(false);
+    const [leaveDraftVisit, setLeaveDraftVisit] = useState<any | null>(null);
+    const allowNavigation = useRef(false);
 
     useEffect(() => {
-        if (!canEdit) return;
-        if (!draftInitialized.current) {
-            draftInitialized.current = true;
-            return;
-        }
-        if (!draft.isDirty || draft.processing) return;
+        if (!canEdit || (!draft.isDirty && pendingDocuments.length === 0) || submitProcessing) return;
 
-        const hasUnselectedJob = draft.data.collaterals.some((collateral) =>
-            collateral.jobs.some((job) => !job.job_type_id),
-        );
-        if (hasUnselectedJob) {
-            setDraftSaveState('pending');
-            return;
-        }
-
-        setDraftSaveState('pending');
-        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-        draftSaveTimer.current = setTimeout(() => {
-            persistDraft(true);
-        }, 1000);
-
-        return () => {
-            if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+            if (allowNavigation.current) return;
+            event.preventDefault();
+            event.returnValue = 'Order belum diajukan untuk approval.';
         };
-    }, [canEdit, draft.data, draft.processing]);
+        const removeBeforeVisit = router.on('before', (event) => {
+            if (allowNavigation.current) return;
+            if (event.detail.visit.prefetch) return;
+            event.preventDefault();
+            setLeaveDraftVisit(event.detail.visit);
+        });
+
+        window.addEventListener('beforeunload', warnBeforeLeaving);
+        return () => {
+            window.removeEventListener('beforeunload', warnBeforeLeaving);
+            removeBeforeVisit();
+        };
+    }, [canEdit, draft.isDirty, pendingDocuments.length, submitProcessing]);
+
+    const continueLeavingDraft = () => {
+        const visit = leaveDraftVisit;
+        if (!visit) return;
+
+        allowNavigation.current = true;
+        setLeaveDraftVisit(null);
+        router.visit(visit.url, {
+            method: visit.method,
+            data: visit.data,
+            replace: visit.replace,
+            preserveScroll: visit.preserveScroll,
+            preserveState: visit.preserveState,
+            only: visit.only,
+            except: visit.except,
+            headers: visit.headers,
+            errorBag: visit.errorBag,
+            forceFormData: visit.forceFormData,
+            queryStringArrayFormat: visit.queryStringArrayFormat,
+            async: visit.async,
+            showProgress: visit.showProgress,
+            prefetch: visit.prefetch,
+            fresh: visit.fresh,
+            reset: visit.reset,
+            preserveUrl: visit.preserveUrl,
+            preserveErrors: visit.preserveErrors,
+            invalidateCacheTags: visit.invalidateCacheTags,
+            viewTransition: visit.viewTransition,
+        });
+    };
 
     const selectCoreAccount = (account: CoreAccount) => {
         const branch = branches.find((item) => item.code === account.branch.code);
         if (!branch) throw new Error('Cabang rekening belum tersedia di SIMONTOK. Hubungi admin master cabang.');
-        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
         const eligible = notaries.filter((item) => item.branch_ids.includes(branch.id));
+        setPendingDocuments([]);
         draft.clearErrors();
         draft.setData({
             ...draft.data,
@@ -258,23 +247,42 @@ export default function OrdersShow({
     };
 
     const submitOrderApproval = () => {
-        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-        if (draft.isDirty) {
-            persistDraft(true, () =>
-                router.post(
-                    `/orders/${order.id}/submit-approval`,
-                    {},
-                    { preserveScroll: true },
-                ),
-            );
-            return;
-        }
-
-        router.post(
-            `/orders/${order.id}/submit-approval`,
-            {},
-            { preserveScroll: true },
-        );
+        if (submitProcessing) return;
+        const payload = new FormData();
+        Object.entries(draft.data).forEach(([key, value]) => {
+            if (key === 'collaterals') return;
+            payload.append(key, value == null ? '' : String(value));
+        });
+        draft.data.collaterals.forEach((collateral, collateralIndex) => {
+            Object.entries(collateral).forEach(([key, value]) => {
+                if (key === 'jobs') return;
+                payload.append(`collaterals[${collateralIndex}][${key}]`, value == null ? '' : String(value));
+            });
+            collateral.jobs.filter((job) => Boolean(job.job_type_id)).forEach((job, jobIndex) => {
+                Object.entries(job).forEach(([key, value]) => {
+                    payload.append(`collaterals[${collateralIndex}][jobs][${jobIndex}][${key}]`, value == null ? '' : String(value));
+                });
+            });
+        });
+        pendingDocuments.forEach((document, index) => {
+            payload.append(`draft_documents[${index}][collateral_index]`, String(document.collateralIndex));
+            if (document.checklistMasterId) payload.append(`draft_documents[${index}][checklist_master_id]`, String(document.checklistMasterId));
+            if (document.jobTypeId) payload.append(`draft_documents[${index}][job_type_id]`, String(document.jobTypeId));
+            payload.append(`draft_documents[${index}][display_name]`, document.displayName);
+            payload.append(`draft_documents[${index}][file]`, document.file);
+        });
+        setSubmitProcessing(true);
+        allowNavigation.current = true;
+        draft.clearErrors();
+        router.post(`/orders/${order.id}/submit-approval`, payload, {
+            forceFormData: true,
+            preserveScroll: true,
+            onError: (errors) => draft.setError(errors as Record<string, string>),
+            onFinish: () => {
+                allowNavigation.current = false;
+                setSubmitProcessing(false);
+            },
+        });
     };
     const approveOrder = () =>
         router.post(
@@ -367,6 +375,12 @@ export default function OrdersShow({
         next[index] = { ...next[index], jobs };
         draft.setData('collaterals', next);
     };
+    const documentFor = (collateralIndex: number, checklistMasterId?: number, jobTypeId?: number | null) =>
+        pendingDocuments.find((item) => item.collateralIndex === collateralIndex && item.checklistMasterId === checklistMasterId && item.jobTypeId === jobTypeId);
+
+    const pendingDocumentsFor = (collateralIndex: number) =>
+        pendingDocuments.filter((item) => item.collateralIndex === collateralIndex);
+
     const canSend = Boolean(
         draft.data.branch_id &&
         draft.data.notary_id &&
@@ -375,6 +389,26 @@ export default function OrdersShow({
         draft.data.tgl_realisasi &&
         draft.data.collaterals.length > 0 &&
         draft.data.collaterals.every((item) => item.nama_agunan && item.jobs.length > 0 && item.jobs.every((job) => job.job_type_id)),
+    );
+    const missingRequiredDocument = draft.data.collaterals.some((collateral, collateralIndex) =>
+        documentChecklists.some((checklist) => {
+            const applicableJobs = checklist.job_type_id === null
+                ? [null]
+                : collateral.jobs
+                    .filter((job) => Number(job.job_type_id) === checklist.job_type_id)
+                    .map((job) => Number(job.job_type_id));
+            if (!isRequiredChecklist(order, { document_checklist: checklist })) return false;
+            return applicableJobs.some((jobTypeId) => {
+                const sourceCollateral = order.collaterals?.find((item: any) =>
+                    item.agunan_id === collateral.agunan_id || String(item.id) === String(collateral.id),
+                );
+                const existing = sourceCollateral?.checklists?.some((item: any) =>
+                    item.document_checklist?.id === checklist.id && item.order_document_id &&
+                    (checklist.job_type_id === null || item.job?.job_type_id === jobTypeId),
+                );
+                return !existing && !documentFor(collateralIndex, checklist.id, jobTypeId);
+            });
+        }),
     );
     const incompleteFields = [
         !draft.data.branch_id && 'Cabang',
@@ -388,11 +422,7 @@ export default function OrdersShow({
             ...item.jobs.map((job, jobIndex) => !job.job_type_id && `Jenis pekerjaan ${jobIndex + 1} agunan ${index + 1}`),
             !item.nama_agunan && `Jenis agunan ${index + 1}`,
         ]),
-        order.collaterals?.some((item: any) =>
-            item.checklists?.some(
-                (checklist: any) => isRequiredChecklist(order, checklist) && (!checklist.is_checked || !checklist.order_document_id),
-            ),
-        ) && 'Dokumen checklist agunan',
+        missingRequiredDocument && 'Dokumen checklist agunan',
         draft.data.collaterals.some((item) => item.jobs.some((job) => job.sla_days && !job.sla_override_reason)) && 'Alasan perubahan SLA',
     ].filter(Boolean) as string[];
     const needsOrderRevision =
@@ -459,10 +489,11 @@ export default function OrdersShow({
         });
     };
 
-    const openChecklistEditor = (collateralId: string, checklistId: string) => {
+    const openChecklistEditor = (collateralIndex: number, checklistMasterId: number, jobTypeId?: number | null) => {
         setDocumentEditor({
-            collateralId,
-            checklistId,
+            collateralIndex,
+            checklistMasterId,
+            jobTypeId,
             displayName: '',
             file: null,
             kind: 'agunan',
@@ -471,47 +502,24 @@ export default function OrdersShow({
     const saveDocumentEditor = () => {
         if (
             !documentEditor ||
-            (!documentEditor.documentId && !documentEditor.file) ||
+            !documentEditor.file ||
             (documentEditor.kind === 'pendukung' &&
                 !documentEditor.displayName.trim())
         )
             return;
-        if (documentEditor.documentId) {
-            const formData = new FormData();
-            formData.append('_method', 'patch');
-            if (documentEditor.displayName)
-                formData.append('display_name', documentEditor.displayName);
-            if (documentEditor.file)
-                formData.append('file', documentEditor.file);
-            router.post(
-                `/orders/${order.id}/documents/${documentEditor.documentId}`,
-                formData,
-                {
-                    forceFormData: true,
-                    preserveScroll: true,
-                    onSuccess: () => setDocumentEditor(null),
-                },
-            );
-            return;
-        }
-        const formData = new FormData();
-        formData.append(
-            'order_collateral_id',
-            documentEditor.collateralId,
-        );
-        formData.append('document_type', documentEditor.kind === 'agunan' ? 'dokumen_awal' : 'lainnya');
-        if (documentEditor.checklistId)
-            formData.append('order_checklist_id', documentEditor.checklistId);
-        if (documentEditor.displayName)
-            formData.append('display_name', documentEditor.displayName);
-        if (documentEditor.file)
-            formData.append('file', documentEditor.file);
-        router.post(`/orders/${order.id}/documents`, formData, {
-            forceFormData: true,
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: () => setDocumentEditor(null),
-        });
+        setPendingDocuments((documents) => [
+            ...documents.filter((item) => !(
+                item.collateralIndex === documentEditor.collateralIndex &&
+                item.checklistMasterId === documentEditor.checklistMasterId &&
+                item.jobTypeId === documentEditor.jobTypeId
+            )),
+            { ...documentEditor, file: documentEditor.file as File },
+        ]);
+        setDocumentEditor(null);
+    };
+
+    const removePendingDocument = (document: PendingDocument) => {
+        setPendingDocuments((documents) => documents.filter((item) => item !== document));
     };
 
     const submitHandover = (event: FormEvent) => {
@@ -605,7 +613,7 @@ export default function OrdersShow({
                                 <Button
                                     type="button"
                                     onClick={submitOrderApproval}
-                                    disabled={!canSend || draft.processing}
+                                    disabled={!canSend || missingRequiredDocument || draft.processing || submitProcessing}
                                 >
                                     <Send className="size-4" />
                                     {needsOrderRevision
@@ -881,12 +889,15 @@ export default function OrdersShow({
                         setCollateralJobs={setCollateralJobs}
                         openChecklistEditor={openChecklistEditor}
                         openDocumentEditor={(editor) => setDocumentEditor(editor)}
+                        documentChecklists={documentChecklists}
+                        documentFor={documentFor}
+                        pendingDocumentsFor={pendingDocumentsFor}
+                        removePendingDocument={removePendingDocument}
                         incompleteFields={incompleteFields}
-                        saveState={draftSaveState}
                         coreProvider={coreProvider}
                         selectCoreAccount={selectCoreAccount}
                         canReplaceAccount={!order.collaterals?.length && !order.documents?.length}
-                        retrySave={() => persistDraft()}
+                        submitProcessing={submitProcessing}
                     />
                 )}
                 <OrderTrackingHero order={order} paymentAccount={paymentAccount} />
@@ -1862,8 +1873,8 @@ export default function OrdersShow({
                                     : 'Input dokumen agunan'}
                             </DialogTitle>
                             <DialogDescription>
-                                Masukkan satu file untuk record ini. File akan
-                                langsung disimpan saat tombol simpan ditekan.
+                                Masukkan satu file. File akan disimpan bersama
+                                order saat diajukan untuk approval.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4">
@@ -1888,21 +1899,6 @@ export default function OrdersShow({
                                     />
                                 </div>
                             )}
-                            {documentEditor?.existingName && (
-                                <div className="max-w-full min-w-0 overflow-hidden rounded-md border bg-muted/20 p-3 text-sm">
-                                    <div className="truncate">
-                                        File saat ini:{' '}
-                                        <span className="font-medium">
-                                            {documentEditor.existingName}
-                                        </span>
-                                    </div>
-                                    <iframe
-                                        title={`Preview ${documentEditor.existingName}`}
-                                        src={`/orders/${order.id}/documents/${documentEditor.documentId}/download`}
-                                        className="mt-2 block h-[min(65vh,34rem)] w-full rounded border bg-background"
-                                    />
-                                </div>
-                            )}
                             <SimFileUpload
                                 value={documentEditor?.file ?? null}
                                 onChange={(file) =>
@@ -1913,9 +1909,7 @@ export default function OrdersShow({
                                     )
                                 }
                                 label={
-                                    documentEditor?.documentId
-                                        ? 'Pilih file pengganti (opsional)'
-                                        : 'Pilih file PDF'
+                                    'Pilih file PDF'
                                 }
                             />
                         </div>
@@ -1931,14 +1925,13 @@ export default function OrdersShow({
                                 type="button"
                                 onClick={saveDocumentEditor}
                                 disabled={
-                                    (!documentEditor?.documentId &&
-                                        !documentEditor?.file) ||
+                                    !documentEditor?.file ||
                                     (documentEditor?.kind === 'pendukung' &&
                                         !documentEditor.displayName.trim())
                                 }
                             >
                                 <Save className="size-4" />
-                                Simpan dokumen
+                                Tambahkan ke pengajuan
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -2228,6 +2221,46 @@ export default function OrdersShow({
                     </div>
                 </section>
             </div>
+            <Dialog
+                open={Boolean(leaveDraftVisit)}
+                onOpenChange={(open) => !open && setLeaveDraftVisit(null)}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <div className="mb-1 flex size-10 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <AlertCircle className="size-5" />
+                        </div>
+                        <DialogTitle>Keluar dari pengisian order?</DialogTitle>
+                        <DialogDescription>
+                            Order ini belum diajukan untuk approval. Data yang
+                            sedang diisi belum dihitung sebagai order aktif.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-200">
+                        Jika keluar sekarang, pengisian sementara ini akan
+                        dibatalkan. Kamu dapat tetap di halaman untuk
+                        melengkapinya.
+                    </div>
+                    <DialogFooter className="flex-col sm:flex-col sm:justify-end">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setLeaveDraftVisit(null)}
+                        >
+                            Tetap isi order
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            className="w-full"
+                            onClick={continueLeavingDraft}
+                        >
+                            Keluar tanpa mengajukan
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
@@ -2304,12 +2337,15 @@ function DraftOrderForm({
     setCollateralJobs,
     openChecklistEditor,
     openDocumentEditor,
+    documentChecklists,
+    documentFor,
+    pendingDocumentsFor,
+    removePendingDocument,
     incompleteFields,
-    saveState,
     coreProvider,
     selectCoreAccount,
     canReplaceAccount,
-    retrySave,
+    submitProcessing,
 }: {
     draft: any;
     order: any;
@@ -2327,14 +2363,17 @@ function DraftOrderForm({
     ) => void;
     setJob: (collateralIndex: number, jobIndex: number, key: keyof CollateralJobDraft, value: string) => void;
     setCollateralJobs: (index: number, jobs: CollateralJobDraft[]) => void;
-    openChecklistEditor: (collateralId: string, checklistId: string) => void;
+    openChecklistEditor: (collateralIndex: number, checklistMasterId: number, jobTypeId?: number | null) => void;
     openDocumentEditor: (editor: DocumentEditor) => void;
+    documentChecklists: { id: number; name: string; job_type_id: number | null; is_required: boolean; is_active: boolean }[];
+    documentFor: (collateralIndex: number, checklistMasterId?: number, jobTypeId?: number | null) => PendingDocument | undefined;
+    pendingDocumentsFor: (collateralIndex: number) => PendingDocument[];
+    removePendingDocument: (document: PendingDocument) => void;
     incompleteFields: string[];
-    saveState: 'saved' | 'pending' | 'saving' | 'error';
     coreProvider: string;
     selectCoreAccount: (account: CoreAccount) => void;
     canReplaceAccount: boolean;
-    retrySave: () => void;
+    submitProcessing: boolean;
 }) {
     const coreSelected = Boolean(draft.data.core_account_id);
     const [collateralModal, setCollateralModal] = useState<{
@@ -2354,7 +2393,12 @@ function DraftOrderForm({
     const activeSummaryJobs = activeSourceCollateral?.jobs?.length
         ? activeSourceCollateral.jobs
         : activeCollateral?.jobs ?? [];
-    const activeSummaryDocuments = activeSourceCollateral
+    const activeSummaryDocuments = [
+              ...pendingDocumentsFor(collateralModal?.index ?? -1).map((document) => ({
+                  id: `pending-${document.collateralIndex}-${document.checklistMasterId ?? document.displayName}`,
+                  display_name: document.displayName || document.file.name,
+              })),
+              ...(activeSourceCollateral
         ? [
               ...(activeSourceCollateral.checklists ?? [])
                   .filter((item: any) => item.order_document)
@@ -2365,31 +2409,39 @@ function DraftOrderForm({
                       'lainnya',
               ),
           ]
-        : [];
-    const activeChecklistItems = (activeSourceCollateral?.checklists ?? []).filter(
-        (item: any) => item.document_checklist?.is_active !== false,
-    );
+        : [])];
+    const activeChecklistItems = activeSourceCollateral?.checklists?.length
+        ? activeSourceCollateral.checklists.filter((item: any) => item.document_checklist?.is_active !== false)
+        : documentChecklists.flatMap((checklist) => checklist.job_type_id
+            ? activeCollateral?.jobs
+                .map((job: CollateralJobDraft, jobIndex: number) => ({ job, jobIndex }))
+                .filter(({ job }: { job: CollateralJobDraft; jobIndex: number }) => Number(job.job_type_id) === checklist.job_type_id)
+                .map(({ job, jobIndex }: { job: CollateralJobDraft; jobIndex: number }) => ({
+                    id: `draft-${checklist.id}-${jobIndex}`,
+                    document_checklist: checklist,
+                    draft_job_type_id: checklist.job_type_id,
+                    draft_job_index: jobIndex,
+                    order_document: documentFor(collateralModal?.index ?? -1, checklist.id, checklist.job_type_id),
+                })) ?? []
+            : [{
+                id: `draft-${checklist.id}`,
+                document_checklist: checklist,
+                draft_job_type_id: null,
+                order_document: documentFor(collateralModal?.index ?? -1, checklist.id, null),
+            }]);
     return (
         <div className="sim-panel overflow-hidden">
             <div className="sim-panel-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h2 className="sim-panel-title">Lengkapi order</h2>
                     <p className="sim-panel-subtitle">
-                        Simpan bertahap. Order belum terlihat oleh notaris
-                        sampai dikirim.
+                        Perubahan disimpan saat order diajukan untuk approval.
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground">
-                        {saveState === 'saving'
-                            ? 'Menyimpan...'
-                            : saveState === 'pending'
-                              ? 'Perubahan akan disimpan...'
-                              : saveState === 'error'
-                                ? 'Gagal menyimpan'
-                                : 'Semua perubahan tersimpan'}
+                        {submitProcessing ? 'Mengajukan...' : 'Belum disimpan'}
                     </span>
-                    {saveState === 'error' && <Button type="button" variant="outline" size="sm" disabled={draft.processing} onClick={retrySave}>Simpan ulang</Button>}
                 </div>
             </div>
             <CoreAccountPicker
@@ -2528,13 +2580,10 @@ function DraftOrderForm({
                     />
                 </DraftField>
                 <DraftField label="Skema pembayaran">
-                    <SimCreatableCombobox
-                        id="payment-schemes"
+                    <SimSelect
                         value={draft.data.skema_pembayaran}
-                        options={paymentSchemes}
-                        placeholder="Pilih atau ketik skema"
-                        emptyLabel="Ketik skema pembayaran baru."
-                        onAdd={savePaymentScheme}
+                        options={['Bayar awal', 'Bayar sebagian'].map((value) => ({ value, label: value }))}
+                        placeholder="Pilih skema pembayaran"
                         onChange={(value) => draft.setData('skema_pembayaran', value)}
                     />
                 </DraftField>
@@ -2795,7 +2844,7 @@ function DraftOrderForm({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                        openDocumentEditor({ collateralId: String(activeCollateral.id), checklistId: '', displayName: '', file: null, kind: 'pendukung' });
+                                        openDocumentEditor({ collateralIndex: collateralModal?.index ?? 0, displayName: '', file: null, kind: 'pendukung' });
                                     }}
                                 >
                                     <FilePlus2 className="size-4" />Dokumen pendukung
@@ -2820,32 +2869,47 @@ function DraftOrderForm({
                                             <p className="text-xs text-muted-foreground">{group.description}</p>
                                         </div>
                                         <div className="grid gap-2 md:grid-cols-2">
-                                            {group.items.map((item: any) => (
-                                                <div key={item.id} className="grid min-w-0 gap-2 rounded-md border p-3 text-sm">
-                                                    <div className="flex items-start gap-2">
-                                                        <span className={item.order_document ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white' : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'}>{item.order_document ? '✓' : ''}</span>
-                                                        <span className="font-medium">{item.document_checklist?.name}</span>
-                                                    </div>
-                                                    {item.order_document ? (
-                                                        <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
-                                                            <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
-                                                            <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
+                                            {group.items.map((item: any) => {
+                                                const pending = documentFor(
+                                                    collateralModal?.index ?? -1,
+                                                    Number(item.document_checklist?.id),
+                                                    item.document_checklist?.job_type_id ?? null,
+                                                );
+                                                const document = item.order_document || pending;
+                                                return (
+                                                    <div key={item.id} className="grid min-w-0 gap-2 rounded-md border p-3 text-sm">
+                                                        <div className="flex items-start gap-2">
+                                                            <span className={document ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white' : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'}>{document ? '✓' : ''}</span>
+                                                            <span className="font-medium">{item.document_checklist?.name}</span>
                                                         </div>
-                                                    ) : (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="w-fit"
-                                                            onClick={() => {
-                                                                openChecklistEditor(String(activeCollateral.id), String(item.id));
-                                                            }}
-                                                        >
-                                                            <FilePlus2 className="size-4" />Input dokumen
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                        {item.order_document ? (
+                                                            <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
+                                                                <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
+                                                                <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
+                                                            </div>
+                                                        ) : pending ? (
+                                                            <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
+                                                                <span className="min-w-0 flex-1 truncate text-muted-foreground">{pending.file.name}</span>
+                                                                <Button type="button" variant="outline" size="sm" onClick={() => removePendingDocument(pending)}>Hapus</Button>
+                                                            </div>
+                                                        ) : (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="w-fit"
+                                                                onClick={() => openChecklistEditor(
+                                                                    collateralModal?.index ?? 0,
+                                                                    Number(item.document_checklist?.id),
+                                                                    item.document_checklist?.job_type_id ?? null,
+                                                                )}
+                                                            >
+                                                                <FilePlus2 className="size-4" />Input dokumen
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </section>
                                 ))}
