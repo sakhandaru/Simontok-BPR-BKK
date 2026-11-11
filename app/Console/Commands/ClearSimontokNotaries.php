@@ -11,9 +11,11 @@ use Illuminate\Support\Facades\DB;
 
 class ClearSimontokNotaries extends Command
 {
-    protected $signature = 'simontok:clear-notaries {--force : Jalankan tanpa meminta konfirmasi}';
+    protected $signature = 'simontok:clear-notaries
+        {--force : Jalankan tanpa meminta konfirmasi}
+        {--keep-user=sakhandaru : Email pengguna yang tidak boleh ikut dihapus}';
 
-    protected $description = 'Hapus seluruh notaris tanpa menghapus pengguna dan cabang';
+    protected $description = 'Hapus seluruh notaris beserta akun portal notaris tanpa menghapus cabang';
 
     public function handle(): int
     {
@@ -25,6 +27,11 @@ class ClearSimontokNotaries extends Command
 
         $notaries = Notary::withTrashed();
         $count = $notaries->count();
+        $keepUser = (string) $this->option('keep-user');
+        $notaryUserCount = User::query()
+            ->whereNotNull('notary_id')
+            ->where('email', '!=', $keepUser)
+            ->count();
 
         if ($count === 0) {
             $this->info('Tidak ada notaris yang perlu dibersihkan.');
@@ -33,7 +40,8 @@ class ClearSimontokNotaries extends Command
         }
 
         $this->warn("Akan menghapus {$count} notaris beserta relasi cabang dan arsip perjanjiannya.");
-        $this->line('Pengguna dan cabang tetap dipertahankan. Akun pengguna yang terhubung akan dilepas dari notaris.');
+        $this->line("Akun portal notaris yang terhubung ikut dihapus: {$notaryUserCount}. Pengguna {$keepUser} tetap dipertahankan.");
+        $this->line('Pengguna non-notaris dan cabang tetap dipertahankan.');
 
         if (! $this->option('force') && ! $this->confirm('Lanjutkan penghapusan notaris?')) {
             $this->info('Dibatalkan.');
@@ -41,10 +49,14 @@ class ClearSimontokNotaries extends Command
             return self::SUCCESS;
         }
 
-        DB::transaction(function () use ($notaries): void {
+        DB::transaction(function () use ($notaries, $keepUser): void {
             $ids = $notaries->pluck('id');
 
-            User::query()->whereIn('notary_id', $ids)->update(['notary_id' => null]);
+            User::query()
+                ->whereIn('notary_id', $ids)
+                ->where('email', '!=', $keepUser)
+                ->eachById(fn (User $user): bool => (bool) $user->delete());
+            User::query()->whereIn('notary_id', $ids)->where('email', $keepUser)->update(['notary_id' => null]);
             DB::table('branch_notary')->whereIn('notary_id', $ids)->delete();
             DB::table('notary_agreement_versions')->whereIn('notary_id', $ids)->delete();
             DocumentArchive::query()
