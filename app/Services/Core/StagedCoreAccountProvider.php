@@ -3,11 +3,12 @@
 namespace App\Services\Core;
 
 use App\Contracts\CoreAccountProvider;
+use App\Models\Branch;
 use App\Models\CoreStagedAccount;
 
 class StagedCoreAccountProvider implements CoreAccountProvider
 {
-    public function search(string $query, ?string $branchCode = null): array
+    public function search(string $query, ?string $branchCode = null, int $limit = 20): array
     {
         $needle = mb_strtolower(trim($query));
         if (mb_strlen($needle) < 2) {
@@ -19,7 +20,7 @@ class StagedCoreAccountProvider implements CoreAccountProvider
             ->where(fn ($builder) => $builder->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->when($branchCode, fn ($builder) => $builder->where('branch_code', $branchCode))
             ->where(fn ($builder) => $builder->where('customer_name', 'like', "%{$needle}%")->orWhere('account_number', 'like', "%{$needle}%"))
-            ->orderBy('customer_name')->orderBy('account_number')->limit(20)->get()
+            ->orderBy('customer_name')->orderBy('account_number')->limit($limit)->get()
             ->map(fn (CoreStagedAccount $account) => $this->summary($account))->all();
     }
 
@@ -61,5 +62,18 @@ class StagedCoreAccountProvider implements CoreAccountProvider
             'branch' => ['code' => $account->branch_code, 'name' => $account->branch_name],
             'collateral_count' => $account->collaterals_count ?? $account->collaterals()->count(),
         ];
+    }
+
+    public function collaterals(string $accountId, ?string $branchCode = null): array
+    {
+        return $this->find($accountId, $branchCode)['collaterals'] ?? [];
+    }
+
+    public function branches(bool $active = true): array
+    {
+        return Branch::query()
+            ->when($active, fn ($query) => $query->where('is_active', true))
+            ->orderBy('code')->get(['code', 'name', 'is_active'])
+            ->map(fn ($branch) => $branch->toArray())->all();
     }
 }

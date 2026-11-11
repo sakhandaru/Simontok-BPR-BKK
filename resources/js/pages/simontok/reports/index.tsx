@@ -7,6 +7,7 @@ import {
     FileText,
     Filter,
     RotateCcw,
+    TimerReset,
     Users,
 } from 'lucide-react';
 import type { FormEvent, ReactNode } from 'react';
@@ -28,12 +29,16 @@ export default function ReportsIndex({
     filters,
     branches,
     notaries,
+    summary,
     reportKpis,
     byBranch,
     byNotary,
     covernoteReport,
     outstandingOrders,
     documentValidation,
+    stageSummary,
+    monthlyTrend,
+    stalledOrders,
 }: {
     filters: {
         branch_id: string;
@@ -43,6 +48,12 @@ export default function ReportsIndex({
     };
     branches: Option[];
     notaries: Option[];
+    summary: {
+        total_orders: number;
+        active_orders: number;
+        completed_orders: number;
+        risk_orders: number;
+    };
     reportKpis: {
         completion_rate: number;
         validation_rate: number;
@@ -75,6 +86,18 @@ export default function ReportsIndex({
         created_at: string;
     }>;
     documentValidation: { final_validated: number; final_uploaded: number };
+    stageSummary: { key: string; label: string; total: number }[];
+    monthlyTrend: { month: string; total_orders: number; completed_orders: number }[];
+    stalledOrders: {
+        id: number;
+        order_no: string;
+        customer_name: string;
+        branch: string | null;
+        notary: string | null;
+        status: string;
+        risk_flag: boolean;
+        updated_at: string;
+    }[];
 }) {
     const { data, setData } = useForm(filters);
 
@@ -91,6 +114,13 @@ export default function ReportsIndex({
                     title="Laporan"
                     description="Ringkasan pekerjaan notaris berdasarkan posisi, risiko, covernote, dan dokumen."
                 />
+
+                <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                    <SimKpiCard label="Total order" value={summary.total_orders} note="Seluruh order pada cakupan laporan" icon={FileText} tone="info" />
+                    <SimKpiCard label="Order aktif" value={summary.active_orders} note="Belum selesai, ditolak, atau dibatalkan" icon={TimerReset} tone="info" />
+                    <SimKpiCard label="Order selesai" value={summary.completed_orders} note="Order yang sudah ditutup" icon={FileCheck2} tone="success" />
+                    <SimKpiCard label="Order berisiko" value={summary.risk_orders} note="Perlu perhatian operasional" icon={AlertTriangle} tone="danger" />
+                </section>
 
                 <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
                     <SimKpiCard
@@ -114,7 +144,7 @@ export default function ReportsIndex({
                     <SimKpiCard
                         label="Covernote perhatian"
                         value={reportKpis.covernote_attention}
-                        note="Kedaluwarsa atau mendekati jatuh tempo"
+                        note="Jumlah agunan kedaluwarsa atau mendekati jatuh tempo"
                         icon={CalendarDays}
                         tone="warning"
                         href="/orders?covernote=expired"
@@ -123,7 +153,7 @@ export default function ReportsIndex({
                     <SimKpiCard
                         label="SLA terlambat"
                         value={reportKpis.overdue_sla}
-                        note="Order melewati batas SLA"
+                        note="Jumlah agunan melewati batas SLA"
                         icon={AlertTriangle}
                         tone="danger"
                         href="/orders?sla=overdue"
@@ -237,6 +267,7 @@ export default function ReportsIndex({
                                                 ),
                                             )}
                                         />
+
                                         <span className="text-lg font-semibold tabular-nums">
                                             {item.total}
                                         </span>
@@ -268,6 +299,38 @@ export default function ReportsIndex({
                                 <div className="text-2xl font-semibold tabular-nums text-[var(--track-success)]">{documentValidation.final_validated}</div>
                             </div>
                         </div>
+                    </ReportPanel>
+
+                    <ReportPanel
+                        className="xl:col-span-5 xl:h-[26rem]"
+                        title="Tahap pekerjaan aktif"
+                        subtitle="Distribusi order yang masih berjalan di pipeline."
+                        icon={TimerReset}
+                    >
+                        <div className="divide-y divide-border overflow-y-auto">
+                            {stageSummary.map((stage) => (
+                                <div key={stage.key} className="flex items-center justify-between gap-4 px-4 py-3">
+                                    <span className="text-sm">{stage.label}</span>
+                                    <span className="text-lg font-semibold tabular-nums">{stage.total}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </ReportPanel>
+
+                    <ReportPanel
+                        className="xl:col-span-7 xl:h-[26rem]"
+                        title="Tren order"
+                        subtitle="Perbandingan order masuk dan selesai per bulan."
+                        icon={CalendarDays}
+                    >
+                        {monthlyTrend.length === 0 ? <EmptyReport message="Belum ada tren pada cakupan ini." /> : (
+                            <div className="overflow-auto">
+                                <table className="sim-table min-w-[520px]">
+                                    <thead className="bg-muted/20 text-left text-xs text-muted-foreground"><tr><th>Bulan</th><th className="text-right">Masuk</th><th className="text-right">Selesai</th><th className="text-right">Rasio</th></tr></thead>
+                                    <tbody>{monthlyTrend.map((month) => <tr key={month.month} className="border-t"><td className="font-medium">{formatMonth(month.month)}</td><td className="text-right tabular-nums">{month.total_orders}</td><td className="text-right tabular-nums text-[var(--track-success)]">{month.completed_orders}</td><td className="text-right tabular-nums">{month.total_orders > 0 ? `${Math.round((month.completed_orders / month.total_orders) * 100)}%` : '0%'}</td></tr>)}</tbody>
+                                </table>
+                            </div>
+                        )}
                     </ReportPanel>
 
                     <ReportPanel
@@ -455,6 +518,30 @@ export default function ReportsIndex({
                         </div>
                         <SimPagination links={outstandingOrders.links} />
                     </ReportPanel>
+
+                    <ReportPanel
+                        className="xl:col-span-12"
+                        title="Order tidak bergerak lebih dari 7 hari"
+                        subtitle="Order aktif yang tidak mengalami pembaruan terbaru."
+                        icon={TimerReset}
+                    >
+                        {stalledOrders.length === 0 ? <EmptyReport message="Tidak ada order yang terindikasi macet." /> : (
+                            <div className="divide-y divide-border">
+                                {stalledOrders.map((order) => (
+                                    <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                        <div className="min-w-0">
+                                            <Link href={`/orders/${order.id}`} className="font-medium underline-offset-4 hover:underline">{order.order_no}</Link>
+                                            <div className="mt-1 text-sm text-muted-foreground">{order.customer_name} · {order.branch ?? '-'} · {order.notary ?? '-'}</div>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-right">
+                                            <div><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /><div className="mt-1 text-xs text-muted-foreground">Update {order.updated_at}</div></div>
+                                            <Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka</Link></Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </ReportPanel>
                 </div>
             </div>
         </>
@@ -514,7 +601,9 @@ function DistributionTable({
                         <tr>
                             <th>{firstLabel}</th>
                             <th className="text-right">Total</th>
+                            <th className="text-right">Aktif</th>
                             <th className="text-right">Selesai</th>
+                            <th className="text-right">Rasio</th>
                             <th className="text-right">Risiko</th>
                         </tr>
                     </thead>
@@ -528,7 +617,13 @@ function DistributionTable({
                                     {row.total_orders}
                                 </td>
                                 <td className="text-right tabular-nums">
+                                    {row.active_orders ?? '-'}
+                                </td>
+                                <td className="text-right tabular-nums">
                                     {row.completed_orders}
+                                </td>
+                                <td className="text-right tabular-nums">
+                                    {row.completion_rate ?? 0}%
                                 </td>
                                 <td
                                     className={`text-right tabular-nums ${row.risk_orders > 0 ? 'font-semibold text-[var(--status-danger)]' : 'text-muted-foreground'}`}
@@ -547,7 +642,7 @@ function DistributionTable({
                         className="border border-border bg-card p-3.5"
                     >
                         <div className="font-medium">{firstValue(row)}</div>
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                        <div className="mt-3 grid grid-cols-4 gap-2 text-sm">
                             <ReportMetric
                                 label="Total"
                                 value={row.total_orders}
@@ -556,6 +651,11 @@ function DistributionTable({
                                 label="Selesai"
                                 value={row.completed_orders}
                                 tone="success"
+                            />
+                            <ReportMetric
+                                label="Rasio"
+                                value={`${row.completion_rate ?? 0}%`}
+                                tone="info"
                             />
                             <ReportMetric
                                 label="Risiko"
@@ -579,7 +679,7 @@ function ReportMetric({
     tone = 'neutral',
 }: {
     label: string;
-    value: number;
+    value: number | string;
     tone?: ReportTone;
 }) {
     return (
@@ -634,6 +734,13 @@ function toneText(tone: ReportTone) {
         warning: 'text-[var(--status-warning)]',
         danger: 'text-[var(--status-danger)]',
     }[tone];
+}
+
+function formatMonth(value: string) {
+    const [year, month] = value.split('-');
+    if (!year || !month) return value;
+
+    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(new Date(Number(year), Number(month) - 1, 1));
 }
 
 function covernoteStatusLabel(status: string) {

@@ -8,12 +8,20 @@ use App\Models\Notary;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class SsoAuthenticationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['services.sso.local_bypass' => false]);
+    }
 
     public function test_employee_can_login_through_sso_and_profile_is_synced(): void
     {
@@ -36,6 +44,7 @@ class SsoAuthenticationTest extends TestCase
             'services.sso.enabled' => true,
             'services.sso.url' => 'https://apisso.test',
             'services.sso.app' => 'monbis',
+            'services.sso.app_token' => 'app-token',
         ]);
 
         Http::fake([
@@ -73,9 +82,14 @@ class SsoAuthenticationTest extends TestCase
 
         Http::assertSent(fn ($request) => $request->url() === 'https://apisso.test/api/auth/login'
             && $request['id_peg'] === '102-119'
-            && $request['app'] === 'monbis');
+            && ! array_key_exists('app', $request->data())
+            && $request->hasHeader('X-App-Token', 'app-token')
+            && $request->hasHeader('App', 'monbis'));
         Http::assertSent(fn ($request) => $request->url() === 'https://apisso.test/api/auth/whoami'
-            && $request->hasHeader('Authorization', 'Bearer sso-token'));
+            && $request->hasHeader('Authorization', 'Bearer sso-token')
+            && $request->hasHeader('X-App-Token', 'app-token')
+            && $request->hasHeader('App', 'monbis'));
+        $this->assertSame('sso-token', Crypt::decryptString(session('simontok_api.jwt')));
     }
 
     public function test_employee_can_confirm_password_through_sso_after_login(): void
@@ -203,6 +217,8 @@ class SsoAuthenticationTest extends TestCase
 
         config([
             'services.sso.enabled' => true,
+            'services.sso.local_bypass' => false,
+            'services.sso.url' => 'https://apisso.test',
             'services.sso.emergency_login' => 'admin',
         ]);
 
@@ -232,6 +248,8 @@ class SsoAuthenticationTest extends TestCase
 
         config([
             'services.sso.enabled' => true,
+            'services.sso.local_bypass' => false,
+            'services.sso.url' => 'https://apisso.test',
             'services.sso.emergency_login' => 'admin',
         ]);
         Http::fake([

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -37,11 +38,12 @@ class SsoAuthenticationService
             $login = Http::baseUrl(config('services.sso.url'))
                 ->acceptJson()
                 ->asJson()
+                ->withHeaders($this->apiHeaders())
+                ->withOptions(['verify' => config('services.simontok_api.verify_ssl', true)])
                 ->timeout((int) config('services.sso.timeout', 10))
                 ->post('/api/auth/login', [
                     'id_peg' => $identifier,
                     'password' => $password,
-                    'app' => config('services.sso.app', 'monbis'),
                 ]);
         } catch (ConnectionException) {
             throw ValidationException::withMessages([
@@ -76,7 +78,9 @@ class SsoAuthenticationService
         try {
             $profile = Http::baseUrl(config('services.sso.url'))
                 ->acceptJson()
+                ->withHeaders($this->apiHeaders())
                 ->withToken($token)
+                ->withOptions(['verify' => config('services.simontok_api.verify_ssl', true)])
                 ->timeout((int) config('services.sso.timeout', 10))
                 ->get('/api/auth/whoami');
         } catch (ConnectionException) {
@@ -91,7 +95,19 @@ class SsoAuthenticationService
             ]);
         }
 
-        return $this->syncUser($profile->json('data', []));
+        $user = $this->syncUser($profile->json('data', []));
+        session()->put(config('services.simontok_api.token_session_key'), Crypt::encryptString($token));
+
+        return $user;
+    }
+
+    /** @return array<string, string> */
+    private function apiHeaders(): array
+    {
+        return array_filter([
+            'X-App-Token' => config('services.sso.app_token'),
+            'App' => config('services.sso.app'),
+        ], static fn ($value): bool => is_string($value) && $value !== '');
     }
 
     public function authenticateEmergency(string $identifier, string $password): ?User

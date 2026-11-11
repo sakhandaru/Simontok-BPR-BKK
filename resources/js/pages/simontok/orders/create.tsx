@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 type Option = { id: number; code?: string; name: string };
 type CollateralForm = { job_type_id: string; agunan_id: string; nama_agunan: string; deskripsi_agunan: string; deskripsi_pekerjaan: string; sla_days: string; sla_override_reason: string };
 type OrderForm = { core_account_id: string; branch_id: string; notary_id: string; customer_name: string; no_rekening: string; tgl_masuk_notaris: string; tgl_realisasi: string; plafon: string; nominal: string; skema_pembayaran: string; keterangan: string; collaterals: CollateralForm[] };
-type CoreAccountResult = { account_id: string; account_number: string; customer_id: string; customer_name: string; credit: { loan_amount: number | string | null }; branch: { code: string; name: string }; collateral_count: number };
+type CoreAccountResult = { account_id: string; account_number: string; customer_id: string; customer_name: string; credit: { loan_amount: number | string | null; realization_date?: string | null }; branch: { code: string; name: string }; collateral_count?: number };
 type CoreAccount = CoreAccountResult & { collaterals: { collateral_id: string; type_name: string; description: string }[] };
 
 const emptyCollateral = (): CollateralForm => ({ job_type_id: '', agunan_id: '', nama_agunan: '', deskripsi_agunan: '', deskripsi_pekerjaan: '', sla_days: '', sla_override_reason: '' });
@@ -27,7 +27,7 @@ export default function OrdersCreate({ branches, notaries, jobTypes, collateralT
 
     useEffect(() => {
         const query = coreQuery.trim();
-        if (query.length < 2 || coreSelected) {
+        if (query.length < 3 || coreSelected) {
             setCoreResults([]);
             return;
         }
@@ -66,6 +66,7 @@ export default function OrdersCreate({ branches, notaries, jobTypes, collateralT
             setData('core_account_id', account.account_id);
             setData('customer_name', account.customer_name);
             setData('no_rekening', account.account_number);
+            setData('tgl_realisasi', account.credit.realization_date?.slice(0, 10) ?? '');
             setData('plafon', account.credit.loan_amount === null ? '' : String(account.credit.loan_amount).replace(/\.00$/, ''));
             if (branch) setData('branch_id', String(branch.id));
             setData('collaterals', account.collaterals.length > 0

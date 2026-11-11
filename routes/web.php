@@ -40,6 +40,8 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permission:orders.manage')->group(function () {
         Route::get('core/accounts', [CoreAccountController::class, 'search'])->middleware('throttle:60,1')->name('core.accounts.search');
         Route::get('core/accounts/{accountId}', [CoreAccountController::class, 'show'])->middleware('throttle:60,1')->name('core.accounts.show');
+        Route::get('core/accounts/{accountId}/collaterals', [CoreAccountController::class, 'collaterals'])->middleware('throttle:60,1')->name('core.accounts.collaterals');
+        Route::get('core/branches', [CoreAccountController::class, 'branches'])->middleware('throttle:60,1')->name('core.branches');
         Route::post('collateral-types', [OrderController::class, 'storeCollateralType'])->name('collateral-types.store');
         Route::post('orders/{order}/submit-approval', [OrderController::class, 'submitForApproval'])->name('orders.submit-approval');
         Route::patch('orders/{order}/checklists', [OrderController::class, 'updateChecklist'])->name('orders.checklists.update');
@@ -74,7 +76,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('orders/{order}/collaterals/{collateral}/covernote/preview', [CovernoteController::class, 'preview'])->name('orders.collaterals.covernote.preview');
         Route::get('orders/{order}/collaterals/{collateral}/covernote-extensions/{extension}/preview', [CovernoteController::class, 'previewExtension'])->name('orders.collaterals.covernote-extensions.preview');
         Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('orders.payment-requests.payments.download');
-    Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/preview', [PaymentRequestController::class, 'previewProof'])->name('orders.payment-requests.payments.preview');
+        Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/preview', [PaymentRequestController::class, 'previewProof'])->name('orders.payment-requests.payments.preview');
     });
     Route::post('notary/orders/{order}/document-requests', [DocumentRequestController::class, 'store'])->middleware('permission:notary.actions')->name('notary.orders.document-requests.store');
     Route::post('orders/{order}/document-requests/{documentRequest}/fulfill', [DocumentRequestController::class, 'fulfill'])->middleware('permission:orders.manage')->name('orders.document-requests.fulfill');
@@ -121,7 +123,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('notary/orders/{order}/documents/{document}/preview', [OrderDocumentController::class, 'preview'])->name('notary.orders.documents.preview');
         Route::get('notary/orders/{order}/progress/{progress}/evidence', [NotaryPortalController::class, 'progressEvidence'])->name('notary.orders.progress.evidence');
         Route::get('notary/orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('notary.orders.payment-requests.payments.download');
-    Route::get('notary/orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/preview', [PaymentRequestController::class, 'previewProof'])->name('notary.orders.payment-requests.payments.preview');
+        Route::get('notary/orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/preview', [PaymentRequestController::class, 'previewProof'])->name('notary.orders.payment-requests.payments.preview');
     });
     Route::middleware('permission:covernotes.approve')->group(function () {
         Route::post('orders/{order}/covernote/approve', [NotaryPortalController::class, 'approveCovernote'])->name('orders.covernote.approve');

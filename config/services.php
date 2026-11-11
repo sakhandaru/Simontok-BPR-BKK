@@ -3,14 +3,25 @@
 return [
 
     'sso' => [
-        'enabled' => (bool) env('SSO_ENABLED', false),
+        'enabled' => (bool) env('SIMONTOK_API_ENABLED', false),
         'local_bypass' => (bool) env('SSO_LOCAL_BYPASS', false),
         'local_password' => env('SSO_LOCAL_PASSWORD'),
-        'url' => env('SSO_URL', 'https://apisso.bkkjateng.co.id'),
-        'app' => env('SSO_APP', 'monbis'),
-        'timeout' => env('SSO_TIMEOUT', 10),
+        'url' => env('SIMONTOK_API_URL'),
+        'app' => env('SIMONTOK_API_APP'),
+        'app_token' => env('SIMONTOK_API_APP_TOKEN'),
+        'timeout' => env('SIMONTOK_API_TIMEOUT', 10),
+        'verify_ssl' => (bool) filter_var(env('SIMONTOK_API_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
         'emergency_login' => env('SSO_EMERGENCY_LOGIN'),
         'emergency_alert_email' => env('SSO_EMERGENCY_ALERT_EMAIL'),
+    ],
+
+    'simontok_api' => [
+        'url' => env('SIMONTOK_API_URL'),
+        'app' => env('SIMONTOK_API_APP'),
+        'app_token' => env('SIMONTOK_API_APP_TOKEN'),
+        'timeout' => (int) env('SIMONTOK_API_TIMEOUT', 10),
+        'verify_ssl' => (bool) filter_var(env('SIMONTOK_API_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
+        'token_session_key' => 'simontok_api.jwt',
     ],
 
     /*

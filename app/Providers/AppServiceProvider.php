@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Contracts\CoreAccountProvider;
 use App\Models\User;
 use App\Services\Core\DummyCoreAccountProvider;
+use App\Services\Core\RemoteCoreAccountProvider;
 use App\Services\Core\StagedCoreAccountProvider;
 use App\Support\Audit;
 use App\Support\EmergencyAccessNotifier;
@@ -34,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
 
             return match (config('core.provider')) {
                 'dummy' => new DummyCoreAccountProvider,
+                'remote' => new RemoteCoreAccountProvider,
                 default => throw new \RuntimeException('Provider BU Core belum tersedia: '.config('core.provider')),
             };
         });
@@ -76,6 +78,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Event::listen(Logout::class, function (Logout $event): void {
+            session()->forget(config('services.simontok_api.token_session_key'));
             Audit::security(request(), 'logout', 'Pengguna keluar.', $event->user);
         });
 

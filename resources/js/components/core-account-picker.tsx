@@ -14,7 +14,7 @@ export type CoreAccount = {
     branch: { code: string; name: string };
     collaterals: { collateral_id: string; type_name: string; description: string | null }[];
 };
-type Candidate = Omit<CoreAccount, 'collaterals'> & { collateral_count: number };
+type Candidate = Omit<CoreAccount, 'collaterals'> & { collateral_count?: number };
 
 export function CoreAccountPicker({ selected, initialQuery = '', disabled = false, canReplace = true, isDummy, error, onSelect }: {
     selected: { customer_name: string; account_number: string } | null;
@@ -45,7 +45,7 @@ export function CoreAccountPicker({ selected, initialQuery = '', disabled = fals
         setActive(-1);
         setSearched(false);
         setMessage('');
-        if (!editing || value.length < 2) {
+        if (!editing || value.length < 3) {
             setLoading(false);
             return;
         }
@@ -98,7 +98,7 @@ export function CoreAccountPicker({ selected, initialQuery = '', disabled = fals
     return <div className="border-b p-4">
         <Label htmlFor={id}>Cari nasabah atau rekening</Label>
         <p id={`${id}-hint`} className="mt-1 text-sm text-muted-foreground">
-            Ketik minimal 2 karakter, lalu pilih rekening yang sesuai. {isDummy && 'Data simulasi UAT.'}
+            Ketik minimal 3 karakter, lalu pilih rekening yang sesuai. {isDummy && 'Data simulasi UAT.'}
         </p>
         {!editing && selected ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
             <div className="min-w-0 text-sm"><span className="font-medium">{selected.customer_name}</span><span className="ml-2 break-all text-muted-foreground">{selected.account_number}</span></div>
@@ -130,7 +130,7 @@ export function CoreAccountPicker({ selected, initialQuery = '', disabled = fals
                     disabled={disabled || choosing} onClick={() => void choose(result)}
                     className={`block min-h-12 w-full border-b p-3 text-left text-sm last:border-b-0 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 ${active === index ? 'bg-muted' : ''}`}>
                     <span className="font-medium">{result.customer_name}</span><span className="ml-2 break-all">{result.account_number}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">{result.branch.code} - {result.branch.name} · {result.collateral_count} agunan</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{result.branch.code} - {result.branch.name}{typeof result.collateral_count === 'number' ? ` · ${result.collateral_count} agunan` : ''}</span>
                 </button>)}
             </div>}
             {selected && <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setEditing(false)} disabled={choosing}>Batal ganti rekening</Button>}

@@ -3,11 +3,12 @@
 namespace App\Services\Core;
 
 use App\Contracts\CoreAccountProvider;
+use App\Models\Branch;
 use App\Models\CoreDummyAccount;
 
 class DummyCoreAccountProvider implements CoreAccountProvider
 {
-    public function search(string $query, ?string $branchCode = null): array
+    public function search(string $query, ?string $branchCode = null, int $limit = 20): array
     {
         $needle = mb_strtolower(trim($query));
 
@@ -23,7 +24,7 @@ class DummyCoreAccountProvider implements CoreAccountProvider
                 ->orWhere('account_number', 'like', "%{$needle}%"))
             ->orderBy('customer_name')
             ->orderBy('account_number')
-            ->limit(20)
+            ->limit($limit)
             ->get()
             ->map(fn (CoreDummyAccount $account) => [
                 'account_id' => $account->account_id,
@@ -62,5 +63,18 @@ class DummyCoreAccountProvider implements CoreAccountProvider
                 'description' => $collateral->description,
             ])->all(),
         ] : null;
+    }
+
+    public function collaterals(string $accountId, ?string $branchCode = null): array
+    {
+        return $this->find($accountId, $branchCode)['collaterals'] ?? [];
+    }
+
+    public function branches(bool $active = true): array
+    {
+        return Branch::query()
+            ->when($active, fn ($query) => $query->where('is_active', true))
+            ->orderBy('code')->get(['code', 'name', 'is_active'])
+            ->map(fn ($branch) => $branch->toArray())->all();
     }
 }
