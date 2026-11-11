@@ -1,9 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-    <title id="title">SIMONTOK</title>
-    <rect width="64" height="64" rx="10" fill="#111111" />
-    <g transform="translate(6 5) scale(1.3)" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 3.5h17l7 7v28H8v-35Z" stroke="#F5F5F5" stroke-width="2.4" />
-        <path d="M25 3.5v8h7M13 18h14M13 23h14M13 28h8" stroke="#F5F5F5" stroke-width="2.4" />
-        <path d="m23 28 3.2 3.2L33 24.5" stroke="#60A5FA" stroke-width="2.8" />
-    </g>
+    <title id="title">nora</title>
+    <defs>
+        <linearGradient id="folder-blue" x1="10" y1="22" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#0D31C9" />
+            <stop offset="0.72" stop-color="#155BEE" />
+            <stop offset="1" stop-color="#49B8F4" />
+        </linearGradient>
+        <linearGradient id="folder-yellow" x1="14" y1="11" x2="46" y2="27" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFF51C" />
+            <stop offset="1" stop-color="#F7A91B" />
+        </linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="13" fill="#F7F9FD" />
+    <path d="M9 24c0-4.4 3.6-8 8-8h11.5l6.2 5.8H48c4.4 0 8 3.6 8 8v15c0 5-4 9-9 9H18c-5 0-9-4-9-9V24Z" fill="url(#folder-yellow)" />
+    <path d="M7 29c0-4.4 3.6-8 8-8h34c4.4 0 8 3.6 8 8v19c0 5-4 9-9 9H16c-5 0-9-4-9-9V29Z" fill="url(#folder-blue)" />
+    <path d="M10 29c2-3 5.5-4.5 10-4.5h30c3.3 0 6.3 1.1 8.3 3" fill="none" stroke="#8BD8FF" stroke-width="1.2" stroke-linecap="round" opacity=".8" />
 </svg>

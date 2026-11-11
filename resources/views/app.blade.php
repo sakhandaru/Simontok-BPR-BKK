@@ -30,7 +30,7 @@
             }
         </style>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
+        <link rel="icon" href="/icons/icon-192.png" type="image/png" sizes="192x192">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <meta name="application-name" content="SIMONTOK">
         <meta name="mobile-web-app-capable" content="yes">
