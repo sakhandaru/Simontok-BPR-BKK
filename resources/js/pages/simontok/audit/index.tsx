@@ -79,7 +79,7 @@ export default function AuditIndex({
 
                 <div className="hidden md:block"><SimTable raw>
                         <table className="sim-table w-full min-w-[1040px] text-sm">
-                            <thead className="bg-muted/50 text-left text-muted-foreground">
+                            <thead className="sticky top-14 z-10 bg-background text-left text-muted-foreground shadow-[0_1px_0_var(--border)]">
                                 <tr>
                                     <th className="px-4 py-3 font-medium">Waktu</th>
                                     <th className="px-4 py-3 font-medium">Pelaku</th>
