@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ClearSimontokNotaries extends Command
 {
@@ -57,12 +58,21 @@ class ClearSimontokNotaries extends Command
                 ->where('email', '!=', $keepUser)
                 ->eachById(fn (User $user): bool => (bool) $user->delete());
             User::query()->whereIn('notary_id', $ids)->where('email', $keepUser)->update(['notary_id' => null]);
-            DB::table('branch_notary')->whereIn('notary_id', $ids)->delete();
-            DB::table('notary_agreement_versions')->whereIn('notary_id', $ids)->delete();
-            DocumentArchive::query()
-                ->where('documentable_type', Notary::class)
-                ->whereIn('documentable_id', $ids)
-                ->delete();
+
+            if (Schema::hasTable('branch_notary')) {
+                DB::table('branch_notary')->whereIn('notary_id', $ids)->delete();
+            }
+
+            if (Schema::hasTable('notary_agreement_versions')) {
+                DB::table('notary_agreement_versions')->whereIn('notary_id', $ids)->delete();
+            }
+
+            if (Schema::hasTable('document_archives')) {
+                DocumentArchive::query()
+                    ->where('documentable_type', Notary::class)
+                    ->whereIn('documentable_id', $ids)
+                    ->delete();
+            }
 
             $notaries->each(fn (Notary $notary): bool => (bool) $notary->forceDelete());
         });
