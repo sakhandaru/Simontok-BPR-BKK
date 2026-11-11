@@ -18,8 +18,12 @@ class ProductionUsersAndOrdersResetSeeder extends Seeder
 
     public function run(): void
     {
-        if (! app()->environment('production')) {
-            throw new RuntimeException('Seeder ini hanya boleh dijalankan pada APP_ENV=production.');
+        $isProtectedUat = app()->environment('staging')
+            && config('uat.enabled')
+            && config('uat.emergency_only');
+
+        if (! app()->environment('production') && ! $isProtectedUat) {
+            throw new RuntimeException('Seeder ini hanya boleh dijalankan pada production atau staging UAT emergency-only.');
         }
 
         if (env('PRODUCTION_RESET_CONFIRM') !== self::CONFIRMATION) {

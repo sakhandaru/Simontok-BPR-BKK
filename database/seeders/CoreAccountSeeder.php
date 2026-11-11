@@ -2,13 +2,21 @@
 
 namespace Database\Seeders;
 
+use App\Models\Branch;
 use App\Models\CoreDummyAccount;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class CoreAccountSeeder extends Seeder
 {
     public function run(): void
     {
+        if (config('core.provider') !== 'dummy') {
+            $this->command?->warn('Seeder nasabah dummy dilewati karena CORE_PROVIDER bukan dummy.');
+
+            return;
+        }
+
         $accounts = [
             [
                 'account_id' => 'DUMMY-ACCOUNT-001', 'account_number' => '001234567890',
@@ -103,13 +111,98 @@ class CoreAccountSeeder extends Seeder
             ],
         ];
 
-        foreach ($accounts as $data) {
-            $collaterals = $data['collaterals'];
-            unset($data['collaterals']);
+        $branchNames = [
+            '001' => 'KC. Kantor Pusat Operasional',
+            '002' => 'KC. Kudus',
+            '003' => 'KC. Demak',
+            '004' => 'KC. Jepara',
+            '005' => 'KC. Pati',
+            '006' => 'KC. Rembang',
+            '007' => 'KC. Semarang',
+            '008' => 'KC. Grobogan',
+            '009' => 'KC. Blora',
+            '010' => 'KC. Purwodadi',
+        ];
 
-            $account = CoreDummyAccount::updateOrCreate(['account_id' => $data['account_id']], $data);
-            $account->collaterals()->delete();
-            $account->collaterals()->createMany($collaterals);
+        DB::transaction(function () use ($accounts, $branchNames): void {
+            $branches = collect($branchNames)->map(fn (string $name, string $code) => Branch::withTrashed()->firstOrCreate(
+                ['code' => $code],
+                ['name' => $name, 'is_active' => true],
+            ));
+
+            foreach ($branches as $branch) {
+                $accounts = array_merge($accounts, $this->additionalAccounts($branch));
+            }
+
+            foreach ($accounts as $data) {
+                $collaterals = $data['collaterals'];
+                unset($data['collaterals']);
+                $data['branch_name'] = $branches->get($data['branch_code'])->name;
+
+                $account = CoreDummyAccount::updateOrCreate(['account_id' => $data['account_id']], $data);
+                foreach ($collaterals as $collateral) {
+                    $account->collaterals()->updateOrCreate(['collateral_id' => $collateral['collateral_id']], $collateral);
+                }
+                $account->collaterals()->whereNotIn('collateral_id', array_column($collaterals, 'collateral_id'))->delete();
+            }
+        });
+
+        $this->command?->info('Nasabah dummy siap: 200 rekening tambahan (20 per cabang 001–010) dan 10 rekening contoh lama.');
+    }
+
+    private function additionalAccounts(Branch $branch): array
+    {
+        $scenarios = [
+            ['Budi Santoso', 'married', 150_000_000, ['Sertifikat Hak Milik']],
+            ['Budi Santoso', 'married', 275_000_000, ['BPKB Kendaraan', 'Sertifikat Hak Milik']],
+            ['Siti Rahmawati', 'married', 75_000_000, []],
+            ['Andi Pratama', 'single', 125_000_000, ['Sertifikat Hak Milik']],
+            ['Dewi Lestari', 'married', 210_000_000, ['BPKB Kendaraan', 'Sertifikat Hak Milik']],
+            ['Rizky Maulana', 'single', 90_000_000, ['Deposito']],
+            ['Maya Kusuma', 'married', 350_000_000, ['Sertifikat Hak Milik', 'Tanah dan Bangunan']],
+            ['Fajar Hidayat', 'single', 60_000_000, ['BPKB Kendaraan']],
+            ['Nadia Permata', 'married', 185_000_000, ['Sertifikat Hak Milik']],
+            ['Bagus Setiawan', 'single', 420_000_000, ['Tanah dan Bangunan']],
+            ['Agus Wibowo', 'married', 500_000_000, ['Sertifikat Hak Milik', 'BPKB Kendaraan', 'Deposito']],
+            ['Rina Kartika', 'single', 25_000_000, []],
+            ['Hendra Saputra', null, 135_000_000, ['BPKB Kendaraan']],
+            ['Fitri Handayani', 'married', 300_000_000, ['Sertifikat Hak Milik', 'Deposito']],
+            ['Joko Susilo', 'single', 800_000_000, ['Tanah dan Bangunan', 'BPKB Kendaraan', 'Deposito']],
+            ['Nur Azizah', 'married', 1_000_000_000, ['Tanah dan Bangunan']],
+            ['Slamet Riyadi', null, 45_000_000, []],
+            ['Endang Setyowati', 'married', 650_000_000, ['Sertifikat Hak Milik', 'Sertifikat Hak Milik']],
+            ['Arif Rahman', 'single', 2_000_000_000, ['Tanah dan Bangunan', 'Sertifikat Hak Milik', 'BPKB Kendaraan']],
+            ['Budi Santoso', 'single', 95_000_000, ['BPKB Kendaraan']],
+        ];
+
+        $accounts = [];
+        foreach ($scenarios as $index => [$name, $maritalStatus, $plafon, $collateralTypes]) {
+            $sequence = $index + 1;
+            $suffix = sprintf('%03d', $sequence);
+            $customerSuffix = $sequence === 2 ? '001' : $suffix;
+            $collaterals = [];
+            foreach ($collateralTypes as $collateralIndex => $type) {
+                $collateralId = sprintf('UAT-AGUNAN-%s-%s-%02d', $branch->code, $suffix, $collateralIndex + 1);
+                $collaterals[] = [
+                    'collateral_id' => $collateralId,
+                    'type_name' => $type,
+                    'description' => "SIMULASI UAT — {$type} / {$name} / {$branch->name} / {$collateralId}",
+                ];
+            }
+
+            $accounts[] = [
+                'account_id' => "UAT-ACCOUNT-{$branch->code}-{$suffix}",
+                'account_number' => sprintf('%s990%06d', $branch->code, $sequence),
+                'customer_id' => "UAT-CUSTOMER-{$branch->code}-{$customerSuffix}",
+                'customer_name' => $name,
+                'marital_status' => $maritalStatus,
+                'plafon' => $plafon,
+                'branch_code' => $branch->code,
+                'branch_name' => $branch->name,
+                'collaterals' => $collaterals,
+            ];
         }
+
+        return $accounts;
     }
 }
