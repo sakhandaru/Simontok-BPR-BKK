@@ -536,10 +536,9 @@ export default function OrdersShow({
                 preserveState: true,
                 onSuccess: () => setDocumentEditor(null),
                 onError: (errors) => {
-                    const message = Object.values(errors as Record<string, string | string[]>)
-                        .flat()
-                        .filter(Boolean)
-                        .join(' ');
+                    const message = Array.from(new Set(
+                        Object.values(errors as Record<string, string | string[]>).flat().filter(Boolean),
+                    )).join(' ');
                     setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
                 },
                 onFinish: () => {
@@ -568,7 +567,9 @@ export default function OrdersShow({
         }
 
         allowNavigation.current = true;
-        router.put(`/orders/${order.id}`, buildDraftPayload(), {
+        const draftPayload = buildDraftPayload();
+        draftPayload.append('_method', 'PUT');
+        router.post(`/orders/${order.id}`, draftPayload, {
             forceFormData: true,
             preserveScroll: true,
             preserveState: true,
@@ -586,10 +587,9 @@ export default function OrdersShow({
                 uploadDocument(savedCollateral.id);
             },
             onError: (errors) => {
-                const message = Object.values(errors as Record<string, string | string[]>)
-                    .flat()
-                    .filter(Boolean)
-                    .join(' ');
+                const message = Array.from(new Set(
+                    Object.values(errors as Record<string, string | string[]>).flat().filter(Boolean),
+                )).join(' ');
                 allowNavigation.current = false;
                 setDocumentUploadError(message || 'Agunan gagal disimpan. Coba lagi.');
                 setDocumentUploadProcessing(false);
