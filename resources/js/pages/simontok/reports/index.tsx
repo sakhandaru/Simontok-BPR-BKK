@@ -27,6 +27,7 @@ type PaginatedRows<T> = { data: T[]; links: SimPaginationLink[] };
 
 export default function ReportsIndex({
     filters,
+    branchLocked,
     branches,
     notaries,
     summary,
@@ -40,6 +41,7 @@ export default function ReportsIndex({
     monthlyTrend,
     stalledOrders,
 }: {
+    branchLocked: boolean;
     filters: {
         branch_id: string;
         notary_id: string;
@@ -180,7 +182,12 @@ export default function ReportsIndex({
                     <div className="grid gap-3 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-[1.25fr_1.25fr_0.8fr_0.8fr_auto] xl:items-end">
                         <ReportField label="Cabang">
                             <SimSelect
-                                value={data.branch_id}
+                                value={
+                                    branchLocked
+                                        ? filters.branch_id
+                                        : data.branch_id
+                                }
+                                disabled={branchLocked}
                                 onChange={(value) =>
                                     setData('branch_id', value)
                                 }
@@ -188,7 +195,9 @@ export default function ReportsIndex({
                                     value: String(branch.id),
                                     label: `${branch.code} - ${branch.name}`,
                                 }))}
-                                placeholder="Semua cabang"
+                                placeholder={
+                                    branchLocked ? 'Cabang akun' : 'Semua cabang'
+                                }
                             />
                         </ReportField>
                         <ReportField label="Notaris">

@@ -22,6 +22,11 @@ class ReportController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $branchScopeId = $user->branchScopeId();
+        if ($branchScopeId !== null) {
+            $request->merge(['branch_id' => $branchScopeId]);
+        }
+
         $filters = $request->validate([
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
@@ -32,8 +37,8 @@ class ReportController extends Controller
         $orders = Order::query()->submitted()->visibleTo($request->user())
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))
-            ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date));
+            ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '<=', $date));
 
         $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
         $totalOrders = (clone $orders)->count();
@@ -48,14 +53,15 @@ class ReportController extends Controller
             ->count();
 
         return Inertia::render('simontok/reports/index', [
+            'branchLocked' => $branchScopeId !== null,
             'filters' => [
                 'branch_id' => (string) ($filters['branch_id'] ?? ''),
                 'notary_id' => (string) ($filters['notary_id'] ?? ''),
                 'date_from' => $filters['date_from'] ?? '',
                 'date_to' => $filters['date_to'] ?? '',
             ],
-            'branches' => Branch::when($user->branchScopeId(), fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
-            'notaries' => Notary::when($user->branchScopeId(), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
+            'branches' => Branch::when($branchScopeId, fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
+            'notaries' => Notary::when($branchScopeId, fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
             'summary' => [
                 'total_orders' => $totalOrders,
                 'active_orders' => $activeOrders,
@@ -195,7 +201,7 @@ class ReportController extends Controller
             ->visibleTo($user)
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))
-            ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('created_at', '<=', $date));
+            ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '<=', $date));
     }
 }
