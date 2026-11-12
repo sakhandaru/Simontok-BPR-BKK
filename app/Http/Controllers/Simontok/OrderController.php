@@ -960,10 +960,8 @@ class OrderController extends Controller
             data_get($order->core_snapshot, 'customer.marital_status')
             ?? data_get($order->core_snapshot, 'customer_marital_status')
         )));
-        $knownSingle = ['single', 'unmarried', 'belum_menikah', 'belum menikah'];
         $spouseRequired = $name === 'ktp pasangan'
-            && (in_array($maritalStatus, ['married', 'kawin', 'menikah'], true)
-                || (filled($order->core_account_id) && ! in_array($maritalStatus, $knownSingle, true)));
+            && in_array($maritalStatus, ['married', 'kawin', 'menikah'], true);
 
         return $documentChecklist?->is_active !== false
             && ($documentChecklist?->is_required !== false || $spouseRequired);

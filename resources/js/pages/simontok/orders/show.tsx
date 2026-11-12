@@ -56,6 +56,7 @@ import { orderJourneyStages } from '@/lib/sim-journey';
 type Option = { value: string; label: string };
 type DocumentEditor = {
     collateralIndex: number;
+    documentId?: number;
     checklistMasterId?: number;
     jobTypeId?: number | null;
     displayName: string;
@@ -263,13 +264,6 @@ export default function OrdersShow({
                     payload.append(`collaterals[${collateralIndex}][jobs][${jobIndex}][${key}]`, value == null ? '' : String(value));
                 });
             });
-        });
-        pendingDocuments.forEach((document, index) => {
-            payload.append(`draft_documents[${index}][collateral_index]`, String(document.collateralIndex));
-            if (document.checklistMasterId) payload.append(`draft_documents[${index}][checklist_master_id]`, String(document.checklistMasterId));
-            if (document.jobTypeId) payload.append(`draft_documents[${index}][job_type_id]`, String(document.jobTypeId));
-            payload.append(`draft_documents[${index}][display_name]`, document.displayName);
-            payload.append(`draft_documents[${index}][file]`, document.file);
         });
         setSubmitProcessing(true);
         allowNavigation.current = true;
@@ -507,15 +501,34 @@ export default function OrdersShow({
                 !documentEditor.displayName.trim())
         )
             return;
-        setPendingDocuments((documents) => [
-            ...documents.filter((item) => !(
-                item.collateralIndex === documentEditor.collateralIndex &&
-                item.checklistMasterId === documentEditor.checklistMasterId &&
-                item.jobTypeId === documentEditor.jobTypeId
-            )),
-            { ...documentEditor, file: documentEditor.file as File },
-        ]);
-        setDocumentEditor(null);
+
+        const collateralId = draft.data.collaterals[documentEditor.collateralIndex]?.id;
+        if (!collateralId) return;
+
+        const payload = new FormData();
+        payload.append('order_collateral_id', String(collateralId));
+        payload.append('documents[0][file]', documentEditor.file);
+        payload.append('documents[0][display_name]', documentEditor.displayName);
+        if (documentEditor.kind === 'agunan' && documentEditor.checklistMasterId) {
+            payload.append('documents[0][checklist_id]', String(documentEditor.checklistMasterId));
+        }
+
+        const url = documentEditor.documentId
+            ? `/orders/${order.id}/documents/${documentEditor.documentId}`
+            : `/orders/${order.id}/documents/batch`;
+        if (documentEditor.documentId) {
+            payload.delete('order_collateral_id');
+            payload.delete('documents[0][checklist_id]');
+            payload.append('file', documentEditor.file);
+        }
+
+        const submit = documentEditor.documentId ? router.patch : router.post;
+        submit(url, payload, {
+            forceFormData: true,
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => setDocumentEditor(null),
+        });
     };
 
     const removePendingDocument = (document: PendingDocument) => {
@@ -1641,7 +1654,7 @@ export default function OrdersShow({
                             <div>
                                 <h2 className="font-medium">Dokumen pendukung</h2>
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    Dokumen awal dan pendukung pada order ini.
+                                    Dokumen yang tersedia pada order ini.
                                     Dokumen final direview dari progres Selesai.
                                 </p>
                             </div>
@@ -1873,8 +1886,8 @@ export default function OrdersShow({
                                     : 'Input dokumen agunan'}
                             </DialogTitle>
                             <DialogDescription>
-                                Masukkan satu file. File akan disimpan bersama
-                                order saat diajukan untuk approval.
+                                Masukkan satu file. File langsung disimpan sebagai
+                                draft dan masih bisa diganti sebelum diajukan ke Kabid Ops.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4">
@@ -1931,7 +1944,7 @@ export default function OrdersShow({
                                 }
                             >
                                 <Save className="size-4" />
-                                Tambahkan ke pengajuan
+                                Simpan ke draft
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -2410,6 +2423,20 @@ function DraftOrderForm({
               ),
           ]
         : [])];
+    const activeSupportingDocuments = [
+        ...pendingDocumentsFor(collateralModal?.index ?? -1)
+            .filter((document) => document.kind === 'pendukung')
+            .map((document) => ({
+                id: `pending-supporting-${document.collateralIndex}-${document.displayName}`,
+                display_name: document.displayName || document.file.name,
+                original_name: document.file.name,
+                pending: true,
+                source: document,
+            })),
+        ...(activeSourceCollateral?.documents ?? [])
+            .filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya')
+            .map((document: any) => ({ ...document, pending: false })),
+    ];
     const activeChecklistItems = activeSourceCollateral?.checklists?.length
         ? activeSourceCollateral.checklists.filter((item: any) => item.document_checklist?.is_active !== false)
         : documentChecklists.flatMap((checklist) => checklist.job_type_id
@@ -2837,7 +2864,6 @@ function DraftOrderForm({
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <div className="font-medium">Dokumen awal</div>
-                                    <p className="text-sm text-muted-foreground">Pilih dokumen yang akan diunggah untuk agunan ini.</p>
                                 </div>
                                 <Button
                                     type="button"
@@ -2847,7 +2873,7 @@ function DraftOrderForm({
                                         openDocumentEditor({ collateralIndex: collateralModal?.index ?? 0, displayName: '', file: null, kind: 'pendukung' });
                                     }}
                                 >
-                                    <FilePlus2 className="size-4" />Dokumen pendukung
+                                    <FilePlus2 className="size-4" />Tambah dokumen pendukung
                                 </Button>
                             </div>
                             <div className="grid gap-5">
@@ -2885,7 +2911,12 @@ function DraftOrderForm({
                                                         {item.order_document ? (
                                                             <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
                                                                 <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
-                                                                <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
+                                                                <div className="flex shrink-0 gap-2">
+                                                                    <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
+                                                                    <Button type="button" variant="outline" size="sm" onClick={() => openDocumentEditor({ collateralIndex: collateralModal?.index ?? 0, documentId: item.order_document.id, displayName: item.order_document.display_name ?? '', file: null, kind: 'agunan' })}>
+                                                                        Ganti
+                                                                    </Button>
+                                                                </div>
                                                             </div>
                                                         ) : pending ? (
                                                             <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
@@ -2900,7 +2931,7 @@ function DraftOrderForm({
                                                                 className="w-fit"
                                                                 onClick={() => openChecklistEditor(
                                                                     collateralModal?.index ?? 0,
-                                                                    Number(item.document_checklist?.id),
+                                                                                        Number(item.id),
                                                                     item.document_checklist?.job_type_id ?? null,
                                                                 )}
                                                             >
@@ -2914,21 +2945,35 @@ function DraftOrderForm({
                                     </section>
                                 ))}
                             </div>
-                            {(activeSourceCollateral?.documents ?? []).filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya').length > 0 && (
-                                <div className="border-t pt-4">
-                                    <div className="font-medium">Dokumen pendukung yang sudah diunggah</div>
+                            <div className="border-t pt-4">
+                                <div className="font-medium">Dokumen pendukung</div>
+                                <p className="mt-1 text-xs text-muted-foreground">Opsional. Tidak menghalangi pengajuan jika belum tersedia.</p>
+                                {activeSupportingDocuments.length > 0 ? (
                                     <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                                        {(activeSourceCollateral?.documents ?? []).filter((document: any) => (document.document_type?.value ?? document.document_type) === 'lainnya').map((document: any) => (
+                                        {activeSupportingDocuments.map((document: any) => (
                                             <li key={document.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border p-2">
-                                                <span className="min-w-0 flex-1 truncate">{document.display_name || document.original_name}</span>
-                                                <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}>
-                                                    <Eye className="size-4" />Lihat
-                                                </Button>
+                                                <span className="min-w-0 flex-1 truncate text-muted-foreground">{document.display_name || document.original_name}</span>
+                                                {document.pending ? (
+                                                    <Button type="button" variant="outline" size="sm" onClick={() => removePendingDocument(document.source)}>
+                                                        Hapus
+                                                    </Button>
+                                                ) : (
+                                                    <div className="flex shrink-0 gap-2">
+                                                        <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}>
+                                                            <Eye className="size-4" />Lihat
+                                                        </Button>
+                                                        <Button type="button" variant="outline" size="sm" onClick={() => openDocumentEditor({ collateralIndex: collateralModal?.index ?? 0, documentId: document.id, displayName: document.display_name || '', file: null, kind: 'pendukung' })}>
+                                                            Ganti
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </li>
                                         ))}
                                     </ul>
-                                </div>
-                            )}
+                                ) : (
+                                    <p className="mt-2 text-sm text-muted-foreground">Belum ada dokumen pendukung.</p>
+                                )}
+                            </div>
                         </div>
                     )}
                 </DialogContent>
@@ -3709,11 +3754,7 @@ function isRequiredChecklist(order: any, checklist: any): boolean {
             '',
     ).toLowerCase().trim();
     const name = String(checklist.document_checklist?.name ?? '').toLowerCase().trim();
-    const knownSingle = ['single', 'unmarried', 'belum_menikah', 'belum menikah'];
-    const spouseRequired = name === 'ktp pasangan' && (
-        ['married', 'kawin', 'menikah'].includes(status) ||
-        (Boolean(order.core_account_id) && !knownSingle.includes(status))
-    );
+    const spouseRequired = name === 'ktp pasangan' && ['married', 'kawin', 'menikah'].includes(status);
 
     return checklist.document_checklist?.is_active !== false && (
         checklist.document_checklist?.is_required !== false ||

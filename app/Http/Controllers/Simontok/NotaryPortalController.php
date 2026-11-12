@@ -136,8 +136,8 @@ class NotaryPortalController extends Controller
             ->latest('version')
             ->first();
         $initialDocumentsComplete = $order->collaterals->isNotEmpty()
-            && $order->collaterals->every(fn ($collateral) => $collateral->checklists->filter(fn ($checklist) => $checklist->documentChecklist?->is_active !== false && $checklist->documentChecklist?->is_required !== false)->isNotEmpty()
-                && $collateral->checklists->filter(fn ($checklist) => $checklist->documentChecklist?->is_active !== false && $checklist->documentChecklist?->is_required !== false)->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id));
+            && $order->collaterals->every(fn ($collateral) => $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->isNotEmpty()
+                && $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id));
         $covernoteApprovedStage = in_array($order->status, [
             TrackAStatus::CovernoteDisetujui,
             TrackAStatus::DokumenValid,
@@ -393,8 +393,8 @@ class NotaryPortalController extends Controller
         $order->loadMissing('collaterals.checklists.documentChecklist');
         abort_unless(
             $order->collaterals->isNotEmpty()
-                && $order->collaterals->every(fn ($collateral) => $collateral->checklists->filter(fn ($checklist) => $checklist->documentChecklist?->is_active !== false && $checklist->documentChecklist?->is_required !== false)->isNotEmpty()
-                    && $collateral->checklists->filter(fn ($checklist) => $checklist->documentChecklist?->is_active !== false && $checklist->documentChecklist?->is_required !== false)->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id)),
+                && $order->collaterals->every(fn ($collateral) => $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->isNotEmpty()
+                    && $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id)),
             422,
             'Dokumen checklist belum lengkap. Periksa dokumen atau minta perbaikan terlebih dahulu.',
         );
@@ -657,10 +657,17 @@ class NotaryPortalController extends Controller
             'final_documents.*' => ['file', 'mimes:pdf', 'max:10240'],
         ]);
 
-        $collateral = $order->collaterals()->with('jobType.steps')->findOrFail($data['order_collateral_id']);
-        $job = $collateral->jobs()->with('jobType.steps')->findOrFail($data['order_collateral_job_id']);
-        $steps = $job->jobType->steps->where('is_active', true)->sortBy('sort_order')->values();
-        $stepNames = $steps->pluck($steps->first() instanceof OrderStepFee ? 'step_name' : 'name')->all();
+        $collateral = $order->collaterals()->findOrFail($data['order_collateral_id']);
+        $job = $collateral->jobs()->findOrFail($data['order_collateral_job_id']);
+        $stepNames = $order->stepFees()
+            ->where('order_collateral_id', $collateral->id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->pluck('step_name')
+            ->filter()
+            ->values()
+            ->all();
+        abort_unless($stepNames !== [], 422, 'Langkah pekerjaan belum diisi oleh notaris.');
         abort_unless(in_array($data['status'], $stepNames, true), 422, 'Langkah progres tidak tersedia untuk order ini.');
         $completedNames = $job->progress()
             ->whereNotNull('completed_at')
@@ -670,7 +677,7 @@ class NotaryPortalController extends Controller
             ->values()
             ->all();
         $selectedIndex = array_search($data['status'], $stepNames, true);
-        abort_unless($selectedIndex !== false, 422, 'Langkah progres tidak tersedia untuk jenis pekerjaan ini.');
+        abort_unless($selectedIndex !== false, 422, 'Langkah progres tidak tersedia untuk order ini.');
         $isFinalStep = $selectedIndex === count($stepNames) - 1;
         $completedCount = count($completedNames);
         $isNextStep = $selectedIndex === $completedCount;
@@ -792,6 +799,21 @@ class NotaryPortalController extends Controller
         return in_array($request->user()?->roleCode(), ['notaris', 'it_admin'], true);
     }
 
+    private function isRequiredInitialChecklist(Order $order, $checklist): bool
+    {
+        $documentChecklist = $checklist->documentChecklist;
+        $name = strtolower(trim((string) $documentChecklist?->name));
+        $maritalStatus = strtolower(trim((string) (
+            data_get($order->core_snapshot, 'customer.marital_status')
+            ?? data_get($order->core_snapshot, 'customer_marital_status')
+        )));
+        $spouseRequired = $name === 'ktp pasangan'
+            && in_array($maritalStatus, ['married', 'kawin', 'menikah'], true);
+
+        return $documentChecklist?->is_active !== false
+            && ($documentChecklist?->is_required !== false || $spouseRequired);
+    }
+
     private function recordStatus(Request $request, Order $order, string $track, ?string $from, string $to, string $reason, ?OrderCollateral $collateral = null): void
     {
         $order->statusHistories()->create([
@@ -826,17 +848,28 @@ class NotaryPortalController extends Controller
 
     private function allProgressComplete(Order $order): bool
     {
-        return $order->collaterals->every(function ($collateral) {
-            $jobs = $collateral->jobs;
-            if ($jobs->isEmpty()) {
+        $order->loadMissing('stepFees');
+
+        return $order->collaterals->every(function ($collateral) use ($order) {
+            $stepNames = $order->stepFees
+                ->where('order_collateral_id', $collateral->id)
+                ->sortBy(fn (OrderStepFee $fee) => [$fee->sort_order, $fee->id])
+                ->pluck('step_name')
+                ->filter()
+                ->values();
+            if ($stepNames->isEmpty() || $collateral->jobs->isEmpty()) {
                 return false;
             }
 
-            return $jobs->every(function ($job) {
-                $required = $job->jobType?->steps->where('is_active', true)->count() ?? 0;
-                $completed = $job->progress->whereNotNull('completed_at')->pluck('status')->unique()->count();
+            return $collateral->jobs->every(function ($job) use ($stepNames) {
+                $completed = $job->progress
+                    ->whereNotNull('completed_at')
+                    ->pluck('status')
+                    ->filter(fn (string $status): bool => $stepNames->contains($status))
+                    ->unique()
+                    ->count();
 
-                return $required > 0 && $completed >= $required;
+                return $completed >= $stepNames->count();
             });
         });
     }

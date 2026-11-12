@@ -63,11 +63,21 @@ export default function NotaryOrdersShow({
     const [finalDocumentsPreview, setFinalDocumentsPreview] = useState<any[] | null>(null);
     const [paymentProofPreview, setPaymentProofPreview] = useState<any | null>(null);
     const progressOptions = useMemo(() => Object.fromEntries(
-        order.collaterals.flatMap((collateral: any) => (collateral.jobs ?? []).map((job: any) => [
-            job.id,
-            job.job_type?.steps?.map((step: any) => step.name) ?? [],
-        ])),
-    ), [order.collaterals]);
+        order.collaterals.flatMap((collateral: any) => {
+            const savedSteps = stepFees
+                .filter((fee: any) => Number(fee.order_collateral_id) === Number(collateral.id))
+                .sort((left: any, right: any) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0))
+                .map((fee: any) => fee.step_name)
+                .filter(Boolean);
+            const fallbackSteps = collateral.jobs?.[0]?.job_type?.steps
+                ?.filter((step: any) => step.is_active !== false)
+                ?.sort((left: any, right: any) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0))
+                ?.map((step: any) => step.name) ?? [];
+            const steps = savedSteps.length > 0 ? savedSteps : fallbackSteps;
+
+            return (collateral.jobs ?? []).map((job: any) => [job.id, steps]);
+        }),
+    ), [order.collaterals, stepFees]);
 
     const revision = useForm({ order_collateral_id: '', alasan: '' });
     const reject = useForm({ reason: '' });
