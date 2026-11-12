@@ -139,3 +139,11 @@ php artisan core:sync-staging --ttl=1440
 ```
 
 Opsi `--ttl` menentukan masa berlaku pada command saat ini; mengubah `CORE_STAGING_TTL_MINUTES` saja belum mengubah default command tersebut. Sinkronisasi berikutnya akan memperbarui masa berlaku lagi sesuai opsi yang dipakai.
+
+
+---
+php artisan config:cache && php artisan queue:restart && php artisan simontok:sync-branches
+
+git pull && php artisan migrate --force && php artisan config:clear && php artisan optimize && npm run build
+
+php artisan simontok:clear-orders && php artisan simontok:clear-users --except=sakhandaru && php artisan simontok:clear-notaries --force

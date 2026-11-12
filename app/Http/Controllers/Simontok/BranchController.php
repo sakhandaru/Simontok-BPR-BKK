@@ -21,7 +21,12 @@ class BranchController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', 'in:active,inactive'],
+            'sort' => ['nullable', 'in:code,name,is_active'],
+            'direction' => ['nullable', 'in:asc,desc'],
         ]);
+
+        $sort = $filters['sort'] ?? 'name';
+        $direction = $filters['direction'] ?? 'asc';
 
         return Inertia::render('simontok/masters/branches', [
             'branches' => Branch::query()
@@ -29,7 +34,9 @@ class BranchController extends Controller
                 ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")->orWhere('address', 'like', "%{$search}%")))
                 ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
                 ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('is_active', false))
-                ->latest()->paginate(10)->withQueryString()->through(fn (Branch $branch) => [
+                ->orderBy($sort, $direction)
+                ->orderBy('id')
+                ->paginate(10)->withQueryString()->through(fn (Branch $branch) => [
                 ...$branch->only(['id', 'code', 'name', 'address', 'latitude', 'longitude', 'is_active']),
                 'users' => $branch->users->map(fn (User $user) => [
                     'id' => $user->id,
@@ -44,6 +51,8 @@ class BranchController extends Controller
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'status' => $filters['status'] ?? '',
+                'sort' => $sort,
+                'direction' => $direction,
             ],
             'positions' => JobPosition::with('role:id,code,name')
                 ->whereHas('role', fn ($query) => $query->whereIn('code', ['pimpinan_cabang', 'kabid_ops_cabang', 'admin_legal_cabang']))
