@@ -168,6 +168,8 @@ export default function OrdersShow({
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
     const canViewInitialDocuments = canManageOrder || canApproveOrder;
     const [pendingDocuments, setPendingDocuments] = useState<PendingDocument[]>([]);
+    const [documentUploadError, setDocumentUploadError] = useState<string | null>(null);
+    const [documentUploadProcessing, setDocumentUploadProcessing] = useState(false);
     const [submitProcessing, setSubmitProcessing] = useState(false);
     const [leaveDraftVisit, setLeaveDraftVisit] = useState<any | null>(null);
     const allowNavigation = useRef(false);
@@ -502,8 +504,16 @@ export default function OrdersShow({
         )
             return;
 
-        const collateralId = draft.data.collaterals[documentEditor.collateralIndex]?.id;
-        if (!collateralId) return;
+        const draftCollateral = draft.data.collaterals[documentEditor.collateralIndex];
+        const sourceCollateral = (order.collaterals ?? []).find(
+            (collateral: any) => String(collateral.agunan_id ?? '') === String(draftCollateral?.agunan_id ?? ''),
+        ) ?? order.collaterals?.[documentEditor.collateralIndex];
+        const collateralId = draftCollateral?.id || sourceCollateral?.id;
+        if (!collateralId) {
+            setDocumentUploadError('Agunan belum tersimpan. Simpan perubahan agunan terlebih dahulu.');
+            return;
+        }
+        setDocumentUploadError(null);
 
         const payload = new FormData();
         payload.append('order_collateral_id', String(collateralId));
@@ -523,11 +533,20 @@ export default function OrdersShow({
         }
 
         const submit = documentEditor.documentId ? router.patch : router.post;
+        setDocumentUploadProcessing(true);
         submit(url, payload, {
             forceFormData: true,
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => setDocumentEditor(null),
+            onError: (errors) => {
+                const message = Object.values(errors as Record<string, string | string[]>)
+                    .flat()
+                    .filter(Boolean)
+                    .join(' ');
+                setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
+            },
+            onFinish: () => setDocumentUploadProcessing(false),
         });
     };
 
@@ -1876,7 +1895,12 @@ export default function OrdersShow({
 
                 <Dialog
                     open={Boolean(documentEditor)}
-                    onOpenChange={(open) => !open && setDocumentEditor(null)}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setDocumentEditor(null);
+                            setDocumentUploadError(null);
+                        }
+                    }}
                 >
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
@@ -1889,6 +1913,11 @@ export default function OrdersShow({
                                 Masukkan satu file. File langsung disimpan sebagai
                                 draft dan masih bisa diganti sebelum diajukan ke Kabid Ops.
                             </DialogDescription>
+                        {documentUploadError && (
+                            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                                {documentUploadError}
+                            </div>
+                        )}
                         </DialogHeader>
                         <div className="grid gap-4">
                             {documentEditor?.kind === 'pendukung' && (
@@ -1938,13 +1967,14 @@ export default function OrdersShow({
                                 type="button"
                                 onClick={saveDocumentEditor}
                                 disabled={
+                                    documentUploadProcessing ||
                                     !documentEditor?.file ||
                                     (documentEditor?.kind === 'pendukung' &&
                                         !documentEditor.displayName.trim())
                                 }
                             >
                                 <Save className="size-4" />
-                                Simpan ke draft
+                                {documentUploadProcessing ? 'Menyimpan…' : 'Simpan ke draft'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
