@@ -1949,18 +1949,28 @@ export default function OrdersShow({
                                     (step) => Number(step.order_collateral_id) === Number(item.order_collateral_id),
                                 );
                                 const finalStepName = collateralSteps.at(-1)?.step_name;
-                                const isFinalProgress = finalStepName
-                                    ? item.status === finalStepName
-                                    : item.status === 'Selesai';
-                                const finalDocuments = isFinalProgress
-                                    ? order.documents.filter(
-                                          (document: any) =>
-                                              document.document_type === 'final' &&
-                                              Number(document.order_collateral_id) === Number(item.order_collateral_id) &&
-                                              (!document.order_collateral_job_id ||
-                                                  Number(document.order_collateral_job_id) === Number(item.order_collateral_job_id)),
-                                      )
-                                    : [];
+                                const relatedFinalDocuments = order.documents.filter(
+                                    (document: any) =>
+                                        (document.document_type?.value ?? document.document_type) === 'final' &&
+                                        Number(document.order_collateral_id) === Number(item.order_collateral_id) &&
+                                        (!document.order_collateral_job_id ||
+                                            !item.order_collateral_job_id ||
+                                            Number(document.order_collateral_job_id) === Number(item.order_collateral_job_id)),
+                                );
+                                const normalizedStatus = String(item.status ?? '').trim().toLowerCase();
+                                const normalizedFinalStep = String(finalStepName ?? 'Selesai').trim().toLowerCase();
+                                const isFinalProgress = normalizedStatus === normalizedFinalStep;
+                                const relatedProgress = order.progress.filter(
+                                    (progress: any) =>
+                                        Number(progress.order_collateral_id) === Number(item.order_collateral_id) &&
+                                        (!progress.order_collateral_job_id ||
+                                            !item.order_collateral_job_id ||
+                                            Number(progress.order_collateral_job_id) === Number(item.order_collateral_job_id)),
+                                );
+                                const latestProgressId = Math.max(...relatedProgress.map((progress: any) => Number(progress.id)));
+                                const finalDocuments = isFinalProgress || (
+                                    relatedFinalDocuments.length > 0 && Number(item.id) === latestProgressId
+                                ) ? relatedFinalDocuments : [];
                                 const allFinalDocumentsValidated =
                                     finalDocuments.length > 0 &&
                                     finalDocuments.every(
