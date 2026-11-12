@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class RemoteCoreAccountProvider implements CoreAccountProvider
@@ -128,6 +129,11 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
         }
 
         if ($response->failed()) {
+            Log::warning('SIMONTOK API request failed.', [
+                'path' => $path,
+                'status' => $response->status(),
+            ]);
+
             throw new HttpException(502, 'API SIMONTOK mengembalikan respons yang tidak berhasil.');
         }
 
