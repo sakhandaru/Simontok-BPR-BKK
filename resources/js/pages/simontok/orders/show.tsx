@@ -1945,16 +1945,22 @@ export default function OrdersShow({
                         </div>
                         <div className="divide-y">
                             {order.progress.map((item: any) => {
-                                const finalDocuments =
-                                    item.status === 'Selesai'
-                                        ? order.documents.filter(
-                                              (document: any) =>
-                                                  document.document_type ===
-                                                      'final' &&
-                                                  document.order_collateral_id ===
-                                                      item.order_collateral_id,
-                                          )
-                                        : [];
+                                const collateralSteps = stepFees.filter(
+                                    (step) => Number(step.order_collateral_id) === Number(item.order_collateral_id),
+                                );
+                                const finalStepName = collateralSteps.at(-1)?.step_name;
+                                const isFinalProgress = finalStepName
+                                    ? item.status === finalStepName
+                                    : item.status === 'Selesai';
+                                const finalDocuments = isFinalProgress
+                                    ? order.documents.filter(
+                                          (document: any) =>
+                                              document.document_type === 'final' &&
+                                              Number(document.order_collateral_id) === Number(item.order_collateral_id) &&
+                                              (!document.order_collateral_job_id ||
+                                                  Number(document.order_collateral_job_id) === Number(item.order_collateral_job_id)),
+                                      )
+                                    : [];
                                 const allFinalDocumentsValidated =
                                     finalDocuments.length > 0 &&
                                     finalDocuments.every(
