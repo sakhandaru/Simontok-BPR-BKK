@@ -132,6 +132,9 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
             Log::warning('SIMONTOK API request failed.', [
                 'path' => $path,
                 'status' => $response->status(),
+                'query_keys' => array_keys($query),
+                'branch_code' => $query['branch_code'] ?? null,
+                'message' => $response->json('message'),
             ]);
 
             throw new HttpException(502, 'API SIMONTOK mengembalikan respons yang tidak berhasil.');
