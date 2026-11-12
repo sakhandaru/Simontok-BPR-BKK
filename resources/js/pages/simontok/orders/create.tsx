@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 type Option = { id: number; code?: string; name: string };
 type CollateralForm = { job_type_id: string; agunan_id: string; nama_agunan: string; deskripsi_agunan: string; deskripsi_pekerjaan: string; sla_days: string; sla_override_reason: string };
 type OrderForm = { core_account_id: string; branch_id: string; notary_id: string; customer_name: string; no_rekening: string; tgl_masuk_notaris: string; tgl_realisasi: string; plafon: string; nominal: string; skema_pembayaran: string; keterangan: string; collaterals: CollateralForm[] };
-type CoreAccountResult = { account_id: string; account_number: string; customer_id: string; customer_name: string; credit: { loan_amount: number | string | null; realization_date?: string | null }; branch: { code: string; name: string }; collateral_count?: number };
+type CoreAccountResult = { account_id: string; account_number: string; customer_id: string; customer_name: string; marital_status?: string | null; collateral_count?: number; plafond?: number | string | null; credit: { loan_amount: number | string | null; realization_date?: string | null }; branch: { code: string; name: string } };
 type CoreAccount = CoreAccountResult & { collaterals: { collateral_id: string; type_name: string; description: string }[] };
 
 const emptyCollateral = (): CollateralForm => ({ job_type_id: '', agunan_id: '', nama_agunan: '', deskripsi_agunan: '', deskripsi_pekerjaan: '', sla_days: '', sla_override_reason: '' });
@@ -56,7 +56,7 @@ export default function OrdersCreate({ branches, notaries, jobTypes, collateralT
     const selectCoreAccount = async (result: CoreAccountResult) => {
         setCoreLoading(true);
         try {
-            const response = await fetch(`/core/accounts/${encodeURIComponent(result.account_id)}`, { headers: { Accept: 'application/json' } });
+            const response = await fetch(`/core/accounts/${encodeURIComponent(result.account_id)}?account_number=${encodeURIComponent(result.account_number)}`, { headers: { Accept: 'application/json' } });
             if (!response.ok) throw new Error('Detail rekening gagal dimuat.');
             const payload = await response.json() as { data: CoreAccount };
             const account = payload.data;

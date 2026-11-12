@@ -817,6 +817,7 @@ class OrderController extends Controller
     {
         $selection = $request->validate([
             'core_account_id' => ['nullable', 'string', 'max:100'],
+            'no_rekening' => ['nullable', 'string', 'max:30'],
             'collaterals' => ['nullable', 'array'],
             'collaterals.*' => ['array'],
             'collaterals.*.id' => ['nullable', 'integer'],
@@ -827,7 +828,7 @@ class OrderController extends Controller
             throw ValidationException::withMessages(['core_account_id' => 'Rekening yang sudah dipilih tidak dapat dihapus. Pilih rekening pengganti jika draft belum berisi pekerjaan.']);
         }
         $core = filled($accountId)
-            ? $this->coreSnapshot->prepare($accountId, $request->input('collaterals') ?? [], $request->user(), $order)
+            ? $this->coreSnapshot->prepare($accountId, $request->input('collaterals') ?? [], $request->user(), $order, $selection['no_rekening'] ?? $order?->no_rekening)
             : [];
         if ($core !== []) {
             $request->merge(collect($core)->only(['core_account_id', 'branch_id', 'customer_name', 'no_rekening', 'plafon', 'collaterals'])->all());

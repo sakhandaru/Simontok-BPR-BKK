@@ -12,7 +12,7 @@ class CoreOrderSnapshot
 {
     public function __construct(private readonly CoreAccountProvider $provider) {}
 
-    public function prepare(string $accountId, array $submitted, User $user, ?Order $order = null): array
+    public function prepare(string $accountId, array $submitted, User $user, ?Order $order = null, ?string $accountNumber = null): array
     {
         $sameAccount = $order?->core_account_id === $accountId;
         if (! $sameAccount && $order && ($order->collaterals()->exists() || $order->documents()->exists())) {
@@ -30,7 +30,7 @@ class CoreOrderSnapshot
         // A saved order keeps its original snapshot even when the source changes.
         $account = $sameAccount && $order->core_snapshot
             ? $order->core_snapshot
-            : $this->provider->find($accountId, $branchCode);
+            : $this->provider->find($accountId, $branchCode, $accountNumber);
         if ($account === null) {
             throw ValidationException::withMessages(['core_account_id' => 'Rekening tidak ditemukan atau berada di luar cabang Anda.']);
         }

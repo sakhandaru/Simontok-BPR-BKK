@@ -28,7 +28,8 @@ class CoreAccountController extends Controller
 
     public function show(Request $request, string $accountId): JsonResponse
     {
-        $account = $this->provider->find($accountId, $this->branchCode($request));
+        $data = $request->validate(['account_number' => ['nullable', 'string', 'min:3', 'max:30']]);
+        $account = $this->provider->find($accountId, $this->branchCode($request), $data['account_number'] ?? null);
 
         abort_unless($account !== null, 404, 'Rekening tidak ditemukan.');
 
@@ -40,8 +41,10 @@ class CoreAccountController extends Controller
 
     public function collaterals(Request $request, string $accountId): JsonResponse
     {
+        $data = $request->validate(['account_number' => ['nullable', 'string', 'min:3', 'max:30']]);
+
         return response()->json([
-            'data' => $this->provider->collaterals($accountId, $this->branchCode($request)),
+            'data' => $this->provider->collaterals($accountId, $this->branchCode($request), $data['account_number'] ?? null),
             'provider' => config('core.provider'),
         ]);
     }

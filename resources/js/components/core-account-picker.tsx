@@ -79,7 +79,7 @@ export function CoreAccountPicker({ selected, initialQuery = '', disabled = fals
         setChoosing(true);
         setMessage('');
         try {
-            const response = await fetch(`/core/accounts/${encodeURIComponent(candidate.account_id)}`, {
+            const response = await fetch(`/core/accounts/${encodeURIComponent(candidate.account_id)}?account_number=${encodeURIComponent(candidate.account_number)}`, {
                 signal: controller.signal,
                 headers: { Accept: 'application/json' },
             });

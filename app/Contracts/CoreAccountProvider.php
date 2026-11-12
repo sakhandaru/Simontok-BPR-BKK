@@ -12,12 +12,12 @@ interface CoreAccountProvider
     /**
      * @return array<string, mixed>|null
      */
-    public function find(string $accountId, ?string $branchCode = null): ?array;
+    public function find(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): ?array;
 
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function collaterals(string $accountId, ?string $branchCode = null): array;
+    public function collaterals(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): array;
 
     /**
      * @return array<int, array<string, mixed>>

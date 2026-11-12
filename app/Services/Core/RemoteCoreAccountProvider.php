@@ -25,23 +25,59 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
             'limit' => min(max($limit, 1), 100),
         ], static fn ($value): bool => $value !== null && $value !== ''));
 
-        return $this->dataList($response);
+        return array_map(fn (array $account): array => $this->normalizeAccount($account), $this->dataList($response));
     }
 
-    public function find(string $accountId, ?string $branchCode = null): ?array
+    public function find(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): ?array
     {
         $account = $this->dataObject($this->get('/api/v1/simontok/credit-accounts/'.rawurlencode($accountId)));
 
-        if ($account === null || ($branchCode !== null && data_get($account, 'branch.code') !== $branchCode)) {
+        if ($account === null) {
+            return null;
+        }
+
+        if (($account['account_id'] ?? null) !== $accountId) {
+            throw new HttpException(502, 'Identitas rekening dari API tidak sesuai permintaan.');
+        }
+
+        if ($accountNumber !== null
+            && filled($account['account_number'] ?? null)
+            && trim((string) $account['account_number']) !== trim($accountNumber)) {
+            throw new HttpException(502, 'Nomor rekening dari API tidak sesuai hasil pencarian.');
+        }
+
+        if (! $this->hasIdentity($account)) {
+            if ($accountNumber === null || trim($accountNumber) === '') {
+                throw new HttpException(422, 'Cari dan pilih rekening kembali untuk memuat identitas nasabah.');
+            }
+
+            $accountNumber = trim($accountNumber);
+            $summary = collect($this->search($accountNumber, $branchCode, 100))
+                ->first(fn (array $candidate): bool => ($candidate['account_id'] ?? null) === $accountId
+                    && ($candidate['account_number'] ?? null) === $accountNumber);
+
+            if ($summary === null) {
+                return null;
+            }
+
+            $account = [...$summary, ...$account];
+        }
+
+        if (! $this->hasIdentity($account)) {
+            throw new HttpException(502, 'Identitas nasabah dari API belum lengkap.');
+        }
+
+        if (($branchCode !== null && data_get($account, 'branch.code') !== $branchCode)
+            || ($account['selectable'] ?? true) === false) {
             return null;
         }
 
         return $this->normalizeAccount($account);
     }
 
-    public function collaterals(string $accountId, ?string $branchCode = null): array
+    public function collaterals(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): array
     {
-        $account = $this->find($accountId, $branchCode);
+        $account = $this->find($accountId, $branchCode, $accountNumber);
         if ($account === null) {
             return [];
         }
@@ -121,11 +157,20 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
     }
 
     /** @param array<string, mixed> $account */
+    private function hasIdentity(array $account): bool
+    {
+        return filled($account['account_number'] ?? null)
+            && filled(data_get($account, 'customer.customer_id', $account['customer_id'] ?? null))
+            && filled(data_get($account, 'customer.name', $account['customer_name'] ?? null))
+            && filled(data_get($account, 'branch.code'));
+    }
+
+    /** @param array<string, mixed> $account */
     private function normalizeAccount(array $account): array
     {
         $customerId = data_get($account, 'customer.customer_id', $account['customer_id'] ?? null);
         $customerName = data_get($account, 'customer.name', $account['customer_name'] ?? null);
-        $maritalStatus = data_get($account, 'customer.marital_status');
+        $maritalStatus = $account['marital_status'] ?? data_get($account, 'customer.marital_status');
 
         return [
             ...$account,
@@ -137,6 +182,11 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
                 'customer_id' => $customerId,
                 'name' => $customerName,
                 'marital_status' => $maritalStatus,
+            ],
+            'credit' => [
+                ...((array) ($account['credit'] ?? [])),
+                'loan_amount' => $account['plafond'] ?? data_get($account, 'credit.loan_amount'),
+                'realization_date' => data_get($account, 'credit.realization_date'),
             ],
             'collaterals' => collect($account['collaterals'] ?? [])
                 ->filter(fn ($collateral): bool => is_array($collateral))

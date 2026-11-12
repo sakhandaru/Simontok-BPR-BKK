@@ -40,7 +40,7 @@ class DummyCoreAccountProvider implements CoreAccountProvider
             ->all();
     }
 
-    public function find(string $accountId, ?string $branchCode = null): ?array
+    public function find(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): ?array
     {
         $account = CoreDummyAccount::query()
             ->with(['collaterals' => fn ($query) => $query->orderBy('collateral_id')])
@@ -65,7 +65,7 @@ class DummyCoreAccountProvider implements CoreAccountProvider
         ] : null;
     }
 
-    public function collaterals(string $accountId, ?string $branchCode = null): array
+    public function collaterals(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): array
     {
         return $this->find($accountId, $branchCode)['collaterals'] ?? [];
     }

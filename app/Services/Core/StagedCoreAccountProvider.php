@@ -24,7 +24,7 @@ class StagedCoreAccountProvider implements CoreAccountProvider
             ->map(fn (CoreStagedAccount $account) => $this->summary($account))->all();
     }
 
-    public function find(string $accountId, ?string $branchCode = null): ?array
+    public function find(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): ?array
     {
         $account = CoreStagedAccount::query()->with('collaterals')
             ->where(fn ($builder) => $builder->whereNull('expires_at')->orWhere('expires_at', '>', now()))
@@ -64,7 +64,7 @@ class StagedCoreAccountProvider implements CoreAccountProvider
         ];
     }
 
-    public function collaterals(string $accountId, ?string $branchCode = null): array
+    public function collaterals(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): array
     {
         return $this->find($accountId, $branchCode)['collaterals'] ?? [];
     }
