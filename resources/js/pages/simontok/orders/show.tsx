@@ -542,7 +542,10 @@ export default function OrdersShow({
                         .join(' ');
                     setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
                 },
-                onFinish: () => setDocumentUploadProcessing(false),
+                onFinish: () => {
+                    allowNavigation.current = false;
+                    setDocumentUploadProcessing(false);
+                },
             });
         };
 
@@ -554,14 +557,17 @@ export default function OrdersShow({
         setDocumentUploadProcessing(true);
 
         if (documentEditor.documentId) {
+            allowNavigation.current = true;
             uploadDocument(collateralId ?? '');
             return;
         }
         if (collateralId) {
+            allowNavigation.current = true;
             uploadDocument(collateralId);
             return;
         }
 
+        allowNavigation.current = true;
         router.put(`/orders/${order.id}`, buildDraftPayload(), {
             forceFormData: true,
             preserveScroll: true,
@@ -572,6 +578,7 @@ export default function OrdersShow({
                     (collateral: any) => String(collateral.agunan_id ?? '') === String(draftCollateral?.agunan_id ?? ''),
                 ) ?? savedCollaterals[documentEditor.collateralIndex];
                 if (!savedCollateral?.id) {
+                    allowNavigation.current = false;
                     setDocumentUploadError('Agunan gagal disimpan. Dokumen belum diunggah.');
                     setDocumentUploadProcessing(false);
                     return;
@@ -583,6 +590,7 @@ export default function OrdersShow({
                     .flat()
                     .filter(Boolean)
                     .join(' ');
+                allowNavigation.current = false;
                 setDocumentUploadError(message || 'Agunan gagal disimpan. Coba lagi.');
                 setDocumentUploadProcessing(false);
             },
