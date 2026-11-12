@@ -23,7 +23,7 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
         $response = $this->get('/api/v1/simontok/credit-accounts', array_filter([
             'query' => $query,
             'branch_code' => $branchCode,
-            'limit' => min(max($limit, 1), 100),
+            'limit' => min(max($limit, 1), 50),
         ], static fn ($value): bool => $value !== null && $value !== ''));
 
         return array_map(fn (array $account): array => $this->normalizeAccount($account), $this->dataList($response));
