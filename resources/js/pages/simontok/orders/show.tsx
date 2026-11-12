@@ -249,8 +249,7 @@ export default function OrdersShow({
         });
     };
 
-    const submitOrderApproval = () => {
-        if (submitProcessing) return;
+    const buildDraftPayload = () => {
         const payload = new FormData();
         Object.entries(draft.data).forEach(([key, value]) => {
             if (key === 'collaterals') return;
@@ -267,6 +266,12 @@ export default function OrdersShow({
                 });
             });
         });
+        return payload;
+    };
+
+    const submitOrderApproval = () => {
+        if (submitProcessing) return;
+        const payload = buildDraftPayload();
         setSubmitProcessing(true);
         allowNavigation.current = true;
         draft.clearErrors();
@@ -504,49 +509,83 @@ export default function OrdersShow({
         )
             return;
 
+        setDocumentUploadError(null);
+
+        const uploadDocument = (collateralId: string | number) => {
+            const payload = new FormData();
+            payload.append('order_collateral_id', String(collateralId));
+            payload.append('documents[0][file]', documentEditor.file as File);
+            payload.append('documents[0][display_name]', documentEditor.displayName);
+            if (documentEditor.kind === 'agunan' && documentEditor.checklistMasterId) {
+                payload.append('documents[0][checklist_id]', String(documentEditor.checklistMasterId));
+            }
+
+            const url = documentEditor.documentId
+                ? `/orders/${order.id}/documents/${documentEditor.documentId}`
+                : `/orders/${order.id}/documents/batch`;
+            if (documentEditor.documentId) {
+                payload.delete('order_collateral_id');
+                payload.delete('documents[0][checklist_id]');
+                payload.append('file', documentEditor.file as File);
+            }
+
+            const submit = documentEditor.documentId ? router.patch : router.post;
+            submit(url, payload, {
+                forceFormData: true,
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => setDocumentEditor(null),
+                onError: (errors) => {
+                    const message = Object.values(errors as Record<string, string | string[]>)
+                        .flat()
+                        .filter(Boolean)
+                        .join(' ');
+                    setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
+                },
+                onFinish: () => setDocumentUploadProcessing(false),
+            });
+        };
+
         const draftCollateral = draft.data.collaterals[documentEditor.collateralIndex];
         const sourceCollateral = (order.collaterals ?? []).find(
             (collateral: any) => String(collateral.agunan_id ?? '') === String(draftCollateral?.agunan_id ?? ''),
         ) ?? order.collaterals?.[documentEditor.collateralIndex];
         const collateralId = draftCollateral?.id || sourceCollateral?.id;
-        if (!collateralId) {
-            setDocumentUploadError('Agunan belum tersimpan. Simpan perubahan agunan terlebih dahulu.');
+        setDocumentUploadProcessing(true);
+
+        if (documentEditor.documentId) {
+            uploadDocument(collateralId ?? '');
             return;
         }
-        setDocumentUploadError(null);
-
-        const payload = new FormData();
-        payload.append('order_collateral_id', String(collateralId));
-        payload.append('documents[0][file]', documentEditor.file);
-        payload.append('documents[0][display_name]', documentEditor.displayName);
-        if (documentEditor.kind === 'agunan' && documentEditor.checklistMasterId) {
-            payload.append('documents[0][checklist_id]', String(documentEditor.checklistMasterId));
+        if (collateralId) {
+            uploadDocument(collateralId);
+            return;
         }
 
-        const url = documentEditor.documentId
-            ? `/orders/${order.id}/documents/${documentEditor.documentId}`
-            : `/orders/${order.id}/documents/batch`;
-        if (documentEditor.documentId) {
-            payload.delete('order_collateral_id');
-            payload.delete('documents[0][checklist_id]');
-            payload.append('file', documentEditor.file);
-        }
-
-        const submit = documentEditor.documentId ? router.patch : router.post;
-        setDocumentUploadProcessing(true);
-        submit(url, payload, {
+        router.put(`/orders/${order.id}`, buildDraftPayload(), {
             forceFormData: true,
             preserveScroll: true,
             preserveState: true,
-            onSuccess: () => setDocumentEditor(null),
+            onSuccess: (page) => {
+                const savedCollaterals = (page as any).props?.order?.collaterals ?? [];
+                const savedCollateral = savedCollaterals.find(
+                    (collateral: any) => String(collateral.agunan_id ?? '') === String(draftCollateral?.agunan_id ?? ''),
+                ) ?? savedCollaterals[documentEditor.collateralIndex];
+                if (!savedCollateral?.id) {
+                    setDocumentUploadError('Agunan gagal disimpan. Dokumen belum diunggah.');
+                    setDocumentUploadProcessing(false);
+                    return;
+                }
+                uploadDocument(savedCollateral.id);
+            },
             onError: (errors) => {
                 const message = Object.values(errors as Record<string, string | string[]>)
                     .flat()
                     .filter(Boolean)
                     .join(' ');
-                setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
+                setDocumentUploadError(message || 'Agunan gagal disimpan. Coba lagi.');
+                setDocumentUploadProcessing(false);
             },
-            onFinish: () => setDocumentUploadProcessing(false),
         });
     };
 
