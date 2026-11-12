@@ -569,6 +569,8 @@ export default function OrdersShow({
         allowNavigation.current = true;
         const draftPayload = buildDraftPayload();
         draftPayload.append('_method', 'PUT');
+        let savedCollateralId: string | number | null = null;
+        let draftSaveFailed = false;
         router.post(`/orders/${order.id}`, draftPayload, {
             forceFormData: true,
             preserveScroll: true,
@@ -579,20 +581,27 @@ export default function OrdersShow({
                     (collateral: any) => String(collateral.agunan_id ?? '') === String(draftCollateral?.agunan_id ?? ''),
                 ) ?? savedCollaterals[documentEditor.collateralIndex];
                 if (!savedCollateral?.id) {
+                    draftSaveFailed = true;
                     allowNavigation.current = false;
                     setDocumentUploadError('Agunan gagal disimpan. Dokumen belum diunggah.');
                     setDocumentUploadProcessing(false);
                     return;
                 }
-                uploadDocument(savedCollateral.id);
+                savedCollateralId = savedCollateral.id;
             },
             onError: (errors) => {
+                draftSaveFailed = true;
                 const message = Array.from(new Set(
                     Object.values(errors as Record<string, string | string[]>).flat().filter(Boolean),
                 )).join(' ');
                 allowNavigation.current = false;
                 setDocumentUploadError(message || 'Agunan gagal disimpan. Coba lagi.');
                 setDocumentUploadProcessing(false);
+            },
+            onFinish: () => {
+                if (!draftSaveFailed && savedCollateralId) {
+                    uploadDocument(savedCollateralId);
+                }
             },
         });
     };
