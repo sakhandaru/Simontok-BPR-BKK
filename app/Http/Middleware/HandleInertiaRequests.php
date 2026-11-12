@@ -39,10 +39,11 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $role = $user?->role();
         $recentNotifications = $request->user()
             ? InAppNotification::unreadFor($request->user())
             : collect();
-        $permissions = $user?->role()?->permissions()
+        $permissions = $role?->permissions()
             ->pluck('code')
             ->values()
             ->all() ?? [];
@@ -71,7 +72,8 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $user,
-                'role' => $user?->roleCode(),
+                'role' => $role?->code,
+                'role_name' => $role?->name,
                 'permissions' => $permissions,
             ],
             'announcements' => $announcements,

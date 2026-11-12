@@ -244,7 +244,10 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-56" align="end">
                                 {auth.user && (
-                                    <UserMenuContent user={auth.user} />
+                                    <UserMenuContent
+                                        user={auth.user}
+                                        roleName={auth.role_name}
+                                    />
                                 )}
                             </DropdownMenuContent>
                         </DropdownMenu>
