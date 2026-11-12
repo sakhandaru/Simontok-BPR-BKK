@@ -44,6 +44,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('core/branches', [CoreAccountController::class, 'branches'])->middleware('throttle:60,1')->name('core.branches');
         Route::post('collateral-types', [OrderController::class, 'storeCollateralType'])->name('collateral-types.store');
         Route::post('orders/{order}/submit-approval', [OrderController::class, 'submitForApproval'])->name('orders.submit-approval');
+        Route::post('orders/{order}/draft-document', [OrderController::class, 'storeDraftDocument'])->name('orders.draft-document.store');
         Route::patch('orders/{order}/checklists', [OrderController::class, 'updateChecklist'])->name('orders.checklists.update');
         Route::post('orders/{order}/documents', [OrderDocumentController::class, 'store'])->name('orders.documents.store');
         Route::post('orders/{order}/documents/batch', [OrderDocumentController::class, 'storeBatch'])->name('orders.documents.batch');

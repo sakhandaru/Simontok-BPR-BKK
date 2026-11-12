@@ -510,98 +510,39 @@ export default function OrdersShow({
             return;
 
         setDocumentUploadError(null);
-
-        const uploadDocument = (collateralId: string | number) => {
-            const payload = new FormData();
-            payload.append('order_collateral_id', String(collateralId));
-            payload.append('documents[0][file]', documentEditor.file as File);
-            payload.append('documents[0][display_name]', documentEditor.displayName);
-            if (documentEditor.kind === 'agunan' && documentEditor.checklistMasterId) {
-                payload.append('documents[0][checklist_id]', String(documentEditor.checklistMasterId));
-            }
-
-            const url = documentEditor.documentId
-                ? `/orders/${order.id}/documents/${documentEditor.documentId}`
-                : `/orders/${order.id}/documents/batch`;
-            if (documentEditor.documentId) {
-                payload.delete('order_collateral_id');
-                payload.delete('documents[0][checklist_id]');
-                payload.append('file', documentEditor.file as File);
-            }
-
-            const submit = documentEditor.documentId ? router.patch : router.post;
-            submit(url, payload, {
-                forceFormData: true,
-                preserveScroll: true,
-                preserveState: true,
-                onSuccess: () => setDocumentEditor(null),
-                onError: (errors) => {
-                    const message = Array.from(new Set(
-                        Object.values(errors as Record<string, string | string[]>).flat().filter(Boolean),
-                    )).join(' ');
-                    setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
-                },
-                onFinish: () => {
-                    allowNavigation.current = false;
-                    setDocumentUploadProcessing(false);
-                },
-            });
-        };
-
-        const draftCollateral = draft.data.collaterals[documentEditor.collateralIndex];
-        const sourceCollateral = (order.collaterals ?? []).find(
-            (collateral: any) => String(collateral.agunan_id ?? '') === String(draftCollateral?.agunan_id ?? ''),
-        ) ?? order.collaterals?.[documentEditor.collateralIndex];
-        const collateralId = draftCollateral?.id || sourceCollateral?.id;
         setDocumentUploadProcessing(true);
-
-        if (documentEditor.documentId) {
-            allowNavigation.current = true;
-            uploadDocument(collateralId ?? '');
-            return;
-        }
-        if (collateralId) {
-            allowNavigation.current = true;
-            uploadDocument(collateralId);
-            return;
-        }
-
         allowNavigation.current = true;
-        const draftPayload = buildDraftPayload();
-        draftPayload.append('_method', 'PUT');
-        let savedCollateralId: string | number | null = null;
-        let draftSaveFailed = false;
-        router.post(`/orders/${order.id}`, draftPayload, {
+
+        const payload = documentEditor.documentId ? new FormData() : buildDraftPayload();
+        if (documentEditor.documentId) {
+            payload.append('display_name', documentEditor.displayName);
+            payload.append('file', documentEditor.file);
+        } else {
+            payload.append('draft_documents[0][collateral_index]', String(documentEditor.collateralIndex));
+            if (documentEditor.checklistMasterId) payload.append('draft_documents[0][checklist_master_id]', String(documentEditor.checklistMasterId));
+            if (documentEditor.jobTypeId) payload.append('draft_documents[0][job_type_id]', String(documentEditor.jobTypeId));
+            payload.append('draft_documents[0][display_name]', documentEditor.displayName);
+            payload.append('draft_documents[0][file]', documentEditor.file);
+        }
+
+        const url = documentEditor.documentId
+            ? `/orders/${order.id}/documents/${documentEditor.documentId}`
+            : `/orders/${order.id}/draft-document`;
+        const submit = documentEditor.documentId ? router.patch : router.post;
+        submit(url, payload, {
             forceFormData: true,
             preserveScroll: true,
             preserveState: true,
-            onSuccess: (page) => {
-                const savedCollaterals = (page as any).props?.order?.collaterals ?? [];
-                const savedCollateral = savedCollaterals.find(
-                    (collateral: any) => String(collateral.agunan_id ?? '') === String(draftCollateral?.agunan_id ?? ''),
-                ) ?? savedCollaterals[documentEditor.collateralIndex];
-                if (!savedCollateral?.id) {
-                    draftSaveFailed = true;
-                    allowNavigation.current = false;
-                    setDocumentUploadError('Agunan gagal disimpan. Dokumen belum diunggah.');
-                    setDocumentUploadProcessing(false);
-                    return;
-                }
-                savedCollateralId = savedCollateral.id;
-            },
+            onSuccess: () => setDocumentEditor(null),
             onError: (errors) => {
-                draftSaveFailed = true;
                 const message = Array.from(new Set(
                     Object.values(errors as Record<string, string | string[]>).flat().filter(Boolean),
                 )).join(' ');
-                allowNavigation.current = false;
-                setDocumentUploadError(message || 'Agunan gagal disimpan. Coba lagi.');
-                setDocumentUploadProcessing(false);
+                setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
             },
             onFinish: () => {
-                if (!draftSaveFailed && savedCollateralId) {
-                    uploadDocument(savedCollateralId);
-                }
+                allowNavigation.current = false;
+                setDocumentUploadProcessing(false);
             },
         });
     };
@@ -3017,7 +2958,7 @@ function DraftOrderForm({
                                                                 className="w-fit"
                                                                 onClick={() => openChecklistEditor(
                                                                     collateralModal?.index ?? 0,
-                                                                                        Number(item.id),
+                                                                                        Number(item.document_checklist?.id),
                                                                     item.document_checklist?.job_type_id ?? null,
                                                                 )}
                                                             >
