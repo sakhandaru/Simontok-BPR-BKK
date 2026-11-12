@@ -536,36 +536,6 @@ class OrderController extends Controller
         return back()->with('success', 'Order diajukan untuk approval cabang.');
     }
 
-    public function storeDraftDocument(Request $request, Order $order): RedirectResponse
-    {
-        $this->authorizeVisibleOrder($request, $order);
-        abort_unless($this->canEditDraft($order), 403);
-        $uploads = $request->validate([
-            'draft_documents' => ['required', 'array', 'size:1'],
-            'draft_documents.*.collateral_index' => ['required', 'integer', 'min:0'],
-            'draft_documents.*.checklist_master_id' => ['nullable', 'integer', 'exists:document_checklists,id'],
-            'draft_documents.*.job_type_id' => ['nullable', 'integer', 'exists:job_types,id'],
-            'draft_documents.*.display_name' => ['nullable', 'string', 'max:255'],
-            'draft_documents.*.file' => ['required', 'file', 'mimes:pdf', 'max:10240'],
-        ])['draft_documents'];
-        $storedPaths = [];
-
-        try {
-            DB::transaction(function () use ($request, $order, $uploads, &$storedPaths) {
-                $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
-                abort_unless($this->canEditDraft($order), 422, 'Order sudah diajukan. Muat ulang halaman.');
-                $data = $this->validatedDraftData($request, $order);
-                $saved = $this->saveDraftData($request, $order, $data);
-                $this->storeDraftDocuments($request, $order, $uploads, $saved, $storedPaths);
-            });
-        } catch (\Throwable $exception) {
-            Storage::disk('local')->delete($storedPaths);
-            throw $exception;
-        }
-
-        return back()->with('success', 'Dokumen disimpan ke draft order.');
-    }
-
     private function storeDraftDocuments(Request $request, Order $order, array $uploads, array $savedCollaterals, array &$storedPaths): void
     {
         foreach ($uploads as $upload) {

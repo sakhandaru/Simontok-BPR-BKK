@@ -56,7 +56,6 @@ import { orderJourneyStages } from '@/lib/sim-journey';
 type Option = { value: string; label: string };
 type DocumentEditor = {
     collateralIndex: number;
-    documentId?: number;
     checklistMasterId?: number;
     jobTypeId?: number | null;
     displayName: string;
@@ -168,8 +167,6 @@ export default function OrdersShow({
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
     const canViewInitialDocuments = canManageOrder || canApproveOrder;
     const [pendingDocuments, setPendingDocuments] = useState<PendingDocument[]>([]);
-    const [documentUploadError, setDocumentUploadError] = useState<string | null>(null);
-    const [documentUploadProcessing, setDocumentUploadProcessing] = useState(false);
     const [submitProcessing, setSubmitProcessing] = useState(false);
     const [leaveDraftVisit, setLeaveDraftVisit] = useState<any | null>(null);
     const allowNavigation = useRef(false);
@@ -249,7 +246,8 @@ export default function OrdersShow({
         });
     };
 
-    const buildDraftPayload = () => {
+    const submitOrderApproval = () => {
+        if (submitProcessing) return;
         const payload = new FormData();
         Object.entries(draft.data).forEach(([key, value]) => {
             if (key === 'collaterals') return;
@@ -266,12 +264,13 @@ export default function OrdersShow({
                 });
             });
         });
-        return payload;
-    };
-
-    const submitOrderApproval = () => {
-        if (submitProcessing) return;
-        const payload = buildDraftPayload();
+        pendingDocuments.forEach((document, index) => {
+            payload.append(`draft_documents[${index}][collateral_index]`, String(document.collateralIndex));
+            if (document.checklistMasterId) payload.append(`draft_documents[${index}][checklist_master_id]`, String(document.checklistMasterId));
+            if (document.jobTypeId) payload.append(`draft_documents[${index}][job_type_id]`, String(document.jobTypeId));
+            payload.append(`draft_documents[${index}][display_name]`, document.displayName);
+            payload.append(`draft_documents[${index}][file]`, document.file);
+        });
         setSubmitProcessing(true);
         allowNavigation.current = true;
         draft.clearErrors();
@@ -509,42 +508,15 @@ export default function OrdersShow({
         )
             return;
 
-        setDocumentUploadError(null);
-        setDocumentUploadProcessing(true);
-        allowNavigation.current = true;
-
-        const payload = documentEditor.documentId ? new FormData() : buildDraftPayload();
-        if (documentEditor.documentId) {
-            payload.append('display_name', documentEditor.displayName);
-            payload.append('file', documentEditor.file);
-        } else {
-            payload.append('draft_documents[0][collateral_index]', String(documentEditor.collateralIndex));
-            if (documentEditor.checklistMasterId) payload.append('draft_documents[0][checklist_master_id]', String(documentEditor.checklistMasterId));
-            if (documentEditor.jobTypeId) payload.append('draft_documents[0][job_type_id]', String(documentEditor.jobTypeId));
-            payload.append('draft_documents[0][display_name]', documentEditor.displayName);
-            payload.append('draft_documents[0][file]', documentEditor.file);
-        }
-
-        const url = documentEditor.documentId
-            ? `/orders/${order.id}/documents/${documentEditor.documentId}`
-            : `/orders/${order.id}/draft-document`;
-        const submit = documentEditor.documentId ? router.patch : router.post;
-        submit(url, payload, {
-            forceFormData: true,
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => setDocumentEditor(null),
-            onError: (errors) => {
-                const message = Array.from(new Set(
-                    Object.values(errors as Record<string, string | string[]>).flat().filter(Boolean),
-                )).join(' ');
-                setDocumentUploadError(message || 'Dokumen gagal disimpan. Coba lagi.');
-            },
-            onFinish: () => {
-                allowNavigation.current = false;
-                setDocumentUploadProcessing(false);
-            },
-        });
+        setPendingDocuments((documents) => [
+            ...documents.filter((item) => !(
+                item.collateralIndex === documentEditor.collateralIndex &&
+                item.checklistMasterId === documentEditor.checklistMasterId &&
+                item.jobTypeId === documentEditor.jobTypeId
+            )),
+            { ...documentEditor, file: documentEditor.file as File },
+        ]);
+        setDocumentEditor(null);
     };
 
     const removePendingDocument = (document: PendingDocument) => {
@@ -1892,12 +1864,7 @@ export default function OrdersShow({
 
                 <Dialog
                     open={Boolean(documentEditor)}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            setDocumentEditor(null);
-                            setDocumentUploadError(null);
-                        }
-                    }}
+                    onOpenChange={(open) => !open && setDocumentEditor(null)}
                 >
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
@@ -1907,14 +1874,9 @@ export default function OrdersShow({
                                     : 'Input dokumen agunan'}
                             </DialogTitle>
                             <DialogDescription>
-                                Masukkan satu file. File langsung disimpan sebagai
-                                draft dan masih bisa diganti sebelum diajukan ke Kabid Ops.
+                                Masukkan satu file. File akan disimpan bersama
+                                order saat diajukan untuk approval.
                             </DialogDescription>
-                        {documentUploadError && (
-                            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                                {documentUploadError}
-                            </div>
-                        )}
                         </DialogHeader>
                         <div className="grid gap-4">
                             {documentEditor?.kind === 'pendukung' && (
@@ -1964,14 +1926,13 @@ export default function OrdersShow({
                                 type="button"
                                 onClick={saveDocumentEditor}
                                 disabled={
-                                    documentUploadProcessing ||
                                     !documentEditor?.file ||
                                     (documentEditor?.kind === 'pendukung' &&
                                         !documentEditor.displayName.trim())
                                 }
                             >
                                 <Save className="size-4" />
-                                {documentUploadProcessing ? 'Menyimpan…' : 'Simpan ke draft'}
+                                Tambahkan ke pengajuan
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -2938,12 +2899,7 @@ function DraftOrderForm({
                                                         {item.order_document ? (
                                                             <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
                                                                 <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
-                                                                <div className="flex shrink-0 gap-2">
-                                                                    <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
-                                                                    <Button type="button" variant="outline" size="sm" onClick={() => openDocumentEditor({ collateralIndex: collateralModal?.index ?? 0, documentId: item.order_document.id, displayName: item.order_document.display_name ?? '', file: null, kind: 'agunan' })}>
-                                                                        Ganti
-                                                                    </Button>
-                                                                </div>
+                                                                <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
                                                             </div>
                                                         ) : pending ? (
                                                             <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
@@ -2985,14 +2941,9 @@ function DraftOrderForm({
                                                         Hapus
                                                     </Button>
                                                 ) : (
-                                                    <div className="flex shrink-0 gap-2">
-                                                        <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}>
-                                                            <Eye className="size-4" />Lihat
-                                                        </Button>
-                                                        <Button type="button" variant="outline" size="sm" onClick={() => openDocumentEditor({ collateralIndex: collateralModal?.index ?? 0, documentId: document.id, displayName: document.display_name || '', file: null, kind: 'pendukung' })}>
-                                                            Ganti
-                                                        </Button>
-                                                    </div>
+                                                    <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}>
+                                                        <Eye className="size-4" />Lihat
+                                                    </Button>
                                                 )}
                                             </li>
                                         ))}
