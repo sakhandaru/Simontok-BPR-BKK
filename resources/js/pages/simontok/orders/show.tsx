@@ -746,7 +746,11 @@ export default function OrdersShow({
                                     Tutup order
                                 </Button>
                             )}
-                            <Button variant="outline" asChild>
+                            <Button
+                                variant="outline"
+                                asChild
+                                className="border-[var(--brand-yellow-start)] bg-[var(--brand-yellow-middle)] text-[var(--brand-blue)] hover:bg-[var(--brand-yellow-end)] hover:text-[var(--brand-blue)]"
+                            >
                                 <Link href="/orders">
                                     <ArrowLeft className="size-4" />
                                     Kembali
@@ -972,7 +976,7 @@ export default function OrdersShow({
                 <OrderTrackingHero order={order} paymentAccount={paymentAccount} />
 
                 {order.payment_request && (
-                    <details className="sim-panel group">
+                    <details open className="sim-panel group">
                         <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
                             <div>
                                 <h2 className="sim-panel-title">Pembayaran</h2>
@@ -1285,7 +1289,7 @@ export default function OrdersShow({
                     </DialogContent>
                 </Dialog>
 
-                <details className="sim-panel group">
+                <details open className="sim-panel group">
                     <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
                         <div>
                             <div className="sim-panel-title">Agunan</div>
@@ -1423,7 +1427,7 @@ export default function OrdersShow({
                 {order.collaterals.some(
                     (item: any) => item.covernote_file_path,
                 ) && (
-                    <details className="sim-panel group">
+                    <details open className="sim-panel group">
                         <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
                             <div>
                                 <div className="sim-panel-title">
@@ -1512,7 +1516,7 @@ export default function OrdersShow({
                             extension.status === 'menunggu_approval',
                     ),
                 ) && (
-                    <details className="sim-panel group border-warning/40">
+                    <details open className="sim-panel group border-warning/40">
                         <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
                             <div>
                                 <div className="sim-panel-title">
@@ -1642,7 +1646,7 @@ export default function OrdersShow({
                     order.document_requests?.some(
                         (item: any) => item.status === 'diminta',
                     ) && (
-                        <details className="sim-panel group p-4">
+                        <details open className="sim-panel group p-4">
                             <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 px-0 pt-0 [&::-webkit-details-marker]:hidden">
                                 <div>
                                     <div className="sim-panel-title">
@@ -1705,7 +1709,7 @@ export default function OrdersShow({
                     )}
 
                 {orderSentToNotary && (
-                    <details className="sim-panel group">
+                    <details open className="sim-panel group">
                         <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
                             <div>
                                 <h2 className="font-medium">Dokumen pendukung</h2>
@@ -2386,7 +2390,10 @@ function OrderActivityDrawer({
     return (
         <Sheet>
             <SheetTrigger asChild>
-                <Button type="button" variant="outline">
+                <Button
+                    type="button"
+                    className="border-[var(--brand-blue)] bg-[var(--brand-blue)] text-white hover:border-[var(--brand-blue-end)] hover:bg-[var(--brand-blue-end)]"
+                >
                     <Clock3 className="size-4" />
                     Aktivitas order
                     <span className="text-xs text-muted-foreground">({statusHistories.length + progressItems.length})</span>
@@ -2426,14 +2433,14 @@ function OrderActivityDrawer({
                             <div className="flex items-start gap-2">
                                 <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
                                 <div className="min-w-0 flex-1">
-                                    <div className="font-medium">{historyEventLabel(history.to_status)}</div>
+                                    <div className="break-words font-medium">{historyEventLabel(history.to_status)}</div>
                                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                                         {history.from_status && <SimStatusBadge label={statusLabel(history.from_status)} tone={toneForStatus(statusLabel(history.from_status))} />}
                                         {history.from_status && <span className="text-muted-foreground" aria-hidden="true">→</span>}
                                         <SimStatusBadge label={statusLabel(history.to_status)} tone={toneForStatus(statusLabel(history.to_status))} />
                                     </div>
-                                    {history.reason && <p className="mt-1 truncate text-xs text-muted-foreground" title={history.reason}>{history.reason}</p>}
-                                    <p className="mt-1 text-xs text-muted-foreground">Oleh {actorLabel(history.actor_type, history.actor)}</p>
+                                    {history.reason && <p className="mt-1 break-words text-xs text-muted-foreground" title={history.reason}>{history.reason}</p>}
+                                    <p className="mt-1 break-words text-xs text-muted-foreground">Oleh {actorLabel(history.actor_type, history.actor)}</p>
                                 </div>
                             </div>
                             <time className="pl-4 text-xs text-muted-foreground">{formatTimelineDate(history.created_at)}</time>
@@ -2465,9 +2472,9 @@ function OrderActivityDrawer({
                                 <div className="flex items-start gap-2">
                                     <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
                                     <div className="min-w-0 flex-1">
-                                        <div className="font-medium">{progressLabel(item.status)}</div>
-                                        <div className="mt-1 text-xs text-muted-foreground">{item.collateral?.nama_agunan || item.collateral?.job_type?.name || 'Jenis agunan'}</div>
-                                        <div className="mt-1 text-xs text-muted-foreground">Oleh {item.user?.name ?? 'Notaris'}</div>
+                                        <div className="break-words font-medium">{progressLabel(item.status)}</div>
+                                        <div className="mt-1 break-words text-xs text-muted-foreground">{item.collateral?.nama_agunan || item.collateral?.job_type?.name || 'Jenis agunan'}</div>
+                                        <div className="mt-1 break-words text-xs text-muted-foreground">Oleh {item.user?.name ?? 'Notaris'}</div>
                                         {finalDocuments.length > 0 && (
                                             <div className="mt-2 flex flex-wrap items-center gap-2">
                                                 <SimStatusBadge label={allFinalDocumentsValidated ? 'Tervalidasi' : 'Menunggu validasi'} tone={allFinalDocumentsValidated ? 'success' : 'warning'} />
