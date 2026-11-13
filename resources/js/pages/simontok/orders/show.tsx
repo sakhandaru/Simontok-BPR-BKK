@@ -2373,8 +2373,7 @@ function OrderActivityRail({
     const [tab, setTab] = useState<'status' | 'progress'>('status');
     const statusHistories = order.status_histories ?? [];
     const progressItems = order.progress ?? [];
-    const items = tab === 'status' ? statusHistories.slice(0, 5) : progressItems.slice(0, 5);
-    const total = tab === 'status' ? statusHistories.length : progressItems.length;
+    const items = tab === 'status' ? statusHistories : progressItems;
 
     return (
         <aside className="sim-panel min-w-0 overflow-hidden xl:sticky xl:top-4">
@@ -2470,11 +2469,6 @@ function OrderActivityRail({
                     })
                 )}
             </div>
-            {total > items.length && (
-                <div className="border-t px-3 py-2 text-xs text-muted-foreground">
-                    Menampilkan {items.length} dari {total} aktivitas terbaru.
-                </div>
-            )}
         </aside>
     );
 }
