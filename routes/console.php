@@ -11,3 +11,4 @@ Artisan::command('inspire', function () {
 Schedule::command('simontok:refresh-tracking --notify')->dailyAt('07:00');
 Schedule::command('core:sync-staging')->hourly();
 Schedule::command('simontok:sync-branches')->dailyAt('06:00');
+Schedule::command('simontok:cleanup-temporary-documents')->dailyAt('02:30');

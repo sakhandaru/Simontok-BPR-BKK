@@ -21,6 +21,7 @@ use App\Http\Controllers\Simontok\PaymentRequestController;
 use App\Http\Controllers\Simontok\ReportController;
 use App\Http\Controllers\Simontok\RoleController;
 use App\Http\Controllers\Simontok\SystemSettingController;
+use App\Http\Controllers\Simontok\TemporaryOrderDocumentController;
 use App\Http\Controllers\Simontok\UserController;
 use App\Http\Controllers\Simontok\WorkQueueController;
 use Illuminate\Support\Facades\Route;
@@ -44,6 +45,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('core/branches', [CoreAccountController::class, 'branches'])->middleware('throttle:60,1')->name('core.branches');
         Route::post('collateral-types', [OrderController::class, 'storeCollateralType'])->name('collateral-types.store');
         Route::post('orders/{order}/submit-approval', [OrderController::class, 'submitForApproval'])->name('orders.submit-approval');
+        Route::get('orders/{order}/temporary-documents', [TemporaryOrderDocumentController::class, 'index'])->name('orders.temporary-documents.index');
+        Route::post('orders/{order}/temporary-documents', [TemporaryOrderDocumentController::class, 'store'])->name('orders.temporary-documents.store');
+        Route::get('orders/{order}/temporary-documents/{temporaryDocument}/preview', [TemporaryOrderDocumentController::class, 'preview'])->name('orders.temporary-documents.preview');
+        Route::delete('orders/{order}/temporary-documents/{temporaryDocument}', [TemporaryOrderDocumentController::class, 'destroy'])->name('orders.temporary-documents.destroy');
         Route::patch('orders/{order}/checklists', [OrderController::class, 'updateChecklist'])->name('orders.checklists.update');
         Route::post('orders/{order}/documents', [OrderDocumentController::class, 'store'])->name('orders.documents.store');
         Route::post('orders/{order}/documents/batch', [OrderDocumentController::class, 'storeBatch'])->name('orders.documents.batch');

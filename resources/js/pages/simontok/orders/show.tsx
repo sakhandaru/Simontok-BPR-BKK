@@ -52,19 +52,22 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { orderJourneyStages } from '@/lib/sim-journey';
+import { collateralDocumentKey, temporaryDocumentRequest, type TemporaryOrderDocument } from '@/lib/temporary-order-documents';
 
 type Option = { value: string; label: string };
 type DocumentEditor = {
     collateralIndex: number;
+    temporaryId?: string;
     checklistMasterId?: number;
     jobTypeId?: number | null;
     displayName: string;
     file: File | null;
     kind: 'agunan' | 'pendukung';
 };
-type PendingDocument = DocumentEditor & { file: File };
+type PendingDocument = TemporaryOrderDocument;
 type CollateralDraft = {
     id?: string;
+    draft_key?: string;
     agunan_id: string;
     nama_agunan: string;
     deskripsi_agunan: string;
@@ -75,6 +78,7 @@ type CollateralDraft = {
 };
 type CollateralJobDraft = { id?: string; job_type_id: string; deskripsi_pekerjaan: string; sla_days: string; sla_override_reason: string };
 type OrderDraft = {
+    customer_marital_status?: string;
     core_account_id: string;
     branch_id: string;
     notary_id: string;
@@ -121,6 +125,8 @@ export default function OrdersShow({
     slaPolicies,
     coreProvider,
     documentChecklists,
+    temporaryDocuments = [],
+    temporaryDraftContext,
 }: {
     order: any;
     canEdit: boolean;
@@ -153,8 +159,10 @@ export default function OrdersShow({
     slaPolicies: Record<string, { days: number; source: string }>;
     coreProvider: string;
     documentChecklists: { id: number; name: string; job_type_id: number | null; is_required: boolean; is_active: boolean }[];
+    temporaryDocuments?: TemporaryOrderDocument[];
+    temporaryDraftContext?: OrderDraft | null;
 }) {
-    const draft = useForm<OrderDraft>(orderDraftFrom(order));
+    const draft = useForm<OrderDraft>(temporaryDraftContext ?? orderDraftFrom(order));
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
     const revision = useForm({ reason: '' });
@@ -166,13 +174,17 @@ export default function OrdersShow({
     const [progressDocumentPreview, setProgressDocumentPreview] = useState<any | null>(null);
     const orderSentToNotary = Boolean(order.sent_to_notary_at);
     const canViewInitialDocuments = canManageOrder || canApproveOrder;
-    const [pendingDocuments, setPendingDocuments] = useState<PendingDocument[]>([]);
+    const [pendingDocuments, setPendingDocuments] = useState<PendingDocument[]>(temporaryDocuments);
+    const [documentBusy, setDocumentBusy] = useState(false);
+    const documentBusyRef = useRef(false);
+    const [documentError, setDocumentError] = useState('');
+    const [documentToDelete, setDocumentToDelete] = useState<PendingDocument | null>(null);
     const [submitProcessing, setSubmitProcessing] = useState(false);
     const [leaveDraftVisit, setLeaveDraftVisit] = useState<any | null>(null);
     const allowNavigation = useRef(false);
 
     useEffect(() => {
-        if (!canEdit || (!draft.isDirty && pendingDocuments.length === 0) || submitProcessing) return;
+        if (!canEdit || (!draft.isDirty && pendingDocuments.length === 0 && !documentBusy) || submitProcessing) return;
 
         const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
             if (allowNavigation.current) return;
@@ -191,7 +203,7 @@ export default function OrdersShow({
             window.removeEventListener('beforeunload', warnBeforeLeaving);
             removeBeforeVisit();
         };
-    }, [canEdit, draft.isDirty, pendingDocuments.length, submitProcessing]);
+    }, [canEdit, draft.isDirty, pendingDocuments.length, documentBusy, submitProcessing]);
 
     const continueLeavingDraft = () => {
         const visit = leaveDraftVisit;
@@ -227,11 +239,11 @@ export default function OrdersShow({
         const branch = branches.find((item) => item.code === account.branch.code);
         if (!branch) throw new Error('Cabang rekening belum tersedia di SIMONTOK. Hubungi admin master cabang.');
         const eligible = notaries.filter((item) => item.branch_ids.includes(branch.id));
-        setPendingDocuments([]);
         draft.clearErrors();
         draft.setData({
             ...draft.data,
             core_account_id: account.account_id,
+            customer_marital_status: account.customer?.marital_status ?? account.customer_marital_status ?? '',
             branch_id: String(branch.id),
             notary_id: eligible.some((item) => String(item.id) === draft.data.notary_id) ? draft.data.notary_id : '',
             customer_name: account.customer_name,
@@ -247,7 +259,7 @@ export default function OrdersShow({
     };
 
     const submitOrderApproval = () => {
-        if (submitProcessing) return;
+        if (submitProcessing || documentBusyRef.current) return;
         const payload = new FormData();
         Object.entries(draft.data).forEach(([key, value]) => {
             if (key === 'collaterals') return;
@@ -264,12 +276,8 @@ export default function OrdersShow({
                 });
             });
         });
-        pendingDocuments.forEach((document, index) => {
-            payload.append(`draft_documents[${index}][collateral_index]`, String(document.collateralIndex));
-            if (document.checklistMasterId) payload.append(`draft_documents[${index}][checklist_master_id]`, String(document.checklistMasterId));
-            if (document.jobTypeId) payload.append(`draft_documents[${index}][job_type_id]`, String(document.jobTypeId));
-            payload.append(`draft_documents[${index}][display_name]`, document.displayName);
-            payload.append(`draft_documents[${index}][file]`, document.file);
+        draft.data.collaterals.flatMap((_, index) => pendingDocumentsFor(index)).forEach((document, index) => {
+            payload.append(`temporary_document_ids[${index}]`, document.id);
         });
         setSubmitProcessing(true);
         allowNavigation.current = true;
@@ -278,6 +286,7 @@ export default function OrdersShow({
             forceFormData: true,
             preserveScroll: true,
             onError: (errors) => draft.setError(errors as Record<string, string>),
+            onSuccess: () => setPendingDocuments([]),
             onFinish: () => {
                 allowNavigation.current = false;
                 setSubmitProcessing(false);
@@ -375,11 +384,23 @@ export default function OrdersShow({
         next[index] = { ...next[index], jobs };
         draft.setData('collaterals', next);
     };
+    const pendingDocumentsFor = (collateralIndex: number) => {
+        const collateral = draft.data.collaterals[collateralIndex];
+        return collateral ? pendingDocuments.filter((item) =>
+            item.coreAccountId === draft.data.core_account_id && item.collateralKey === collateralDocumentKey(collateral) &&
+            (!item.jobTypeId || collateral.jobs.some((job) => Number(job.job_type_id) === item.jobTypeId)),
+        ) : [];
+    };
     const documentFor = (collateralIndex: number, checklistMasterId?: number, jobTypeId?: number | null) =>
-        pendingDocuments.find((item) => item.collateralIndex === collateralIndex && item.checklistMasterId === checklistMasterId && item.jobTypeId === jobTypeId);
+        pendingDocumentsFor(collateralIndex).find((item) => item.checklistMasterId === checklistMasterId && item.jobTypeId === (jobTypeId ?? null));
 
-    const pendingDocumentsFor = (collateralIndex: number) =>
-        pendingDocuments.filter((item) => item.collateralIndex === collateralIndex);
+    const checklistOrder = {
+        ...order,
+        core_snapshot: {
+            ...order.core_snapshot,
+            customer_marital_status: draft.data.customer_marital_status ?? order.core_snapshot?.customer_marital_status ?? '',
+        },
+    };
 
     const canSend = Boolean(
         draft.data.branch_id &&
@@ -397,7 +418,7 @@ export default function OrdersShow({
                 : collateral.jobs
                     .filter((job) => Number(job.job_type_id) === checklist.job_type_id)
                     .map((job) => Number(job.job_type_id));
-            if (!isRequiredChecklist(order, { document_checklist: checklist })) return false;
+            if (!isRequiredChecklist(checklistOrder, { document_checklist: checklist })) return false;
             return applicableJobs.some((jobTypeId) => {
                 const sourceCollateral = order.collaterals?.find((item: any) =>
                     item.agunan_id === collateral.agunan_id || String(item.id) === String(collateral.id),
@@ -490,8 +511,10 @@ export default function OrdersShow({
     };
 
     const openChecklistEditor = (collateralIndex: number, checklistMasterId: number, jobTypeId?: number | null) => {
+        setDocumentError('');
         setDocumentEditor({
             collateralIndex,
+            temporaryId: documentFor(collateralIndex, checklistMasterId, jobTypeId)?.id ?? crypto.randomUUID(),
             checklistMasterId,
             jobTypeId,
             displayName: '',
@@ -499,8 +522,9 @@ export default function OrdersShow({
             kind: 'agunan',
         });
     };
-    const saveDocumentEditor = () => {
+    const saveDocumentEditor = async () => {
         if (
+            documentBusyRef.current ||
             !documentEditor ||
             !documentEditor.file ||
             (documentEditor.kind === 'pendukung' &&
@@ -508,19 +532,44 @@ export default function OrdersShow({
         )
             return;
 
-        setPendingDocuments((documents) => [
-            ...documents.filter((item) => !(
-                item.collateralIndex === documentEditor.collateralIndex &&
-                item.checklistMasterId === documentEditor.checklistMasterId &&
-                item.jobTypeId === documentEditor.jobTypeId
-            )),
-            { ...documentEditor, file: documentEditor.file as File },
-        ]);
-        setDocumentEditor(null);
+        const payload = new FormData();
+        payload.append('id', documentEditor.temporaryId!);
+        payload.append('file', documentEditor.file);
+        payload.append('display_name', documentEditor.displayName);
+        payload.append('collateral_index', String(documentEditor.collateralIndex));
+        payload.append('draft_context', JSON.stringify(draft.data));
+        if (documentEditor.checklistMasterId) payload.append('checklist_master_id', String(documentEditor.checklistMasterId));
+        if (documentEditor.jobTypeId) payload.append('job_type_id', String(documentEditor.jobTypeId));
+        documentBusyRef.current = true;
+        setDocumentBusy(true);
+        setDocumentError('');
+        try {
+            const result = await temporaryDocumentRequest<{ document: PendingDocument }>(`/orders/${order.id}/temporary-documents`, 'POST', payload);
+            setPendingDocuments((documents) => [...documents.filter((item) => item.id !== result.document.id), result.document]);
+            setDocumentEditor(null);
+        } catch (error) {
+            setDocumentError(error instanceof Error ? error.message : 'Dokumen gagal diunggah. Coba lagi.');
+        } finally {
+            documentBusyRef.current = false;
+            setDocumentBusy(false);
+        }
     };
 
-    const removePendingDocument = (document: PendingDocument) => {
-        setPendingDocuments((documents) => documents.filter((item) => item !== document));
+    const removePendingDocument = async () => {
+        if (!documentToDelete || documentBusyRef.current) return;
+        documentBusyRef.current = true;
+        setDocumentBusy(true);
+        setDocumentError('');
+        try {
+            await temporaryDocumentRequest(`/orders/${order.id}/temporary-documents/${documentToDelete.id}`, 'DELETE');
+            setPendingDocuments((documents) => documents.filter((item) => item.id !== documentToDelete.id));
+            setDocumentToDelete(null);
+        } catch (error) {
+            setDocumentError(error instanceof Error ? error.message : 'Dokumen gagal dihapus. Coba lagi.');
+        } finally {
+            documentBusyRef.current = false;
+            setDocumentBusy(false);
+        }
     };
 
     const submitHandover = (event: FormEvent) => {
@@ -614,7 +663,7 @@ export default function OrdersShow({
                                 <Button
                                     type="button"
                                     onClick={submitOrderApproval}
-                                    disabled={!canSend || missingRequiredDocument || draft.processing || submitProcessing}
+                                    disabled={!canSend || missingRequiredDocument || draft.processing || submitProcessing || documentBusy}
                                 >
                                     <Send className="size-4" />
                                     {needsOrderRevision
@@ -884,16 +933,16 @@ export default function OrdersShow({
                         collateralTypes={collateralTypes}
                         paymentSchemes={paymentSchemes}
                         slaPolicies={slaPolicies}
-                        order={order}
+                        order={checklistOrder}
                         setCollateral={setCollateral}
                         setJob={setJob}
                         setCollateralJobs={setCollateralJobs}
                         openChecklistEditor={openChecklistEditor}
-                        openDocumentEditor={(editor) => setDocumentEditor(editor)}
+                        openDocumentEditor={(editor) => { setDocumentError(''); setDocumentEditor({ ...editor, temporaryId: editor.temporaryId ?? crypto.randomUUID() }); }}
                         documentChecklists={documentChecklists}
                         documentFor={documentFor}
                         pendingDocumentsFor={pendingDocumentsFor}
-                        removePendingDocument={removePendingDocument}
+                        removePendingDocument={(document) => { setDocumentError(''); setDocumentToDelete(document); }}
                         incompleteFields={incompleteFields}
                         coreProvider={coreProvider}
                         selectCoreAccount={selectCoreAccount}
@@ -1864,7 +1913,7 @@ export default function OrdersShow({
 
                 <Dialog
                     open={Boolean(documentEditor)}
-                    onOpenChange={(open) => !open && setDocumentEditor(null)}
+                    onOpenChange={(open) => !open && !documentBusy && setDocumentEditor(null)}
                 >
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
@@ -1874,10 +1923,11 @@ export default function OrdersShow({
                                     : 'Input dokumen agunan'}
                             </DialogTitle>
                             <DialogDescription>
-                                Masukkan satu file. File akan disimpan bersama
-                                order saat diajukan untuk approval.
+                                Unggah PDF agar dapat dilihat dan diganti sebelum pengajuan.
+                                Dokumen menjadi bagian resmi order saat diajukan ke Kabid Ops.
                             </DialogDescription>
                         </DialogHeader>
+                        {documentError && <p role="alert" className="text-sm text-destructive">{documentError}</p>}
                         <div className="grid gap-4">
                             {documentEditor?.kind === 'pendukung' && (
                                 <div className="grid gap-2">
@@ -1918,6 +1968,7 @@ export default function OrdersShow({
                             <Button
                                 type="button"
                                 variant="outline"
+                                disabled={documentBusy}
                                 onClick={() => setDocumentEditor(null)}
                             >
                                 Batal
@@ -1926,14 +1977,29 @@ export default function OrdersShow({
                                 type="button"
                                 onClick={saveDocumentEditor}
                                 disabled={
+                                    documentBusy ||
                                     !documentEditor?.file ||
                                     (documentEditor?.kind === 'pendukung' &&
                                         !documentEditor.displayName.trim())
                                 }
                             >
                                 <Save className="size-4" />
-                                Tambahkan ke pengajuan
+                                {documentBusy ? 'Mengunggah...' : documentEditor?.temporaryId && pendingDocuments.some((item) => item.id === documentEditor.temporaryId) ? 'Simpan pengganti' : 'Unggah sementara'}
                             </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={Boolean(documentToDelete)} onOpenChange={(open) => !open && !documentBusy && setDocumentToDelete(null)}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Hapus dokumen sementara?</DialogTitle>
+                            <DialogDescription className="break-all">{documentToDelete?.originalName} akan dihapus dari pengajuan ini.</DialogDescription>
+                        </DialogHeader>
+                        {documentError && <p role="alert" className="text-sm text-destructive">{documentError}</p>}
+                        <DialogFooter>
+                            <Button type="button" variant="outline" disabled={documentBusy} onClick={() => setDocumentToDelete(null)}>Batal</Button>
+                            <Button type="button" variant="destructive" disabled={documentBusy} onClick={removePendingDocument}>{documentBusy ? 'Menghapus...' : 'Hapus dokumen'}</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -2405,15 +2471,15 @@ function DraftOrderForm({
               (item: any) => String(item.id) === String(activeCollateral.id),
           ) ?? order.collaterals?.find(
               (item: any) => item.agunan_id && item.agunan_id === activeCollateral.agunan_id,
-          ) ?? order.collaterals?.[collateralModal?.index ?? 0]
+          )
         : null;
     const activeSummaryJobs = activeSourceCollateral?.jobs?.length
         ? activeSourceCollateral.jobs
         : activeCollateral?.jobs ?? [];
     const activeSummaryDocuments = [
               ...pendingDocumentsFor(collateralModal?.index ?? -1).map((document) => ({
-                  id: `pending-${document.collateralIndex}-${document.checklistMasterId ?? document.displayName}`,
-                  display_name: document.displayName || document.file.name,
+                  id: document.id,
+                  display_name: document.displayName || document.originalName,
               })),
               ...(activeSourceCollateral
         ? [
@@ -2429,11 +2495,11 @@ function DraftOrderForm({
         : [])];
     const activeSupportingDocuments = [
         ...pendingDocumentsFor(collateralModal?.index ?? -1)
-            .filter((document) => document.kind === 'pendukung')
+            .filter((document) => !document.checklistMasterId)
             .map((document) => ({
-                id: `pending-supporting-${document.collateralIndex}-${document.displayName}`,
-                display_name: document.displayName || document.file.name,
-                original_name: document.file.name,
+                id: document.id,
+                display_name: document.displayName || document.originalName,
+                original_name: document.originalName,
                 pending: true,
                 source: document,
             })),
@@ -2452,13 +2518,13 @@ function DraftOrderForm({
                     document_checklist: checklist,
                     draft_job_type_id: checklist.job_type_id,
                     draft_job_index: jobIndex,
-                    order_document: documentFor(collateralModal?.index ?? -1, checklist.id, checklist.job_type_id),
+                    order_document: null,
                 })) ?? []
             : [{
                 id: `draft-${checklist.id}`,
                 document_checklist: checklist,
                 draft_job_type_id: null,
-                order_document: documentFor(collateralModal?.index ?? -1, checklist.id, null),
+                order_document: null,
             }]);
     return (
         <div className="sim-panel overflow-hidden">
@@ -2912,15 +2978,16 @@ function DraftOrderForm({
                                                             <span className={document ? 'mt-0.5 flex size-5 items-center justify-center rounded border border-green-500 bg-green-500 text-xs text-white' : 'mt-0.5 flex size-5 items-center justify-center rounded border border-input text-xs text-muted-foreground'}>{document ? '✓' : ''}</span>
                                                             <span className="font-medium">{item.document_checklist?.name}</span>
                                                         </div>
-                                                        {item.order_document ? (
+                                                        {pending ? (
+                                                            <TemporaryDocumentDetails
+                                                                document={pending}
+                                                                onReplace={() => openChecklistEditor(collateralModal.index, Number(item.document_checklist?.id), item.document_checklist?.job_type_id ?? null)}
+                                                                onDelete={() => removePendingDocument(pending)}
+                                                            />
+                                                        ) : item.order_document ? (
                                                             <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
                                                                 <span className="block min-w-0 flex-1 truncate overflow-hidden text-muted-foreground">{item.order_document.display_name ?? item.order_document.original_name}</span>
                                                                 <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${item.order_document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>
-                                                            </div>
-                                                        ) : pending ? (
-                                                            <div className="flex min-w-0 items-center justify-between gap-2 text-xs">
-                                                                <span className="min-w-0 flex-1 truncate text-muted-foreground">{pending.file.name}</span>
-                                                                <Button type="button" variant="outline" size="sm" onClick={() => removePendingDocument(pending)}>Hapus</Button>
                                                             </div>
                                                         ) : (
                                                             <Button
@@ -2930,7 +2997,7 @@ function DraftOrderForm({
                                                                 className="w-fit"
                                                                 onClick={() => openChecklistEditor(
                                                                     collateralModal?.index ?? 0,
-                                                                                        Number(item.document_checklist?.id),
+                                                                    Number(item.document_checklist?.id),
                                                                     item.document_checklist?.job_type_id ?? null,
                                                                 )}
                                                             >
@@ -2950,12 +3017,14 @@ function DraftOrderForm({
                                 {activeSupportingDocuments.length > 0 ? (
                                     <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
                                         {activeSupportingDocuments.map((document: any) => (
-                                            <li key={document.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border p-2">
-                                                <span className="min-w-0 flex-1 truncate text-muted-foreground">{document.display_name || document.original_name}</span>
+                                            <li key={document.id} className="grid min-w-0 gap-2 rounded-md border p-3">
+                                                <span className="min-w-0 truncate font-medium">{document.display_name || document.original_name}</span>
                                                 {document.pending ? (
-                                                    <Button type="button" variant="outline" size="sm" onClick={() => removePendingDocument(document.source)}>
-                                                        Hapus
-                                                    </Button>
+                                                    <TemporaryDocumentDetails
+                                                        document={document.source}
+                                                        onReplace={() => openDocumentEditor({ collateralIndex: collateralModal.index, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })}
+                                                        onDelete={() => removePendingDocument(document.source)}
+                                                    />
                                                 ) : (
                                                     <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}>
                                                         <Eye className="size-4" />Lihat
@@ -2972,6 +3041,20 @@ function DraftOrderForm({
                     )}
                 </DialogContent>
             </Dialog>
+        </div>
+    );
+}
+
+function TemporaryDocumentDetails({ document, onReplace, onDelete }: { document: PendingDocument; onReplace: () => void; onDelete: () => void }) {
+    return (
+        <div className="grid min-w-0 gap-2">
+            <p className="truncate text-xs text-muted-foreground" title={document.originalName}>{document.originalName}</p>
+            <p role="status" className="text-xs text-muted-foreground">Tersimpan sementara · {formatBytes(document.fileSize)} · berlaku sampai {dateOnly(document.expiresAt)}</p>
+            <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" asChild><a href={document.previewUrl} target="_blank" rel="noopener noreferrer"><Eye className="size-4" />Lihat</a></Button>
+                <Button type="button" variant="outline" size="sm" onClick={onReplace}>Ganti file</Button>
+                <Button type="button" variant="outline" size="sm" onClick={onDelete}>Hapus</Button>
+            </div>
         </div>
     );
 }
@@ -3021,6 +3104,7 @@ function orderDraftFrom(order: any): OrderDraft {
         : saved;
 
     return {
+        customer_marital_status: order.core_snapshot?.customer?.marital_status ?? order.core_snapshot?.customer_marital_status ?? '',
         core_account_id: order.core_account_id ?? '',
         branch_id: String(order.branch_id ?? ''),
         notary_id: String(order.notary_id ?? ''),
@@ -3034,6 +3118,7 @@ function orderDraftFrom(order: any): OrderDraft {
         keterangan: order.keterangan ?? '',
         collaterals: collaterals.map((item: any) => ({
             id: String(item.id ?? ''),
+            draft_key: item.draft_key ?? crypto.randomUUID(),
             agunan_id: item.agunan_id ?? '',
             nama_agunan: item.nama_agunan ?? '',
             deskripsi_agunan: item.deskripsi_agunan ?? '',
@@ -3053,6 +3138,7 @@ function orderDraftFrom(order: any): OrderDraft {
 
 function emptyCollateralDraft(): CollateralDraft {
     return {
+        draft_key: crypto.randomUUID(),
         id: '',
         agunan_id: '',
         nama_agunan: '',

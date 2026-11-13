@@ -23,6 +23,7 @@ use App\Support\Audit;
 use App\Support\DocumentArchiveService;
 use App\Support\InAppNotification;
 use App\Support\OrderStages;
+use App\Support\TemporaryOrderDocuments;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -307,8 +308,14 @@ class OrderController extends Controller
             && ! $order->risk_flag
             && $order->collaterals->every(fn ($collateral) => $collateral->doc_status === TrackBDocStatus::FinalDivalidasi);
 
+        $temporaryDocuments = $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order)
+            ? TemporaryOrderDocuments::pending($order)->orderByDesc('updated_at')->get()
+            : collect();
+
         return Inertia::render('simontok/orders/show', [
             'order' => $order,
+            'temporaryDocuments' => $temporaryDocuments->map->forClient()->values(),
+            'temporaryDraftContext' => $temporaryDocuments->first()?->draft_context,
             'coreProvider' => config('core.provider'),
             'documentChecklists' => $this->canEditDraft($order)
                 ? DocumentChecklist::where('is_active', true)->get(['id', 'name', 'job_type_id', 'is_required', 'is_active'])
@@ -417,6 +424,7 @@ class OrderController extends Controller
 
         $savedCollaterals = [];
         foreach ($data['collaterals'] as $index => $collateralData) {
+            unset($collateralData['draft_key']);
             $this->rememberCollateralType($collateralData['nama_agunan'] ?? null);
             $jobs = $collateralData['jobs'] ?? [];
             if ($jobs === []) {
@@ -493,6 +501,10 @@ class OrderController extends Controller
     {
         $this->authorizeVisibleOrder($request, $order);
         abort_unless($this->canEditDraft($order), 403);
+        $temporaryIds = $request->validate([
+            'temporary_document_ids' => ['nullable', 'array', 'max:100'],
+            'temporary_document_ids.*' => ['required', 'uuid', 'distinct'],
+        ])['temporary_document_ids'] ?? [];
         $uploads = $request->validate([
             'draft_documents' => ['nullable', 'array'],
             'draft_documents.*.collateral_index' => ['required', 'integer', 'min:0'],
@@ -503,13 +515,14 @@ class OrderController extends Controller
         ])['draft_documents'] ?? [];
         $storedPaths = [];
         try {
-            DB::transaction(function () use ($request, $order, $uploads, &$storedPaths) {
+            DB::transaction(function () use ($request, $order, $uploads, $temporaryIds, &$storedPaths) {
                 $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
                 abort_unless($this->canEditDraft($order), 422, 'Order sudah diajukan. Muat ulang halaman.');
 
                 $data = $this->validatedDraftData($request, $order);
                 $saved = $this->saveDraftData($request, $order, $data);
                 $this->storeDraftDocuments($request, $order, $uploads, $saved, $storedPaths);
+                app(TemporaryOrderDocuments::class)->promote($request, $order, $temporaryIds, $saved, $data['collaterals']);
 
                 $this->ensureReadyToSend($order->fresh());
                 $fromStatus = $order->status->value;
@@ -854,6 +867,7 @@ class OrderController extends Controller
             'collaterals.*.jobs.*.sla_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'collaterals.*.jobs.*.sla_override_reason' => ['nullable', 'string', 'max:2000'],
             'collaterals.*.id' => ['nullable', 'integer', 'exists:order_collaterals,id'],
+            'collaterals.*.draft_key' => ['nullable', 'uuid'],
             'collaterals.*.agunan_id' => ['nullable', 'string', 'max:50'],
             'collaterals.*.nama_agunan' => ['nullable', 'string', 'max:255'],
             'collaterals.*.deskripsi_agunan' => ['nullable', 'string'],
