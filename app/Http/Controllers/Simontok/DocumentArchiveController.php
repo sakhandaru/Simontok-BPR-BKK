@@ -7,6 +7,7 @@ use App\Models\DocumentArchive;
 use App\Models\Notary;
 use App\Models\Order;
 use App\Models\OrderCollateral;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -24,6 +25,7 @@ class DocumentArchiveController extends Controller
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
             'status' => ['nullable', 'in:active,archived'],
             'category' => ['nullable', 'string', 'max:60'],
+            'expiry' => ['nullable', 'in:all,due30,expired,none'],
         ]);
 
         $filtered = DocumentArchive::query()
@@ -48,6 +50,31 @@ class DocumentArchiveController extends Controller
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('documentable_type', Notary::class)->where('documentable_id', $notaryId))
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
             ->when($filters['category'] ?? null, fn ($query, string $category) => $query->where('category', $category))
+            ->when(($filters['expiry'] ?? null) === 'due30', function ($query): void {
+                $today = today()->toDateString();
+                $limit = today()->addDays(30)->toDateString();
+                $query->where(function ($query) use ($today, $limit): void {
+                    $query
+                        ->where(fn ($query) => $query->where('category', 'legalitas_rekanan')->whereDate('metadata->pks_end', '>=', $today)->whereDate('metadata->pks_end', '<=', $limit))
+                        ->orWhere(fn ($query) => $query->where('category', 'covernote')->whereDate('metadata->covernote_end', '>=', $today)->whereDate('metadata->covernote_end', '<=', $limit));
+                });
+            })
+            ->when(($filters['expiry'] ?? null) === 'expired', function ($query): void {
+                $today = today()->toDateString();
+                $query->where(function ($query) use ($today): void {
+                    $query
+                        ->where(fn ($query) => $query->where('category', 'legalitas_rekanan')->whereDate('metadata->pks_end', '<', $today))
+                        ->orWhere(fn ($query) => $query->where('category', 'covernote')->whereDate('metadata->covernote_end', '<', $today));
+                });
+            })
+            ->when(($filters['expiry'] ?? null) === 'none', function ($query): void {
+                $query->where(function ($query): void {
+                    $query
+                        ->whereNotIn('category', ['legalitas_rekanan', 'covernote'])
+                        ->orWhere(fn ($query) => $query->where('category', 'legalitas_rekanan')->whereNull('metadata->pks_end'))
+                        ->orWhere(fn ($query) => $query->where('category', 'covernote')->whereNull('metadata->covernote_end'));
+                });
+            })
             ->latest('created_at');
 
         $latestIds = (clone $filtered)
@@ -64,10 +91,14 @@ class DocumentArchiveController extends Controller
                 'notary_id' => $filters['notary_id'] ?? '',
                 'status' => $filters['status'] ?? '',
                 'category' => $filters['category'] ?? '',
+                'expiry' => $filters['expiry'] ?? 'all',
             ],
             'notaries' => Notary::query()->when($request->user()?->branchScopeId(), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
             'categories' => DocumentArchive::query()->distinct()->orderBy('category')->pluck('category'),
-            'versions' => $versions->paginate(15)->withQueryString()->through(fn (DocumentArchive $version) => [
+            'versions' => $versions->paginate(15)->withQueryString()->through(function (DocumentArchive $version): array {
+                $expiry = $this->expiryDetails($version);
+
+                return [
                 'metadata' => $version->metadata,
                 'documentable_type' => $version->documentable_type,
                 'documentable_id' => $version->documentable_id,
@@ -84,13 +115,43 @@ class DocumentArchiveController extends Controller
                 'pks_no' => data_get($version->metadata, 'pks_no'),
                 'pks_start' => data_get($version->metadata, 'pks_start') ? date('d M Y', strtotime(data_get($version->metadata, 'pks_start'))) : null,
                 'pks_end' => data_get($version->metadata, 'pks_end') ? date('d M Y', strtotime(data_get($version->metadata, 'pks_end'))) : null,
+                'expiry_date' => $expiry['date'],
+                'expiry_days' => $expiry['days'],
+                'expiry_label' => $expiry['label'],
+                'expiry_tone' => $expiry['tone'],
                 'status' => $version->status,
                 'uploaded_by' => $version->uploader?->name ?? 'Migrasi sistem',
                 'created_at' => $version->created_at?->format('d M Y H:i'),
                 'file_size' => $version->file_size ? number_format($version->file_size / 1024, 0).' KB' : '-',
                 'version_count' => DocumentArchive::query()->where('documentable_type', $version->documentable_type)->where('documentable_id', $version->documentable_id)->where('document_type', $version->document_type)->where('document_key', $version->document_key)->count(),
-            ]),
+                ];
+            }),
         ]);
+    }
+
+    private function expiryDetails(DocumentArchive $archive): array
+    {
+        $rawDate = match ($archive->category) {
+            'legalitas_rekanan' => data_get($archive->metadata, 'pks_end'),
+            'covernote' => data_get($archive->metadata, 'covernote_end'),
+            default => null,
+        };
+
+        if (! $rawDate) {
+            return ['date' => null, 'days' => null, 'label' => 'Tidak berlaku', 'tone' => 'neutral'];
+        }
+
+        $endDate = Carbon::parse($rawDate)->startOfDay();
+        $days = today()->diffInDays($endDate, false);
+        $date = $endDate->format('d M Y');
+
+        return match (true) {
+            $days < 0 => ['date' => $date, 'days' => $days, 'label' => 'Berakhir '.abs($days).' hari lalu', 'tone' => 'danger'],
+            $days === 0 => ['date' => $date, 'days' => 0, 'label' => 'Berakhir hari ini', 'tone' => 'danger'],
+            $days <= 7 => ['date' => $date, 'days' => $days, 'label' => $days.' hari lagi', 'tone' => 'danger'],
+            $days <= 30 => ['date' => $date, 'days' => $days, 'label' => $days.' hari lagi', 'tone' => 'warning'],
+            default => ['date' => $date, 'days' => $days, 'label' => $days.' hari lagi', 'tone' => 'success'],
+        };
     }
 
     public function versions(DocumentArchive $version): JsonResponse
