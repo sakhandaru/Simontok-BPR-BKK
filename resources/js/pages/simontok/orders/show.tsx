@@ -2396,7 +2396,7 @@ function OrderActivityDrawer({
                 >
                     <Clock3 className="size-4" />
                     Aktivitas order
-                    <span className="text-xs text-muted-foreground">({statusHistories.length + progressItems.length})</span>
+                    <span className="text-xs text-white/80">({statusHistories.length + progressItems.length})</span>
                 </Button>
             </SheetTrigger>
             <SheetContent className="w-[min(100vw,560px)] gap-0 overflow-x-hidden overflow-y-hidden p-0 sm:max-w-xl">
