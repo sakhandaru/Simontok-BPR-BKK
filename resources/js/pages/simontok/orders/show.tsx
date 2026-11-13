@@ -51,6 +51,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
 import { orderJourneyStages } from '@/lib/sim-journey';
 import { collateralDocumentKey, temporaryDocumentRequest, type TemporaryOrderDocument } from '@/lib/temporary-order-documents';
 
@@ -659,6 +667,14 @@ export default function OrdersShow({
                     }
                     actions={
                         <>
+                            <OrderActivityDrawer
+                                order={order}
+                                stepFees={stepFees}
+                                onOpenFinalDocuments={(documents) => {
+                                    setProgressDocumentsPreview(documents);
+                                    setProgressDocumentPreview(documents[0] ?? null);
+                                }}
+                            />
                             {canSubmitApproval && (
                                 <Button
                                     type="button"
@@ -740,7 +756,7 @@ export default function OrdersShow({
                     }
                 />
 
-                <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="grid min-w-0 gap-4">
                     <main className="grid min-w-0 gap-4">
 
                 {needsOrderRevision && (
@@ -2307,14 +2323,6 @@ export default function OrdersShow({
                     </div>
                 </section>}
                     </main>
-                    <OrderActivityRail
-                        order={order}
-                        stepFees={stepFees}
-                        onOpenFinalDocuments={(documents) => {
-                            setProgressDocumentsPreview(documents);
-                            setProgressDocumentPreview(documents[0] ?? null);
-                        }}
-                    />
                 </div>
             </div>
             <Dialog
@@ -2361,7 +2369,7 @@ export default function OrdersShow({
     );
 }
 
-function OrderActivityRail({
+function OrderActivityDrawer({
     order,
     stepFees,
     onOpenFinalDocuments,
@@ -2371,17 +2379,25 @@ function OrderActivityRail({
     onOpenFinalDocuments: (documents: any[]) => void;
 }) {
     const [tab, setTab] = useState<'status' | 'progress'>('status');
-    const statusHistories = order.status_histories ?? [];
-    const progressItems = order.progress ?? [];
+    const statusHistories = [...(order.status_histories ?? [])].sort(newestFirst);
+    const progressItems = [...(order.progress ?? [])].sort(newestFirst);
     const items = tab === 'status' ? statusHistories : progressItems;
 
     return (
-        <aside className="sim-panel min-w-0 overflow-hidden xl:sticky xl:top-4">
-            <div className="sim-panel-header">
-                <h2 className="sim-panel-title">Aktivitas order</h2>
-                <p className="sim-panel-subtitle">Status dan langkah terbaru.</p>
-            </div>
-            <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Aktivitas order">
+        <Sheet>
+            <SheetTrigger asChild>
+                <Button type="button" variant="outline">
+                    <Clock3 className="size-4" />
+                    Aktivitas order
+                    <span className="text-xs text-muted-foreground">({statusHistories.length + progressItems.length})</span>
+                </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[min(100vw,420px)] gap-0 overflow-hidden p-0 sm:max-w-md">
+                <SheetHeader className="border-b pr-14">
+                    <SheetTitle>Aktivitas order</SheetTitle>
+                    <SheetDescription>Status dan langkah terbaru dalam order ini.</SheetDescription>
+                </SheetHeader>
+                <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Aktivitas order">
                 {([
                     ['status', 'Status', statusHistories.length],
                     ['progress', 'Progres', progressItems.length],
@@ -2397,8 +2413,8 @@ function OrderActivityRail({
                         {label} <span className="text-xs text-muted-foreground">({count})</span>
                     </button>
                 ))}
-            </div>
-            <div className="max-h-[min(65vh,42rem)] overflow-y-auto divide-y">
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto divide-y">
                 {items.length === 0 ? (
                     <SimEmptyState
                         title={tab === 'status' ? 'Belum ada riwayat status' : 'Belum ada riwayat progres'}
@@ -2468,9 +2484,17 @@ function OrderActivityRail({
                         );
                     })
                 )}
-            </div>
-        </aside>
+                </div>
+            </SheetContent>
+        </Sheet>
     );
+}
+
+function newestFirst(left: any, right: any): number {
+    const leftTime = Date.parse(left.created_at ?? left.updated_at ?? '') || 0;
+    const rightTime = Date.parse(right.created_at ?? right.updated_at ?? '') || 0;
+
+    return rightTime - leftTime || Number(right.id ?? 0) - Number(left.id ?? 0);
 }
 
 function Info({ label, value }: { label: string; value?: string | null }) {
