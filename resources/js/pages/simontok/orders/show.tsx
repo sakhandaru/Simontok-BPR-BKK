@@ -2392,7 +2392,7 @@ function OrderActivityDrawer({
                     <span className="text-xs text-muted-foreground">({statusHistories.length + progressItems.length})</span>
                 </Button>
             </SheetTrigger>
-            <SheetContent className="w-[min(100vw,420px)] gap-0 overflow-hidden p-0 sm:max-w-md">
+            <SheetContent className="w-[min(100vw,560px)] gap-0 overflow-x-hidden overflow-y-hidden p-0 sm:max-w-xl">
                 <SheetHeader className="border-b pr-14">
                     <SheetTitle>Aktivitas order</SheetTitle>
                     <SheetDescription>Status dan langkah terbaru dalam order ini.</SheetDescription>
@@ -2422,7 +2422,7 @@ function OrderActivityDrawer({
                     />
                 ) : tab === 'status' ? (
                     items.map((history: any) => (
-                        <div key={history.id} className="grid gap-2 p-3 text-sm">
+                        <div key={history.id} className="grid min-w-0 gap-2 p-3 text-sm">
                             <div className="flex items-start gap-2">
                                 <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
                                 <div className="min-w-0 flex-1">
@@ -2461,7 +2461,7 @@ function OrderActivityDrawer({
                         const allFinalDocumentsValidated = finalDocuments.length > 0 && finalDocuments.every((document: any) => document.validated_at);
 
                         return (
-                            <div key={item.id} className="grid gap-2 p-3 text-sm">
+                            <div key={item.id} className="grid min-w-0 gap-2 p-3 text-sm">
                                 <div className="flex items-start gap-2">
                                     <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
                                     <div className="min-w-0 flex-1">
