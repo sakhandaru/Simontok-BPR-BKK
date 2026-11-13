@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     Check,
     ChevronDown,
+    Clock3,
     Download,
     Eye,
     FileText,
@@ -27,6 +28,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
 
 export default function NotaryOrdersShow({
     order,
@@ -247,12 +256,23 @@ export default function NotaryOrdersShow({
                             {order.customer_name} - {order.no_rekening}
                         </p>
                     </div>
-                    <Button variant="outline" asChild>
-                        <Link href="/notary/orders">
-                            <ArrowLeft className="size-4" />
-                            Kembali
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <NotaryActivityDrawer
+                            order={order}
+                            onOpenEvidence={setEvidencePreview}
+                            onOpenFinalDocuments={setFinalDocumentsPreview}
+                        />
+                        <Button
+                            variant="outline"
+                            asChild
+                            className="border-[var(--brand-yellow-start)] bg-[var(--brand-yellow-middle)] text-[var(--brand-blue)] hover:bg-[var(--brand-yellow-end)] hover:text-[var(--brand-blue)]"
+                        >
+                            <Link href="/notary/orders">
+                                <ArrowLeft className="size-4" />
+                                Kembali
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
 
                 <section className="sim-panel grid gap-4 p-4 md:grid-cols-3">
@@ -733,7 +753,7 @@ export default function NotaryOrdersShow({
                 )}
 
                 {canExtendCovernote && (
-                    <details className="sim-panel group">
+                    <details open className="sim-panel group">
                         <summary className="flex cursor-pointer list-none items-start justify-between gap-4 p-4 [&::-webkit-details-marker]:hidden">
                             <div>
                                 <h2 className="font-medium">
@@ -991,7 +1011,7 @@ export default function NotaryOrdersShow({
                 )}
 
                 {canViewDocuments && (
-                    <details className="sim-panel group overflow-hidden">
+                    <details open className="sim-panel group overflow-hidden">
                         <summary className="sim-panel-header flex cursor-pointer list-none items-start justify-between gap-4 [&::-webkit-details-marker]:hidden">
                             <div>
                                 <h2 className="font-medium">Dokumen pendukung</h2>
@@ -1145,7 +1165,7 @@ export default function NotaryOrdersShow({
                     </details>
                 )}
 
-                {canViewDocuments && (
+                {false && canViewDocuments && (
                     <section className="sim-panel">
                         <div className="sim-panel-header font-medium">
                             Riwayat progres
@@ -1380,6 +1400,124 @@ export default function NotaryOrdersShow({
             </div>
         </>
     );
+}
+
+function NotaryActivityDrawer({
+    order,
+    onOpenEvidence,
+    onOpenFinalDocuments,
+}: {
+    order: any;
+    onOpenEvidence: (item: any) => void;
+    onOpenFinalDocuments: (documents: any[]) => void;
+}) {
+    const [tab, setTab] = useState<'status' | 'progress'>('status');
+    const statusHistories = [...(order.status_histories ?? [])].sort(newestFirst);
+    const progressItems = [...(order.progress ?? [])].sort(newestFirst);
+    const items = tab === 'status' ? statusHistories : progressItems;
+
+    return (
+        <Sheet>
+            <SheetTrigger asChild>
+                <Button
+                    type="button"
+                    className="border-[var(--brand-blue)] bg-[var(--brand-blue)] text-white hover:border-[var(--brand-blue-end)] hover:bg-[var(--brand-blue-end)]"
+                >
+                    <Clock3 className="size-4" />
+                    Aktivitas order
+                    <span className="text-xs text-white/80">({statusHistories.length + progressItems.length})</span>
+                </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[min(100vw,560px)] gap-0 overflow-x-hidden overflow-y-hidden p-0 sm:max-w-xl">
+                <SheetHeader className="border-b pr-14">
+                    <SheetTitle>Aktivitas order</SheetTitle>
+                    <SheetDescription>Status dan langkah terbaru dalam order ini.</SheetDescription>
+                </SheetHeader>
+                <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Aktivitas order">
+                    {([
+                        ['status', 'Status', statusHistories.length],
+                        ['progress', 'Progres', progressItems.length],
+                    ] as const).map(([value, label, count]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            role="tab"
+                            aria-selected={tab === value}
+                            onClick={() => setTab(value)}
+                            className={`border-b-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                        >
+                            {label} <span className="text-xs text-muted-foreground">({count})</span>
+                        </button>
+                    ))}
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto divide-y">
+                    {items.length === 0 ? (
+                        <div className="p-4 text-sm text-muted-foreground">
+                            Belum ada aktivitas pada order ini.
+                        </div>
+                    ) : tab === 'status' ? (
+                        items.map((history: any) => (
+                            <div key={history.id} className="grid min-w-0 gap-2 p-3 text-sm">
+                                <div className="flex min-w-0 items-start gap-2">
+                                    <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="break-words font-medium">{orderStatusLabel(history.to_status, order)}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                                            {history.from_status && <SimStatusBadge label={orderStatusLabel(history.from_status, order)} tone={toneForStatus(orderStatusLabel(history.from_status, order))} />}
+                                            {history.from_status && <span className="text-muted-foreground" aria-hidden="true">→</span>}
+                                            <SimStatusBadge label={orderStatusLabel(history.to_status, order)} tone={toneForStatus(orderStatusLabel(history.to_status, order))} />
+                                        </div>
+                                        {history.reason && <p className="mt-1 break-words text-xs text-muted-foreground">{history.reason}</p>}
+                                        <p className="mt-1 break-words text-xs text-muted-foreground">Oleh {history.actor?.name ?? history.actor_name ?? '-'}</p>
+                                    </div>
+                                </div>
+                                <time className="pl-4 text-xs text-muted-foreground">{formatTimelineDate(history.created_at)}</time>
+                            </div>
+                        ))
+                    ) : (
+                        items.map((item: any) => {
+                            const finalDocuments = (order.documents ?? []).filter(
+                                (document: any) => document.document_type === 'final' && Number(document.order_collateral_id) === Number(item.order_collateral_id),
+                            );
+                            const stepNames = order.collaterals
+                                .find((collateral: any) => Number(collateral.id) === Number(item.order_collateral_id))
+                                ?.jobs?.flatMap((job: any) => job.job_type?.steps ?? [])
+                                ?.filter((step: any) => step.is_active !== false)
+                                ?.sort((left: any, right: any) => Number(left.sort_order ?? 0) - Number(right.sort_order ?? 0))
+                                ?.map((step: any) => step.name) ?? [];
+                            const isFinal = stepNames.at(-1)?.toLowerCase() === String(item.status ?? '').toLowerCase();
+
+                            return (
+                                <div key={item.id} className="grid min-w-0 gap-2 p-3 text-sm">
+                                    <div className="flex min-w-0 items-start gap-2">
+                                        <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="break-words font-medium">{progressLabel(item.status)}</div>
+                                            <div className="mt-1 break-words text-xs text-muted-foreground">{item.job?.job_type?.name ?? item.collateral?.job_type?.name ?? 'Agunan'}</div>
+                                            {item.catatan && <p className="mt-1 break-words text-xs text-muted-foreground">{item.catatan}</p>}
+                                            <p className="mt-1 break-words text-xs text-muted-foreground">Oleh {item.user?.name ?? 'Notaris'}</p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {item.evidence_path && <Button type="button" variant="outline" size="sm" onClick={() => onOpenEvidence(item)}><Eye className="size-4" />Lihat bukti</Button>}
+                                                {isFinal && finalDocuments.length > 0 && <Button type="button" variant="outline" size="sm" onClick={() => onOpenFinalDocuments(finalDocuments)}><Eye className="size-4" />Dokumen final ({finalDocuments.length})</Button>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <time className="pl-4 text-xs text-muted-foreground">{formatTimelineDate(item.created_at)}</time>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </SheetContent>
+        </Sheet>
+    );
+}
+
+function newestFirst(left: any, right: any): number {
+    const leftTime = Date.parse(left.created_at ?? left.updated_at ?? '') || 0;
+    const rightTime = Date.parse(right.created_at ?? right.updated_at ?? '') || 0;
+
+    return rightTime - leftTime || Number(right.id ?? 0) - Number(left.id ?? 0);
 }
 
 function Info({ label, value }: { label: string; value?: string | null }) {
