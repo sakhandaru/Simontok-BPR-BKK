@@ -740,6 +740,9 @@ export default function OrdersShow({
                     }
                 />
 
+                <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                    <main className="grid min-w-0 gap-4">
+
                 {needsOrderRevision && (
                     <SimActionAlert
                         tone="warning"
@@ -2004,7 +2007,7 @@ export default function OrdersShow({
                     </DialogContent>
                 </Dialog>
 
-                {order.progress?.length > 0 && (
+                {false && order.progress?.length > 0 && (
                     <section className="sim-panel">
                         <div className="sim-panel-header sim-panel-title">
                             Riwayat progres
@@ -2221,7 +2224,7 @@ export default function OrdersShow({
                     </DialogContent>
                 </Dialog>
 
-                <section className="sim-panel">
+                {false && <section className="sim-panel">
                     <div className="sim-panel-header sim-panel-title">
                         Riwayat status
                     </div>
@@ -2302,7 +2305,17 @@ export default function OrdersShow({
                             ))
                         )}
                     </div>
-                </section>
+                </section>}
+                    </main>
+                    <OrderActivityRail
+                        order={order}
+                        stepFees={stepFees}
+                        onOpenFinalDocuments={(documents) => {
+                            setProgressDocumentsPreview(documents);
+                            setProgressDocumentPreview(documents[0] ?? null);
+                        }}
+                    />
+                </div>
             </div>
             <Dialog
                 open={Boolean(leaveDraftVisit)}
@@ -2345,6 +2358,124 @@ export default function OrdersShow({
                 </DialogContent>
             </Dialog>
         </>
+    );
+}
+
+function OrderActivityRail({
+    order,
+    stepFees,
+    onOpenFinalDocuments,
+}: {
+    order: any;
+    stepFees: { order_collateral_id: number; step_name: string }[];
+    onOpenFinalDocuments: (documents: any[]) => void;
+}) {
+    const [tab, setTab] = useState<'status' | 'progress'>('status');
+    const statusHistories = order.status_histories ?? [];
+    const progressItems = order.progress ?? [];
+    const items = tab === 'status' ? statusHistories.slice(0, 5) : progressItems.slice(0, 5);
+    const total = tab === 'status' ? statusHistories.length : progressItems.length;
+
+    return (
+        <aside className="sim-panel min-w-0 overflow-hidden xl:sticky xl:top-4">
+            <div className="sim-panel-header">
+                <h2 className="sim-panel-title">Aktivitas order</h2>
+                <p className="sim-panel-subtitle">Status dan langkah terbaru.</p>
+            </div>
+            <div className="grid grid-cols-2 border-b" role="tablist" aria-label="Aktivitas order">
+                {([
+                    ['status', 'Status', statusHistories.length],
+                    ['progress', 'Progres', progressItems.length],
+                ] as const).map(([value, label, count]) => (
+                    <button
+                        key={value}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === value}
+                        onClick={() => setTab(value)}
+                        className={`border-b-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        {label} <span className="text-xs text-muted-foreground">({count})</span>
+                    </button>
+                ))}
+            </div>
+            <div className="max-h-[min(65vh,42rem)] overflow-y-auto divide-y">
+                {items.length === 0 ? (
+                    <SimEmptyState
+                        title={tab === 'status' ? 'Belum ada riwayat status' : 'Belum ada riwayat progres'}
+                        description="Aktivitas akan muncul setelah ada perubahan pada order."
+                    />
+                ) : tab === 'status' ? (
+                    items.map((history: any) => (
+                        <div key={history.id} className="grid gap-2 p-3 text-sm">
+                            <div className="flex items-start gap-2">
+                                <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                                <div className="min-w-0 flex-1">
+                                    <div className="font-medium">{historyEventLabel(history.to_status)}</div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                                        {history.from_status && <SimStatusBadge label={statusLabel(history.from_status)} tone={toneForStatus(statusLabel(history.from_status))} />}
+                                        {history.from_status && <span className="text-muted-foreground" aria-hidden="true">→</span>}
+                                        <SimStatusBadge label={statusLabel(history.to_status)} tone={toneForStatus(statusLabel(history.to_status))} />
+                                    </div>
+                                    {history.reason && <p className="mt-1 truncate text-xs text-muted-foreground" title={history.reason}>{history.reason}</p>}
+                                    <p className="mt-1 text-xs text-muted-foreground">Oleh {actorLabel(history.actor_type, history.actor)}</p>
+                                </div>
+                            </div>
+                            <time className="pl-4 text-xs text-muted-foreground">{formatTimelineDate(history.created_at)}</time>
+                        </div>
+                    ))
+                ) : (
+                    items.map((item: any) => {
+                        const collateralSteps = stepFees.filter((step) => Number(step.order_collateral_id) === Number(item.order_collateral_id));
+                        const finalStepName = collateralSteps.at(-1)?.step_name;
+                        const relatedFinalDocuments = (order.documents ?? []).filter(
+                            (document: any) =>
+                                (document.document_type?.value ?? document.document_type) === 'final' &&
+                                Number(document.order_collateral_id) === Number(item.order_collateral_id) &&
+                                (!document.order_collateral_job_id || !item.order_collateral_job_id || Number(document.order_collateral_job_id) === Number(item.order_collateral_job_id)),
+                        );
+                        const normalizedStatus = String(item.status ?? '').trim().toLowerCase();
+                        const isFinalProgress = normalizedStatus === String(finalStepName ?? 'Selesai').trim().toLowerCase();
+                        const relatedProgress = progressItems.filter(
+                            (progress: any) =>
+                                Number(progress.order_collateral_id) === Number(item.order_collateral_id) &&
+                                (!progress.order_collateral_job_id || !item.order_collateral_job_id || Number(progress.order_collateral_job_id) === Number(item.order_collateral_job_id)),
+                        );
+                        const latestProgressId = Math.max(...relatedProgress.map((progress: any) => Number(progress.id)));
+                        const finalDocuments = isFinalProgress || (relatedFinalDocuments.length > 0 && Number(item.id) === latestProgressId) ? relatedFinalDocuments : [];
+                        const allFinalDocumentsValidated = finalDocuments.length > 0 && finalDocuments.every((document: any) => document.validated_at);
+
+                        return (
+                            <div key={item.id} className="grid gap-2 p-3 text-sm">
+                                <div className="flex items-start gap-2">
+                                    <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="font-medium">{progressLabel(item.status)}</div>
+                                        <div className="mt-1 text-xs text-muted-foreground">{item.collateral?.nama_agunan || item.collateral?.job_type?.name || 'Jenis agunan'}</div>
+                                        <div className="mt-1 text-xs text-muted-foreground">Oleh {item.user?.name ?? 'Notaris'}</div>
+                                        {finalDocuments.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                <SimStatusBadge label={allFinalDocumentsValidated ? 'Tervalidasi' : 'Menunggu validasi'} tone={allFinalDocumentsValidated ? 'success' : 'warning'} />
+                                                <Button type="button" variant="outline" size="sm" onClick={() => onOpenFinalDocuments(finalDocuments)}>
+                                                    <Eye className="size-4" />
+                                                    Dokumen final ({finalDocuments.length})
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <time className="pl-4 text-xs text-muted-foreground">{formatTimelineDate(item.created_at)}</time>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+            {total > items.length && (
+                <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+                    Menampilkan {items.length} dari {total} aktivitas terbaru.
+                </div>
+            )}
+        </aside>
     );
 }
 
