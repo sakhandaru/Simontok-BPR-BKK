@@ -987,8 +987,8 @@ export default function OrdersShow({
                             </div>
                             <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                         </summary>
-                        <div className="grid gap-4 p-4 lg:grid-cols-[1fr_1fr]">
-                            <div className="grid gap-3 text-sm">
+                        <div className={`grid gap-4 p-4 ${canVerifyPayment || canApprovePayment || canUploadPaymentProof ? 'lg:grid-cols-2' : ''}`}>
+                            <div className="grid gap-3 text-sm sm:grid-cols-2">
                                 <Info
                                     label="Status"
                                     value={paymentStatusLabel(
@@ -1006,7 +1006,7 @@ export default function OrdersShow({
                                     )}
                                 />
                                 {paymentAccount && (
-                                    <div className="rounded-md border p-3">
+                                    <div className="rounded-md border p-3 sm:col-span-2">
                                         <div className="mb-2 font-medium">Rekening notaris</div>
                                         <div className="grid gap-2 sm:grid-cols-3">
                                             <Info label="Bank" value={paymentAccount.bank_name} />
@@ -1037,21 +1037,23 @@ export default function OrdersShow({
                                 />
                                 {order.payment_request &&
                                     paymentBlockers.length > 0 && (
-                                        <SimActionAlert
-                                            tone="danger"
-                                            title="Belum memenuhi syarat pembayaran"
-                                            description={
-                                                <ul className="list-disc space-y-1 pl-5">
-                                                    {paymentBlockers.map(
-                                                        (item) => (
-                                                            <li key={item}>
-                                                                {item}
-                                                            </li>
-                                                        ),
-                                                    )}
-                                                </ul>
-                                            }
-                                        />
+                                        <div className="sm:col-span-2">
+                                            <SimActionAlert
+                                                tone="danger"
+                                                title="Belum memenuhi syarat pembayaran"
+                                                description={
+                                                    <ul className="list-disc space-y-1 pl-5">
+                                                        {paymentBlockers.map(
+                                                            (item) => (
+                                                                <li key={item}>
+                                                                    {item}
+                                                                </li>
+                                                            ),
+                                                        )}
+                                                    </ul>
+                                                }
+                                            />
+                                        </div>
                                     )}
                                 {!order.payment_request && (
                                     <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
