@@ -35,6 +35,7 @@ class ReportController extends Controller
         ]);
 
         $orders = Order::query()->submitted()->visibleTo($request->user())
+            ->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value)
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))
             ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '>=', $date))
@@ -199,6 +200,7 @@ class ReportController extends Controller
         $query
             ->submitted()
             ->visibleTo($user)
+            ->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value)
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))
             ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '>=', $date))

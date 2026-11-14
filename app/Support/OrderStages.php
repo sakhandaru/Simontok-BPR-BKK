@@ -31,7 +31,7 @@ final class OrderStages
             ],
             'verifikasi' => [
                 'label' => 'Verifikasi notaris',
-                'statuses' => [TrackAStatus::MenungguVerifikasiNotaris->value, TrackAStatus::PerbaikanDokumen->value, TrackAStatus::PerluPengalihanNotaris->value],
+                'statuses' => [TrackAStatus::MenungguVerifikasiNotaris->value, TrackAStatus::PerbaikanDokumen->value],
             ],
             'akta' => [
                 'label' => 'Proses akta',
@@ -84,7 +84,7 @@ final class OrderStages
      */
     public static function closedStatuses(): array
     {
-        return [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+        return [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value, TrackAStatus::PerluPengalihanNotaris->value];
     }
 
     /**

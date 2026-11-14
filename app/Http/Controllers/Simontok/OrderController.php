@@ -58,12 +58,13 @@ class OrderController extends Controller
         $closedStatuses = OrderStages::closedStatuses();
         $branchScopeId = $request->user()->branchScopeId();
 
-        $visibleOrders = Order::query()->submitted()->visibleTo($request->user());
+        $visibleOrders = Order::query()->submitted()->visibleTo($request->user())->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value);
 
         return Inertia::render('simontok/orders/index', [
             'orders' => Order::query()
                 ->submitted()
                 ->visibleTo($request->user())
+                ->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value)
                 ->with(['branch:id,code,name', 'notary:id,name', 'paymentRequest:id,order_id,status'])
                 ->withCount(['collaterals', 'documents', 'handovers'])
                 ->when($filters['search'] ?? null, function ($query, string $search) {
@@ -323,6 +324,7 @@ class OrderController extends Controller
             'canEdit' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canSubmitApproval' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canApproveOrder' => $request->user()->hasPermission('orders.approve') && $order->status === TrackAStatus::MenungguApproval,
+            'canReassignNotary' => $request->user()->hasPermission('orders.manage') && $order->status === TrackAStatus::PerluPengalihanNotaris,
             'branches' => Branch::where('is_active', true)->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
             'branchLocked' => $this->userBranchScope($request) !== null,
             'notaries' => Notary::availableForOrders()->with(['branches' => fn ($query) => $query->where('branches.is_active', true)->where('branch_notary.is_active', true)])->when(! config('uat.emergency_only'), fn ($query) => $query->whereHas('users', fn ($query) => $query->where('is_active', true)))->when($this->userBranchScope($request), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name'])->map(fn (Notary $notary) => ['id' => $notary->id, 'name' => $notary->name, 'branch_ids' => $notary->branches->pluck('id')]),

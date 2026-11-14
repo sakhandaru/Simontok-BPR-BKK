@@ -35,6 +35,7 @@ class WorkQueueController extends Controller
         }
         if ($user->hasPermission('orders.manage')) {
             $this->add($tasks, (clone $orders)->where('status', TrackAStatus::PerluPerbaikanOrder->value)->get(), 'Lengkapi order', 'Order dikembalikan untuk diperbaiki.', 'normal');
+            $this->add($tasks, (clone $orders)->where('status', TrackAStatus::PerluPengalihanNotaris->value)->get(), 'Alihkan notaris', 'Notaris pertama menolak order dan perlu dipilihkan notaris pengganti.', 'important');
         }
 
         $tasks = $tasks->unique(fn (array $task) => $task['id'].'-'.$task['title'])->sortByDesc(fn (array $task) => ($task['priority'] === 'important' ? 2 : 1).'-'.$task['created_at'])->values();

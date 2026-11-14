@@ -22,7 +22,7 @@ class BranchMonitoringController extends Controller
         ]);
         $closed = OrderStages::closedStatuses();
         $rows = Branch::query()->where('is_active', true)->orderBy('name')->get()->map(function (Branch $branch) use ($closed) {
-            $orders = Order::query()->submitted()->where('branch_id', $branch->id);
+            $orders = Order::query()->submitted()->where('branch_id', $branch->id)->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value);
 
             $totalOrders = (clone $orders)->count();
             $completedOrders = (clone $orders)->where('status', TrackAStatus::Selesai->value)->count();

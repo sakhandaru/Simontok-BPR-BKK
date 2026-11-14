@@ -29,8 +29,8 @@ class DashboardController extends Controller
         }
 
         $closedStatuses = OrderStages::closedStatuses();
-        $visibleOrders = Order::query()->submitted()->visibleTo($request->user());
-        $visibleCollaterals = OrderCollateral::whereHas('order', fn ($query) => $query->submitted()->visibleTo($request->user()));
+        $visibleOrders = Order::query()->submitted()->visibleTo($request->user())->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value);
+        $visibleCollaterals = OrderCollateral::whereHas('order', fn ($query) => $query->submitted()->visibleTo($request->user())->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value));
         $activeOrders = (clone $visibleOrders)->whereNotIn('status', $closedStatuses);
         $totalOrders = (clone $visibleOrders)->count();
         $completedOrders = (clone $visibleOrders)->where('status', TrackAStatus::Selesai->value)->count();
@@ -99,7 +99,7 @@ class DashboardController extends Controller
             'branchMonitoring' => (clone $visibleOrders)
                 ->select('branches.id', 'branches.code', 'branches.name')
                 ->selectRaw('COUNT(orders.id) as total_orders')
-                ->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)
+                ->selectRaw('SUM(CASE WHEN orders.status NOT IN ('.implode(', ', array_fill(0, count($closedStatuses), '?')).') THEN 1 ELSE 0 END) as active_orders', $closedStatuses)
                 ->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')
                 ->join('branches', 'branches.id', '=', 'orders.branch_id')
                 ->groupBy('branches.id', 'branches.code', 'branches.name')

@@ -73,7 +73,13 @@ class TemporaryOrderDocumentController extends Controller
         $path = null;
         $oldPath = null;
         try {
-            $temporary = DB::transaction(function () use ($request, $order, $data, $context, $key, $checklist, &$path, &$oldPath) {
+            $file = $request->file('file');
+            $path = $file->store("documents/{$order->order_no}/staged", 'local');
+            if (! $path || ! Storage::disk('local')->exists($path)) {
+                throw ValidationException::withMessages(['file' => 'File gagal disimpan. Silakan coba lagi.']);
+            }
+
+            $temporary = DB::transaction(function () use ($request, $order, $data, $context, $key, $checklist, $file, &$path, &$oldPath) {
                 $lockedOrder = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
                 TemporaryOrderDocuments::authorize($request, $lockedOrder);
                 $temporary = TemporaryOrderDocument::whereKey($data['id'])->lockForUpdate()->first();
@@ -88,11 +94,6 @@ class TemporaryOrderDocumentController extends Controller
                         ->where('core_account_id', $context['core_account_id'] ?? '')->where('collateral_key', $key)
                         ->where('checklist_master_id', $checklist->id)->where('job_type_id', $data['job_type_id'] ?? null)
                         ->whereNull('promoted_at')->lockForUpdate()->first();
-                }
-                $file = $request->file('file');
-                $path = $file->store("documents/{$order->order_no}/staged", 'local');
-                if (! $path || ! Storage::disk('local')->exists($path)) {
-                    throw ValidationException::withMessages(['file' => 'File gagal disimpan. Silakan coba lagi.']);
                 }
                 $oldPath = $temporary?->stored_path;
                 $temporary ??= new TemporaryOrderDocument(['id' => $data['id']]);

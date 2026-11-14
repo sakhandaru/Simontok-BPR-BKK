@@ -2,6 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import {
     AlertCircle,
     ArrowLeft,
+    ArrowRightLeft,
     BadgeCheck,
     BriefcaseBusiness,
     CheckCircle2,
@@ -122,6 +123,7 @@ export default function OrdersShow({
     canEscalateCovernote,
     canSubmitApproval,
     canApproveOrder,
+    canReassignNotary,
     stepFees,
     serviceFee,
     branches,
@@ -156,6 +158,7 @@ export default function OrdersShow({
     canEscalateCovernote: boolean;
     canSubmitApproval: boolean;
     canApproveOrder: boolean;
+    canReassignNotary: boolean;
     stepFees: { id?: number; order_collateral_id: number; job_type_step_id: number | null; step_name: string; amount: number }[];
     serviceFee: { main: number; steps: number; total: number };
     branches: { id: number; code: string; name: string }[];
@@ -173,8 +176,10 @@ export default function OrdersShow({
     const draft = useForm<OrderDraft>(temporaryDraftContext ?? orderDraftFrom(order));
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
+    const [reassignOpen, setReassignOpen] = useState(false);
     const revision = useForm({ reason: '' });
     const cancellation = useForm({ reason: '' });
+    const reassignment = useForm({ notary_id: '', reason: '' });
     const covernoteRevision = useForm({ reason: '' });
     const [progressDocumentsPreview, setProgressDocumentsPreview] = useState<
         any[] | null
@@ -324,6 +329,16 @@ export default function OrdersShow({
             onSuccess: () => {
                 cancellation.reset();
                 setCancelOpen(false);
+            },
+        });
+    };
+    const submitReassignment = (event: FormEvent) => {
+        event.preventDefault();
+        reassignment.post(`/orders/${order.id}/reassign-notary`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                reassignment.reset();
+                setReassignOpen(false);
             },
         });
     };
@@ -693,6 +708,12 @@ export default function OrdersShow({
                                     Setujui & kirim ke notaris
                                 </Button>
                             )}
+                            {canReassignNotary && (
+                                <Button type="button" onClick={() => setReassignOpen(true)}>
+                                    <ArrowRightLeft className="size-4" />
+                                    Alihkan notaris
+                                </Button>
+                            )}
                             {canApproveOrder && (
                                 <Button
                                     type="button"
@@ -781,6 +802,14 @@ export default function OrdersShow({
                                 </span>
                             </>
                         }
+                    />
+                )}
+
+                {canReassignNotary && (
+                    <SimActionAlert
+                        tone="warning"
+                        title="Order perlu pengalihan notaris"
+                        description="Notaris pertama menolak order ini. Pilih notaris rekanan pengganti agar order dapat dikirim kembali ke alur approval."
                     />
                 )}
 
@@ -2331,6 +2360,60 @@ export default function OrdersShow({
                     </main>
                 </div>
             </div>
+            <Dialog
+                open={reassignOpen}
+                onOpenChange={(open) => {
+                    if (!open && !reassignment.processing) {
+                        reassignment.reset();
+                        setReassignOpen(false);
+                    }
+                }}
+            >
+                <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Alihkan notaris</DialogTitle>
+                        <DialogDescription>
+                            Pilih notaris rekanan aktif dari cabang {order.branch?.name ?? 'order ini'}. Order akan kembali ke tahap approval.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={submitReassignment} className="grid gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="reassign-notary">Notaris pengganti</Label>
+                            <SimSelect
+                                value={reassignment.data.notary_id}
+                                onChange={(value) => reassignment.setData('notary_id', value)}
+                                options={notaries
+                                    .filter((notary) => notary.branch_ids.includes(Number(order.branch_id)) && Number(notary.id) !== Number(order.notary_id))
+                                    .map((notary) => ({ value: String(notary.id), label: notary.name }))}
+                                placeholder="Pilih notaris pengganti"
+                                disabled={reassignment.processing}
+                            />
+                            <InputError message={reassignment.errors.notary_id} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="reassign-reason">Alasan pengalihan</Label>
+                            <textarea
+                                id="reassign-reason"
+                                className="sim-input min-h-24 py-2"
+                                value={reassignment.data.reason}
+                                onChange={(event) => reassignment.setData('reason', event.target.value)}
+                                placeholder="Contoh: Notaris pertama menolak karena wilayah kerja tidak sesuai."
+                                disabled={reassignment.processing}
+                            />
+                            <InputError message={reassignment.errors.reason} />
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setReassignOpen(false)} disabled={reassignment.processing}>
+                                Batal
+                            </Button>
+                            <Button type="submit" disabled={reassignment.processing || !reassignment.data.notary_id || !reassignment.data.reason.trim()}>
+                                <ArrowRightLeft className="size-4" />
+                                {reassignment.processing ? 'Menyimpan...' : 'Alihkan notaris'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
             <Dialog
                 open={Boolean(leaveDraftVisit)}
                 onOpenChange={(open) => !open && setLeaveDraftVisit(null)}
