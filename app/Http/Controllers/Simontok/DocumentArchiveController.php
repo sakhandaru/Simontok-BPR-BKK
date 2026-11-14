@@ -106,6 +106,7 @@ class DocumentArchiveController extends Controller
                 'id' => $version->id,
                 'notary_id' => $version->documentable_id,
                 'entity_name' => $this->entityName($version),
+                'entity_url' => $this->entityUrl($version),
                 'version' => $version->version,
                 'file_name' => $version->original_name,
                 'title' => $version->title,
@@ -205,6 +206,21 @@ class DocumentArchiveController extends Controller
         }
 
         return 'Dokumen terkait';
+    }
+
+    private function entityUrl(DocumentArchive $archive): ?string
+    {
+        if ($archive->documentable_type === Order::class) {
+            return $archive->documentable?->id ? "/orders/{$archive->documentable->id}" : null;
+        }
+
+        if ($archive->documentable_type === OrderCollateral::class) {
+            $orderId = $archive->documentable?->order?->id;
+
+            return $orderId ? "/orders/{$orderId}" : null;
+        }
+
+        return null;
     }
 
     public function preview(DocumentArchive $version)
