@@ -15,9 +15,9 @@ class InAppNotification
         self::create('user', $user->id, $title, $message, $linkUrl, $priority);
     }
 
-    public static function forNotary(Order $order, string $title, string $message, ?string $linkUrl = null): void
+    public static function forNotary(Order $order, string $title, string $message, ?string $linkUrl = null, string $priority = 'normal'): void
     {
-        self::create('notary', $order->notary_id, $title, $message, $linkUrl ?? "/notary/orders/{$order->id}");
+        self::create('notary', $order->notary_id, $title, $message, $linkUrl ?? "/notary/orders/{$order->id}", $priority);
     }
 
     public static function forOrderMaker(Order $order, string $title, string $message, ?string $linkUrl = null): void

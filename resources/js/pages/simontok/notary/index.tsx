@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import type { Paginated } from '@/types';
 import { SimTable } from '@/components/sim-table';
@@ -15,9 +16,10 @@ type NotaryOrder = {
     branch: string | null;
     sent_to_notary_at: string | null;
 };
+type CovernoteAlert = { id: number; order_id: number; order_no: string | null; nama_agunan: string | null; covernote_end: string | null; days_left: number };
 type StatusSummary = { key: string; label: string; value: number };
 
-export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, filters, statusOptions, statusSummary }: { orders: Paginated<NotaryOrder>; isNotaryUser: boolean; isMonitor: boolean; filters: { search: string; status: string }; statusOptions: { value: string; label: string }[]; statusSummary: StatusSummary[] }) {
+export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, filters, statusOptions, statusSummary, covernoteAlerts }: { orders: Paginated<NotaryOrder>; isNotaryUser: boolean; isMonitor: boolean; filters: { search: string; status: string }; statusOptions: { value: string; label: string }[]; statusSummary: StatusSummary[]; covernoteAlerts: CovernoteAlert[] }) {
     const [search, setSearch] = useState(filters.search);
     const [status, setStatus] = useState(filters.status);
 
@@ -29,6 +31,30 @@ export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, fil
                     <h1 className="text-2xl font-semibold">Portal Notaris</h1>
                     <p className="mt-1 text-sm text-muted-foreground">Daftar pekerjaan yang sudah dikirim oleh BPR untuk ditindaklanjuti.</p>
                 </div>
+
+                {covernoteAlerts.length > 0 && (
+                    <section className="sticky top-2 z-20 rounded-lg border border-red-500/50 bg-red-50 p-3 text-red-950 shadow-md dark:bg-red-950/90 dark:text-red-100 md:p-4">
+                        <div className="flex items-start gap-3">
+                            <TriangleAlert className="mt-0.5 size-5 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                                    <h2 className="font-semibold">Perhatian serius: {covernoteAlerts.length} covernote akan kedaluwarsa</h2>
+                                    <span className="text-xs font-medium uppercase tracking-wide opacity-80">Tindakan diperlukan</span>
+                                </div>
+                                <p className="mt-1 text-sm opacity-90">Segera ajukan perpanjangan sebelum pekerjaan terhambat.</p>
+                                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                                    {covernoteAlerts.slice(0, 3).map((item) => (
+                                        <Link key={item.id} href={`/notary/orders/${item.order_id}`} className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-red-500/30 bg-background/80 px-3 py-2 text-sm text-foreground hover:bg-background">
+                                            <span className="min-w-0 truncate"><span className="font-medium">{item.order_no}</span> · {item.nama_agunan || 'Agunan'}</span>
+                                            <span className="shrink-0 font-semibold text-red-700 dark:text-red-300">H-{item.days_left}</span>
+                                        </Link>
+                                    ))}
+                                </div>
+                                {covernoteAlerts.length > 3 && <p className="mt-2 text-xs opacity-80">+{covernoteAlerts.length - 3} covernote lainnya perlu ditindaklanjuti.</p>}
+                            </div>
+                        </div>
+                    </section>
+                )}
 
                 <div className="grid grid-cols-2 divide-x divide-border overflow-hidden rounded-lg border border-border bg-card md:grid-cols-4">
                     {statusSummary.map((item) => (

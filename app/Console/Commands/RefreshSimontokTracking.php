@@ -90,6 +90,32 @@ class RefreshSimontokTracking extends Command
             );
         }
 
+        $dueSoonCovernotes = Order::query()
+            ->with(['collaterals.covernoteExtensions'])
+            ->where(fn ($query) => $query
+                ->whereDate('covernote_end', today()->addDays(7))
+                ->orWhereHas('collaterals', fn ($query) => $query->whereDate('covernote_end', today()->addDays(7))))
+            ->whereNotIn('status', $closedStatuses)
+            ->limit(50)
+            ->get();
+
+        foreach ($dueSoonCovernotes as $order) {
+            $hasPendingExtension = $order->collaterals->contains(fn ($collateral) => $collateral->covernoteExtensions->contains(fn ($extension) => $extension->status === 'menunggu_approval'));
+            $covernoteEnd = $order->covernote_end ?: $order->collaterals->first(fn ($collateral) => $collateral->covernote_end)?->covernote_end;
+            if ($hasPendingExtension || ! $covernoteEnd) {
+                continue;
+            }
+
+            $days = today()->diffInDays($covernoteEnd);
+            InAppNotification::forNotary(
+                $order,
+                'Covernote akan kedaluwarsa',
+                "Serius: covernote order {$order->order_no} akan kedaluwarsa dalam {$days} hari pada {$covernoteEnd->format('d M Y')}. Segera ajukan perpanjangan.",
+                "/notary/orders/{$order->id}",
+                'critical',
+            );
+        }
+
         $overdue = OrderCollateral::query()
             ->with('order')
             ->whereNotNull('sla_due_at')

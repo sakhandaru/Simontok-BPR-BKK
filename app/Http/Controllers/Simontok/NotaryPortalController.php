@@ -48,6 +48,37 @@ class NotaryPortalController extends Controller
             ->pluck('total', 'status')
             ->map(fn ($total) => (int) $total);
         $countStatuses = fn (array $statuses): int => collect($statuses)->sum(fn (TrackAStatus $status) => $statusCounts->get($status->value, 0));
+        $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+        $covernoteAlerts = Order::query()
+            ->with(['collaterals.covernoteExtensions'])
+            ->whereNotNull('sent_to_notary_at')
+            ->when(! $isMonitor, fn ($query) => $query->where('notary_id', $notaryId))
+            ->whereNotIn('status', $closedStatuses)
+            ->where(fn ($query) => $query
+                ->whereBetween('covernote_end', [today(), today()->addDays(7)])
+                ->orWhereHas('collaterals', fn ($query) => $query->whereBetween('covernote_end', [today(), today()->addDays(7)])))
+            ->orderBy('covernote_end')
+            ->limit(20)
+            ->get()
+            ->map(function (Order $order): ?array {
+                $hasPendingExtension = $order->collaterals->contains(fn ($collateral) => $collateral->covernoteExtensions->contains(fn ($extension) => $extension->status === 'menunggu_approval'));
+                $covernoteEnd = $order->covernote_end ?: $order->collaterals->first(fn ($collateral) => $collateral->covernote_end)?->covernote_end;
+                if ($hasPendingExtension || ! $covernoteEnd) {
+                    return null;
+                }
+
+                return [
+                    'id' => $order->id,
+                    'order_id' => $order->id,
+                    'order_no' => $order->order_no,
+                    'nama_agunan' => $order->collaterals->first()?->nama_agunan,
+                    'covernote_end' => $covernoteEnd->format('d M Y'),
+                    'days_left' => today()->diffInDays($covernoteEnd),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
 
         return Inertia::render('simontok/notary/index', [
             'orders' => Order::query()
@@ -77,6 +108,7 @@ class NotaryPortalController extends Controller
                 ['key' => 'action', 'label' => 'Perlu tindakan', 'value' => $countStatuses([TrackAStatus::PerbaikanDokumen, TrackAStatus::PerbaikanCovernote, TrackAStatus::PersiapanPekerjaan])],
                 ['key' => 'completed', 'label' => 'Selesai', 'value' => $countStatuses([TrackAStatus::Selesai])],
             ],
+            'covernoteAlerts' => $covernoteAlerts,
             'statusOptions' => array_map(fn (TrackAStatus $status) => ['value' => $status->value, 'label' => $status->label()], TrackAStatus::cases()),
             'isNotaryUser' => (bool) $notaryId,
             'isMonitor' => $isMonitor,
