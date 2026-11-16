@@ -36,7 +36,7 @@ class DocumentRequestController extends Controller
 
     public function fulfill(Request $request, Order $order, DocumentRequest $documentRequest): RedirectResponse
     {
-        abort_unless(! $request->user()?->notary_id && $order->isVisibleTo($request->user()), 403);
+        abort_unless(! $request->user()?->notary_id && $request->user()->hasPermission('documents.validate') && $order->isVisibleTo($request->user()), 403);
         abort_unless($documentRequest->order_id === $order->id && $documentRequest->status === 'diminta', 422);
         $data = $request->validate(['file' => ['required', 'file', 'mimes:pdf', 'max:10240']]);
         DB::transaction(function () use ($request, $order, $documentRequest, $data) {

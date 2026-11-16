@@ -85,7 +85,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/preview', [PaymentRequestController::class, 'previewProof'])->name('orders.payment-requests.payments.preview');
     });
     Route::post('notary/orders/{order}/document-requests', [DocumentRequestController::class, 'store'])->middleware('permission:notary.actions')->name('notary.orders.document-requests.store');
-    Route::post('orders/{order}/document-requests/{documentRequest}/fulfill', [DocumentRequestController::class, 'fulfill'])->middleware('permission:orders.manage')->name('orders.document-requests.fulfill');
+    Route::post('orders/{order}/document-requests/{documentRequest}/fulfill', [DocumentRequestController::class, 'fulfill'])->middleware('permission:documents.validate')->name('orders.document-requests.fulfill');
     Route::middleware('permission:orders.manage')->group(function () {
         Route::resource('orders', OrderController::class)->only(['edit', 'update']);
     });
@@ -108,6 +108,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('announcements/{announcement}/read', [AnnouncementController::class, 'markRead'])->name('announcements.read');
     Route::middleware('permission:notary.portal')->group(function () {
         Route::get('notary/orders', [NotaryPortalController::class, 'index'])->name('notary.orders.index');
+        Route::get('notary/document-archives', [DocumentArchiveController::class, 'myIndex'])->name('notary.document-archives.index');
+        Route::get('notary/document-archives/{version}/preview', [DocumentArchiveController::class, 'preview'])->name('notary.document-archives.preview');
+        Route::get('notary/document-archives/{version}/download', [DocumentArchiveController::class, 'download'])->name('notary.document-archives.download');
+        Route::get('notary/document-archives/{version}/versions', [DocumentArchiveController::class, 'versions'])->name('notary.document-archives.versions');
         Route::get('notary/orders/{order}', [NotaryPortalController::class, 'show'])->name('notary.orders.show');
         Route::get('notary/orders/{order}/transition', [NotaryPortalController::class, 'transition'])->name('notary.orders.transition');
         Route::get('notary/orders/{order}/agreement/preview', [NotaryPortalController::class, 'agreementPreview'])->name('notary.orders.agreement.preview');

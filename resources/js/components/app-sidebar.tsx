@@ -71,7 +71,7 @@ export function AppSidebar() {
     const canGoBack = useCanGoBack();
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const operations = isNotary
-        ? (can('notary.portal') ? [{ title: 'Portal Notaris', href: '/notary/orders', icon: UserCheck }] : [])
+        ? (can('notary.portal') ? [{ title: 'Portal Notaris', href: '/notary/orders', icon: UserCheck }, { title: 'Arsip Dokumen Saya', href: '/notary/document-archives', icon: Archive }] : [])
         : [
         ...(can('dashboard.view') ? [operationsNavItems[0]] : []),
         ...(can('orders.view') ? [operationsNavItems[1]] : []),

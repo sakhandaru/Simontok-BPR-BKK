@@ -1737,7 +1737,7 @@ export default function OrdersShow({
                                                 accept="application/pdf"
                                                 required
                                             />
-                                            <Button disabled={!canManageOrder}>
+                                            <Button disabled={!canManageOrder && !canValidateDocuments}>
                                                 <Upload className="size-4" />
                                                 Upload
                                             </Button>
@@ -3181,10 +3181,7 @@ function DraftOrderForm({
 
                     {activeCollateral && collateralModal?.tab === 'documents' && (
                         <div className="grid gap-4">
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <div className="font-medium">Dokumen awal</div>
-                                </div>
+                            <div className="flex items-center justify-start gap-3">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -3195,6 +3192,7 @@ function DraftOrderForm({
                                 >
                                     <FilePlus2 className="size-4" />Tambah dokumen pendukung
                                 </Button>
+                                <div className="font-medium">Dokumen awal</div>
                             </div>
                             <div className="grid gap-5">
                                 {[

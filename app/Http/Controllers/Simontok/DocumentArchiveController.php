@@ -7,6 +7,7 @@ use App\Models\DocumentArchive;
 use App\Models\Notary;
 use App\Models\Order;
 use App\Models\OrderCollateral;
+use App\Support\Audit;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,19 @@ class DocumentArchiveController extends Controller
     {
         abort_if($request->user()?->notary_id, 403);
 
+        return $this->renderIndex($request, false);
+    }
+
+    public function myIndex(Request $request): Response
+    {
+        abort_unless($request->user()?->notary_id, 403);
+
+        return $this->renderIndex($request, true);
+    }
+
+    private function renderIndex(Request $request, bool $notaryOnly): Response
+    {
+
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
@@ -30,6 +44,14 @@ class DocumentArchiveController extends Controller
 
         $filtered = DocumentArchive::query()
             ->with(['documentable', 'uploader:id,name'])
+            ->when($notaryOnly, function ($query) use ($request): void {
+                $query->whereIn('category', ['dokumen_agunan', 'covernote', 'hasil_pekerjaan', 'serah_terima', 'bukti_pembayaran'])
+                    ->where(function ($query) use ($request): void {
+                        $query
+                            ->whereHasMorph('documentable', [Order::class], fn ($order) => $order->where('notary_id', $request->user()->notary_id))
+                            ->orWhereHasMorph('documentable', [OrderCollateral::class], fn ($collateral) => $collateral->whereHas('order', fn ($order) => $order->where('notary_id', $request->user()->notary_id)));
+                    });
+            })
             ->when($request->user()?->branchScopeId(), function ($query, int $branchId): void {
                 $query->where(function ($query) use ($branchId): void {
                     $query
@@ -93,9 +115,10 @@ class DocumentArchiveController extends Controller
                 'category' => $filters['category'] ?? '',
                 'expiry' => $filters['expiry'] ?? 'all',
             ],
-            'notaries' => Notary::query()->when($request->user()?->branchScopeId(), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
-            'categories' => DocumentArchive::query()->distinct()->orderBy('category')->pluck('category'),
-            'versions' => $versions->paginate(15)->withQueryString()->through(function (DocumentArchive $version): array {
+            'notaries' => $notaryOnly ? [] : Notary::query()->when($request->user()?->branchScopeId(), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
+            'categories' => $notaryOnly ? (clone $filtered)->distinct()->orderBy('category')->pluck('category') : DocumentArchive::query()->distinct()->orderBy('category')->pluck('category'),
+            'isNotaryArchive' => $notaryOnly,
+            'versions' => $versions->paginate(15)->withQueryString()->through(function (DocumentArchive $version) use ($notaryOnly): array {
                 $expiry = $this->expiryDetails($version);
 
                 return [
@@ -106,7 +129,7 @@ class DocumentArchiveController extends Controller
                 'id' => $version->id,
                 'notary_id' => $version->documentable_id,
                 'entity_name' => $this->entityName($version),
-                'entity_url' => $this->entityUrl($version),
+                'entity_url' => $this->entityUrl($version, $notaryOnly),
                 'version' => $version->version,
                 'file_name' => $version->original_name,
                 'title' => $version->title,
@@ -175,8 +198,8 @@ class DocumentArchiveController extends Controller
                 'uploaded_by' => $archive->uploader?->name ?? 'Migrasi sistem',
                 'created_at' => $archive->created_at?->format('d M Y H:i'),
                 'change_note' => $archive->change_note,
-                'preview_url' => "/document-archives/{$archive->id}/preview",
-                'download_url' => "/document-archives/{$archive->id}/download",
+                'preview_url' => (request()->user()?->notary_id ? '/notary/document-archives' : '/document-archives')."/{$archive->id}/preview",
+                'download_url' => (request()->user()?->notary_id ? '/notary/document-archives' : '/document-archives')."/{$archive->id}/download",
             ]);
 
         return response()->json([
@@ -208,16 +231,16 @@ class DocumentArchiveController extends Controller
         return 'Dokumen terkait';
     }
 
-    private function entityUrl(DocumentArchive $archive): ?string
+    private function entityUrl(DocumentArchive $archive, bool $notaryOnly = false): ?string
     {
         if ($archive->documentable_type === Order::class) {
-            return $archive->documentable?->id ? "/orders/{$archive->documentable->id}" : null;
+            return $archive->documentable?->id ? ($notaryOnly ? "/notary/orders/{$archive->documentable->id}" : "/orders/{$archive->documentable->id}") : null;
         }
 
         if ($archive->documentable_type === OrderCollateral::class) {
             $orderId = $archive->documentable?->order?->id;
 
-            return $orderId ? "/orders/{$orderId}" : null;
+            return $orderId ? ($notaryOnly ? "/notary/orders/{$orderId}" : "/orders/{$orderId}") : null;
         }
 
         return null;
@@ -226,6 +249,7 @@ class DocumentArchiveController extends Controller
     public function preview(DocumentArchive $version)
     {
         $this->authorizeArchive($version);
+        Audit::record(request(), 'document_archives', $version, 'preview', 'Arsip dokumen dibuka untuk preview.', ['document_key' => $version->document_key]);
         abort_unless(Storage::disk($version->storage_disk)->exists($version->file_path), 404);
 
         return response()->file(Storage::disk($version->storage_disk)->path($version->file_path), [
@@ -236,6 +260,7 @@ class DocumentArchiveController extends Controller
     public function download(DocumentArchive $version)
     {
         $this->authorizeArchive($version);
+        Audit::record(request(), 'document_archives', $version, 'download', 'Arsip dokumen diunduh.', ['document_key' => $version->document_key]);
         abort_unless(Storage::disk($version->storage_disk)->exists($version->file_path), 404);
 
         return Storage::disk($version->storage_disk)->download($version->file_path, $version->original_name);
@@ -244,7 +269,18 @@ class DocumentArchiveController extends Controller
     private function authorizeArchive(DocumentArchive $version): void
     {
         $user = request()->user();
-        abort_if($user?->notary_id, 403);
+        if ($user?->notary_id) {
+            abort_unless(in_array($version->category, ['dokumen_agunan', 'covernote', 'hasil_pekerjaan', 'serah_terima', 'bukti_pembayaran'], true), 404);
+            $version->loadMissing('documentable');
+            $visible = match ($version->documentable_type) {
+                OrderCollateral::class => $version->documentable?->loadMissing('order')->order?->notary_id === $user->notary_id,
+                Order::class => $version->documentable?->notary_id === $user->notary_id,
+                default => false,
+            };
+            abort_unless($visible, 404);
+
+            return;
+        }
 
         if ($user?->branchScopeId() === null) {
             return;
