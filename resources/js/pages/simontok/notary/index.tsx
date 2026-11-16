@@ -33,20 +33,20 @@ export default function NotaryOrdersIndex({ orders, isNotaryUser, isMonitor, fil
                 </div>
 
                 {covernoteAlerts.length > 0 && (
-                    <section className="sticky top-2 z-20 rounded-lg border border-red-500/50 bg-red-50 p-3 text-red-950 shadow-md dark:bg-red-950/90 dark:text-red-100 md:p-4">
+                    <section className="rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-100 md:p-4">
                         <div className="flex items-start gap-3">
-                            <TriangleAlert className="mt-0.5 size-5 shrink-0" />
+                            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-300" />
                             <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                                    <h2 className="font-semibold">Perhatian serius: {covernoteAlerts.length} covernote akan kedaluwarsa</h2>
-                                    <span className="text-xs font-medium uppercase tracking-wide opacity-80">Tindakan diperlukan</span>
+                                    <h2 className="font-semibold">Covernote mendekati jatuh tempo ({covernoteAlerts.length})</h2>
+                                    <span className="text-xs font-medium uppercase tracking-wide opacity-70">Perlu ditindaklanjuti</span>
                                 </div>
-                                <p className="mt-1 text-sm opacity-90">Segera ajukan perpanjangan sebelum pekerjaan terhambat.</p>
+                                <p className="mt-1 text-sm opacity-90">Mohon ajukan perpanjangan sebelum masa berlaku berakhir.</p>
                                 <div className="mt-3 grid gap-2 md:grid-cols-3">
                                     {covernoteAlerts.slice(0, 3).map((item) => (
-                                        <Link key={item.id} href={`/notary/orders/${item.order_id}`} className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-red-500/30 bg-background/80 px-3 py-2 text-sm text-foreground hover:bg-background">
+                                        <Link key={item.id} href={`/notary/orders/${item.order_id}`} className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-amber-300/60 bg-background/80 px-3 py-2 text-sm text-foreground hover:bg-background dark:border-amber-700/50">
                                             <span className="min-w-0 truncate"><span className="font-medium">{item.order_no}</span> · {item.nama_agunan || 'Agunan'}</span>
-                                            <span className="shrink-0 font-semibold text-red-700 dark:text-red-300">H-{item.days_left}</span>
+                                            <span className="shrink-0 font-semibold text-amber-700 dark:text-amber-300">H-{item.days_left}</span>
                                         </Link>
                                     ))}
                                 </div>
