@@ -337,13 +337,23 @@ export default function NotaryOrdersShow({
                         </div>
                         <div className="grid gap-4 p-4 lg:grid-cols-[1fr_1fr]">
                             <div className="grid gap-3 text-sm">
-                                <Info
-                                    label="Status pembayaran"
-                                    value={
-                                        order.payment_request?.status ??
-                                        'Belum diajukan'
-                                    }
-                                />
+                                <div>
+                                    <div className="text-sm text-muted-foreground">
+                                        Status pembayaran
+                                    </div>
+                                    <div className="mt-1">
+                                        <SimStatusBadge
+                                            label={paymentStatusLabel(
+                                                order.payment_request?.status,
+                                            )}
+                                            tone={toneForStatus(
+                                                statusValue(
+                                                    order.payment_request?.status,
+                                                ),
+                                            )}
+                                        />
+                                    </div>
+                                </div>
                                 <Info
                                     label="Nomor invoice"
                                     value={order.payment_request?.invoice_no}
@@ -1587,6 +1597,23 @@ function dateOnly(value?: string | null) {
 
 function statusValue(value?: string | { value?: string } | null): string {
     return typeof value === 'object' ? value?.value ?? '' : value ?? '';
+}
+
+function paymentStatusLabel(
+    value?: string | { value?: string } | null,
+): string {
+    const labels: Record<string, string> = {
+        diajukan: 'Menunggu verifikasi',
+        diverifikasi_admin: 'Diverifikasi Admin Legal',
+        disetujui: 'Disetujui',
+        ditolak_admin: 'Ditolak Admin Legal',
+        ditolak_manajemen: 'Ditolak Manajemen',
+        dibayar: 'Sudah dilunasi',
+    };
+
+    const key = statusValue(value);
+
+    return labels[key] ?? (key || 'Belum diajukan');
 }
 
 function formatTimelineDate(value?: string | null): string {
