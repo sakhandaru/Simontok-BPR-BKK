@@ -37,7 +37,7 @@ use Inertia\Response;
 
 class OrderController extends Controller
 {
-    private const PAYMENT_SCHEMES = ['Bayar awal', 'Bayar sebagian'];
+    private const PAYMENT_SCHEMES = ['Bayar sebagian', 'Bayar setelah selesai'];
 
     public function __construct(private readonly CoreOrderSnapshot $coreSnapshot) {}
 
@@ -335,9 +335,15 @@ class OrderController extends Controller
             'slaPolicies' => $this->slaPolicies((int) $order->branch_id),
             'paymentBlockers' => $paymentBlockers,
             'paymentAccount' => $paymentAccount,
-            'canVerifyPayment' => false,
+            'canVerifyPayment' => $request->user()->hasPermission('payments.verify')
+                && $order->paymentRequest?->status?->value === TrackDPaymentStatus::Diajukan,
             'canApprovePayment' => false,
-            'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay') && $order->paymentRequest?->status?->value === 'diajukan' && $order->status === TrackAStatus::DokumenFisikDiterima,
+            'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay')
+                && in_array($order->paymentRequest?->status?->value, [
+                    TrackDPaymentStatus::DiverifikasiAdmin->value,
+                    TrackDPaymentStatus::Disetujui->value,
+                ], true)
+                && $order->status === TrackAStatus::DokumenFisikDiterima,
             'canValidateDocuments' => $request->user()->hasPermission('documents.validate'),
             'canManageHandovers' => $request->user()->hasPermission('handovers.manage') && $order->status === TrackAStatus::DokumenFinalDiunggah,
             'canManageOrder' => $request->user()->hasPermission('orders.manage'),

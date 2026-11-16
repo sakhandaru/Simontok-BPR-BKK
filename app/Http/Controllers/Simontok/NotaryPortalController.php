@@ -6,6 +6,7 @@ use App\Enums\OrderDocumentType;
 use App\Enums\TrackAStatus;
 use App\Enums\TrackBDocStatus;
 use App\Enums\TrackCCovernoteStatus;
+use App\Enums\TrackDPaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\DocumentArchive;
 use App\Models\Notary;
@@ -208,7 +209,7 @@ class NotaryPortalController extends Controller
             ], true),
             'initialDocumentsComplete' => $initialDocumentsComplete,
             'canViewDocuments' => $canViewDocuments,
-            'canRequestInvoice' => $canAct && ! $covernoteApprovalPending && (bool) $order->notary_agreement_acknowledged_at && in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true) && $order->paymentRequest === null && $paymentBlockers === [],
+            'canRequestInvoice' => $canAct && ! $covernoteApprovalPending && (bool) $order->notary_agreement_acknowledged_at && in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true) && in_array($order->paymentRequest?->status, [null, TrackDPaymentStatus::DitolakAdmin], true) && $paymentBlockers === [],
             'canAddProgress' => $canAddProgress,
             'canRequestAdditionalDocuments' => $canAct && ! $covernoteApprovalPending && $covernoteApprovedStage,
             'canSubmitFinal' => $canAct && ! $covernoteApprovalPending && $progressComplete && $order->status === TrackAStatus::DraftDiunggah && $order->documents()->where('document_type', 'final')->exists(),

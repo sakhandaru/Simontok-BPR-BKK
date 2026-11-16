@@ -378,7 +378,9 @@ export default function NotaryOrdersShow({
                                     className="grid gap-3 rounded-md border p-3"
                                 >
                                     <div className="font-medium">
-                                        Ajukan invoice
+                                        {statusValue(order.payment_request?.status) === 'ditolak_admin'
+                                            ? 'Ajukan ulang invoice'
+                                            : 'Ajukan invoice'}
                                     </div>
                                     <Input
                                         placeholder="Nomor invoice"
@@ -444,7 +446,7 @@ export default function NotaryOrdersShow({
                         {order.payment_request?.payments?.length > 0 && (
                             <div className="border-t px-4 py-3">
                                 <div className="font-medium">
-                                    Bukti pembayaran
+                                    Bukti pelunasan
                                 </div>
                                 <div className="mt-3 divide-y rounded-md border">
                                     {order.payment_request.payments.map(
@@ -1388,15 +1390,15 @@ export default function NotaryOrdersShow({
                 >
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
-                            <DialogTitle>Bukti pembayaran</DialogTitle>
+                            <DialogTitle>Bukti pelunasan</DialogTitle>
                             <DialogDescription>
-                                Pratinjau bukti pembayaran sebelum diunduh.
+                                Pratinjau bukti pelunasan sebelum diunduh.
                             </DialogDescription>
                         </DialogHeader>
                         {paymentProofPreview && order.payment_request?.id && (
                             <div className="grid gap-3">
                                 <iframe
-                                    title="Preview bukti pembayaran"
+                                    title="Preview bukti pelunasan"
                                     src={`/notary/orders/${order.id}/payment-requests/${order.payment_request.id}/payments/${paymentProofPreview.id}/preview`}
                                     className="h-[min(70vh,42rem)] w-full rounded-md border bg-white"
                                 />
@@ -1626,7 +1628,7 @@ function documentTypeLabel(type?: string | null): string {
         draft: 'Draft',
         resi_bpn: 'Resi BPN',
         final: 'Dokumen final',
-        bukti_bayar: 'Bukti pembayaran',
+        bukti_bayar: 'Bukti pelunasan',
         tanda_terima: 'Tanda terima',
         lainnya: 'Dokumen lainnya',
     };

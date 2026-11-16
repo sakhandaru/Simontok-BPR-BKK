@@ -228,7 +228,7 @@ class UserController extends Controller
             ['table' => 'payment_requests', 'column' => 'verified_by', 'label' => 'verifikasi pembayaran'],
             ['table' => 'payment_requests', 'column' => 'approved_by', 'label' => 'persetujuan pembayaran'],
             ['table' => 'payment_requests', 'column' => 'rejected_by', 'label' => 'penolakan pembayaran'],
-            ['table' => 'payments', 'column' => 'uploaded_by', 'label' => 'bukti pembayaran'],
+            ['table' => 'payments', 'column' => 'uploaded_by', 'label' => 'bukti pelunasan'],
         ];
 
         return collect($references)

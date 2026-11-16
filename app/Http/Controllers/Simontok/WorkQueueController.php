@@ -28,7 +28,7 @@ class WorkQueueController extends Controller
             $this->add($tasks, (clone $orders)->whereIn('status', [TrackAStatus::MenungguApprovalCovernote->value, TrackAStatus::MenungguApprovalCovernoteKepalaCabang->value])->get(), 'Persetujuan biaya & covernote', 'Biaya langkah dan covernote menunggu persetujuan.', 'important');
         }
         if ($user->hasPermission('payments.pay')) {
-            $this->add($tasks, (clone $orders)->where('status', TrackAStatus::DokumenFisikDiterima->value)->whereHas('paymentRequest', fn ($query) => $query->where('status', TrackDPaymentStatus::Diajukan->value))->get(), 'Unggah bukti pembayaran', 'Invoice notaris siap dibayar setelah dokumen fisik diterima.', 'important');
+            $this->add($tasks, (clone $orders)->where('status', TrackAStatus::DokumenFisikDiterima->value)->whereHas('paymentRequest', fn ($query) => $query->whereIn('status', [TrackDPaymentStatus::DiverifikasiAdmin->value, TrackDPaymentStatus::Disetujui->value]))->get(), 'Unggah bukti pelunasan', 'Invoice sudah diverifikasi dan siap dilunasi setelah dokumen fisik diterima.', 'important');
         }
         if ($user->hasPermission('handovers.manage')) {
             $this->add($tasks, (clone $orders)->where('status', TrackAStatus::DokumenFinalDiunggah->value)->get(), 'Handover dokumen', 'Dokumen final siap dicatat serah terimanya.', 'normal');

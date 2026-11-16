@@ -123,7 +123,7 @@ export default function TrackingShow({ order }: { order: TrackingDetail }) {
                                 <div className="space-y-1"><div className="text-xs text-muted-foreground">Status</div><SimStatusBadge label={order.payment_status} tone={toneForStatus(order.payment_status)} /></div>
                                 <InfoBlock label="Invoice" value={order.payment_request?.invoice_no ?? '-'} />
                                 <InfoBlock label="Nominal" value={money(order.payment_request?.nominal)} />
-                                <InfoBlock label="Bukti bayar" value={`${order.payment_request?.payments_count ?? 0} file`} />
+                                <InfoBlock label="Bukti pelunasan" value={`${order.payment_request?.payments_count ?? 0} file`} />
                             </div>
                         </SidePanel>
 

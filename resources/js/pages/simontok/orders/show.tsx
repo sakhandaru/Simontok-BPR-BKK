@@ -1019,7 +1019,7 @@ export default function OrdersShow({
                                 <h2 className="sim-panel-title">Pembayaran</h2>
                                 <p className="sim-panel-subtitle">
                                     Setelah dokumen fisik diterima, Admin Legal
-                                    mengunggah bukti pembayaran invoice.
+                                    mengunggah bukti pelunasan invoice.
                                 </p>
                             </div>
                             <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -1209,7 +1209,7 @@ export default function OrdersShow({
                                         onSubmit={submitPaymentProof}
                                         className="sim-metric grid gap-3"
                                     >
-                                        <div className="font-medium">Unggah bukti pembayaran</div>
+                                        <div className="font-medium">Unggah bukti pelunasan</div>
                                         <p className="text-sm text-muted-foreground">
                                             Nominal yang dicatat: {money(order.payment_request?.nominal)}
                                         </p>
@@ -1223,7 +1223,7 @@ export default function OrdersShow({
                                                     file,
                                                 )
                                             }
-                                            label="Pilih foto atau PDF bukti pembayaran"
+                                            label="Pilih foto atau PDF bukti pelunasan"
                                         />
                                         <InputError message={paymentProof.errors.bukti} />
                                         <textarea
@@ -1242,7 +1242,7 @@ export default function OrdersShow({
                                             disabled={paymentProof.processing || !paymentProof.data.bukti}
                                         >
                                             <WalletCards className="size-4" />
-                                            Simpan bukti pembayaran
+                                            Simpan bukti pelunasan
                                         </Button>
                                     </form>
                                 )}
@@ -1251,7 +1251,7 @@ export default function OrdersShow({
                         {order.payment_request?.payments?.length > 0 && (
                             <div className="border-t px-4 py-3">
                                 <div className="font-medium">
-                                    Riwayat bukti bayar
+                                    Riwayat bukti pelunasan
                                 </div>
                                 <div className="mt-3 divide-y rounded-md border">
                                     {order.payment_request.payments.map(
@@ -1303,15 +1303,15 @@ export default function OrdersShow({
                 >
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
-                            <DialogTitle>Bukti pembayaran</DialogTitle>
+                                    <DialogTitle>Bukti pelunasan</DialogTitle>
                             <DialogDescription>
-                                Pratinjau bukti pembayaran sebelum diunduh.
+                                Pratinjau bukti pelunasan sebelum diunduh.
                             </DialogDescription>
                         </DialogHeader>
                         {paymentProofPreview && order.payment_request?.id && (
                             <div className="grid gap-3">
                                 <iframe
-                                    title="Preview bukti pembayaran"
+                                    title="Preview bukti pelunasan"
                                     src={`/orders/${order.id}/payment-requests/${order.payment_request.id}/payments/${paymentProofPreview.id}/preview`}
                                     className="h-[min(70vh,42rem)] w-full rounded-md border bg-white"
                                 />
@@ -2929,7 +2929,7 @@ function DraftOrderForm({
                 <DraftField label="Skema pembayaran">
                     <SimSelect
                         value={draft.data.skema_pembayaran}
-                        options={['Bayar awal', 'Bayar sebagian'].map((value) => ({ value, label: value }))}
+                        options={['Bayar sebagian', 'Bayar setelah selesai'].map((value) => ({ value, label: value }))}
                         placeholder="Pilih skema pembayaran"
                         onChange={(value) => draft.setData('skema_pembayaran', value)}
                     />
@@ -4009,7 +4009,7 @@ function documentTypeLabel(type?: string | null): string {
         draft: 'Draft',
         resi_bpn: 'Resi BPN',
         final: 'Dokumen final',
-        bukti_bayar: 'Bukti pembayaran',
+        bukti_bayar: 'Bukti pelunasan',
         tanda_terima: 'Tanda terima',
         lainnya: 'Dokumen lainnya',
     };

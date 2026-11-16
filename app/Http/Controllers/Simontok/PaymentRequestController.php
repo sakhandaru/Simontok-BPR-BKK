@@ -28,7 +28,8 @@ class PaymentRequestController extends Controller
         $this->ensurePaymentPrerequisites($order);
         abort_unless($order->notary_agreement_acknowledged_at, 422, 'PKS wajib dibaca dan disetujui sebelum invoice diajukan.');
 
-        if ($order->paymentRequest()->exists()) {
+        $existingPaymentRequest = $order->paymentRequest;
+        if ($existingPaymentRequest && $existingPaymentRequest->status !== TrackDPaymentStatus::DitolakAdmin) {
             throw ValidationException::withMessages([
                 'invoice' => 'Invoice untuk order ini sudah pernah diajukan.',
             ]);
@@ -37,7 +38,7 @@ class PaymentRequestController extends Controller
         $data = $request->validate([
             'invoice_no' => ['required', 'string', 'max:50'],
             'nominal' => ['required', 'numeric', 'min:1'],
-            'skema_pembayaran' => ['required', 'string', Rule::in(['Bayar awal', 'Bayar sebagian'])],
+            'skema_pembayaran' => ['required', 'string', Rule::in(['Bayar sebagian', 'Bayar setelah selesai'])],
             'catatan_notaris' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -50,22 +51,30 @@ class PaymentRequestController extends Controller
             throw ValidationException::withMessages(['skema_pembayaran' => 'Skema invoice harus sama dengan skema pembayaran pada order.']);
         }
 
-        DB::transaction(function () use ($request, $order, $data) {
-            $paymentRequest = $order->paymentRequest()->create([
+        DB::transaction(function () use ($request, $order, $data, $existingPaymentRequest) {
+            $paymentRequest = $existingPaymentRequest ?: $order->paymentRequest()->make();
+            $before = $paymentRequest->exists ? $paymentRequest->status->value : null;
+            $paymentRequest->fill([
                 ...$data,
                 'status' => TrackDPaymentStatus::Diajukan,
                 'requested_at' => now(),
+                'verified_by' => null,
+                'verified_at' => null,
+                'catatan_verifikasi' => null,
+                'rejected_by' => null,
+                'rejected_at' => null,
             ]);
+            $paymentRequest->save();
 
-            $this->recordStatus($request, $order, null, TrackDPaymentStatus::Diajukan->value, 'Invoice diajukan notaris.');
+            $this->recordStatus($request, $order, $before, TrackDPaymentStatus::Diajukan->value, $before ? 'Invoice diajukan ulang notaris.' : 'Invoice diajukan notaris.');
 
-            Audit::record($request, 'payments', $paymentRequest, 'request_invoice', 'Notaris mengajukan invoice.', [
+            Audit::record($request, 'payments', $paymentRequest, $before ? 'resubmit_invoice' : 'request_invoice', $before ? 'Notaris mengajukan ulang invoice setelah penolakan admin.' : 'Notaris mengajukan invoice.', [
                 'after' => $paymentRequest->only(['invoice_no', 'nominal', 'skema_pembayaran', 'status']),
             ]);
 
             InAppNotification::forInternalUsers(
                 'Invoice menunggu verifikasi',
-                "Invoice order {$order->order_no} diajukan notaris.",
+                "Invoice order {$order->order_no} diajukan notaris untuk diverifikasi.",
                 "/orders/{$order->id}",
             );
         });
@@ -110,7 +119,7 @@ class PaymentRequestController extends Controller
             if ($status === TrackDPaymentStatus::DitolakAdmin) {
                 InAppNotification::forNotary($order, 'Invoice ditolak admin', "Invoice order {$order->order_no} ditolak admin.");
             } else {
-                InAppNotification::forInternalUsers('Invoice siap dibayar', "Invoice order {$order->order_no} sudah diverifikasi Admin Legal dan siap dicatat pembayarannya.", "/orders/{$order->id}");
+                InAppNotification::forInternalUsers('Invoice siap dilunasi', "Invoice order {$order->order_no} sudah diverifikasi Admin Legal dan siap dicatat pelunasannya.", "/orders/{$order->id}");
             }
         });
 
@@ -165,7 +174,10 @@ class PaymentRequestController extends Controller
         $this->authorizeInternal($request, $order, 'payments.pay');
         $this->ensureBelongsToOrder($order, $paymentRequest);
         abort_unless($order->status === TrackAStatus::DokumenFisikDiterima, 422, 'Pembayaran hanya dapat dicatat setelah handover dokumen fisik selesai.');
-        abort_unless($paymentRequest->status === TrackDPaymentStatus::Diajukan, 422, 'Invoice ini tidak lagi menunggu pembayaran.');
+        abort_unless(in_array($paymentRequest->status, [
+            TrackDPaymentStatus::DiverifikasiAdmin,
+            TrackDPaymentStatus::Disetujui,
+        ], true), 422, 'Invoice harus diverifikasi Admin Legal sebelum pembayaran dicatat.');
 
         $data = $request->validate([
             'bukti' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
@@ -186,13 +198,13 @@ class PaymentRequestController extends Controller
                 'catatan' => $data['catatan'] ?? null,
             ]);
             if ($path) {
-                DocumentArchiveService::archiveFile($request, Order::class, $order->id, 'payment_proof', 'payment_'.$payment->id, 'bukti_pembayaran', 'Bukti pembayaran', basename($path), $path, $request->file('bukti')->getSize(), [
+                DocumentArchiveService::archiveFile($request, Order::class, $order->id, 'payment_proof', 'payment_'.$payment->id, 'bukti_pembayaran', 'Bukti pelunasan', basename($path), $path, $request->file('bukti')->getSize(), [
                     'order_id' => $order->id,
                     'payment_request_id' => $paymentRequest->id,
                     'payment_id' => $payment->id,
                     'paid_at' => $payment->paid_at?->toDateString(),
                     'nominal' => $payment->nominal,
-                ], 'Bukti pembayaran diunggah.');
+                ], 'Bukti pelunasan diunggah.');
             }
 
             $paymentRequest->update([
@@ -200,9 +212,9 @@ class PaymentRequestController extends Controller
                 'paid_at' => $paidAt,
             ]);
 
-            $this->recordStatus($request, $order, $before->value, TrackDPaymentStatus::Dibayar->value, 'Bukti pembayaran diunggah.');
+            $this->recordStatus($request, $order, $before->value, TrackDPaymentStatus::Dibayar->value, 'Bukti pelunasan diunggah.');
 
-            Audit::record($request, 'payments', $paymentRequest, 'upload_payment_proof', 'Bukti pembayaran diunggah.', [
+            Audit::record($request, 'payments', $paymentRequest, 'upload_payment_proof', 'Bukti pelunasan diunggah.', [
                 'payment' => ['paid_at' => $paidAt->toDateTimeString(), 'nominal' => $paymentRequest->nominal, 'catatan' => $data['catatan'] ?? null],
             ]);
 
@@ -219,20 +231,20 @@ class PaymentRequestController extends Controller
                     'to_status' => TrackAStatus::Selesai->value,
                     'actor_type' => 'user',
                     'actor_id' => $request->user()->id,
-                    'reason' => 'Bukti pembayaran diunggah setelah dokumen fisik diterima; seluruh kewajiban order selesai.',
+                    'reason' => 'Bukti pelunasan diunggah setelah dokumen fisik diterima; seluruh kewajiban order selesai.',
                 ]);
-                Audit::record($request, 'orders', $order, 'close', 'Order otomatis ditutup setelah bukti pembayaran diunggah.');
+                Audit::record($request, 'orders', $order, 'close', 'Order otomatis ditutup setelah bukti pelunasan diunggah.');
             }
 
-            InAppNotification::forNotary($order, 'Bukti pembayaran tersedia', "Bukti pembayaran order {$order->order_no} sudah dicatat.");
+            InAppNotification::forNotary($order, 'Bukti pelunasan tersedia', "Bukti pelunasan order {$order->order_no} sudah dicatat.");
             if ($orderCompleted) {
                 InAppNotification::forNotary($order, 'Order selesai', "Seluruh dokumen dan pembayaran order {$order->order_no} sudah selesai.");
             }
         });
 
         return back()->with('success', $order->fresh()->status === TrackAStatus::Selesai
-            ? 'Bukti pembayaran dicatat dan order selesai.'
-            : 'Bukti pembayaran dicatat.');
+            ? 'Bukti pelunasan dicatat dan order selesai.'
+            : 'Bukti pelunasan dicatat.');
     }
 
     public function downloadProof(Request $request, Order $order, PaymentRequest $paymentRequest, int $payment): mixed
@@ -243,7 +255,7 @@ class PaymentRequestController extends Controller
 
         abort_if(! $record->bukti_path || ! Storage::disk('local')->exists($record->bukti_path), 404);
 
-        Audit::record($request, 'payments', $record, 'download_payment_proof', 'Bukti pembayaran diunduh.');
+        Audit::record($request, 'payments', $record, 'download_payment_proof', 'Bukti pelunasan diunduh.');
 
         return Storage::disk('local')->download($record->bukti_path);
     }
