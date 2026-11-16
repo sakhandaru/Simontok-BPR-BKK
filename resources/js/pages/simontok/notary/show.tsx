@@ -73,6 +73,10 @@ export default function NotaryOrdersShow({
     const [evidencePreview, setEvidencePreview] = useState<any | null>(null);
     const [finalDocumentsPreview, setFinalDocumentsPreview] = useState<any[] | null>(null);
     const [paymentProofPreview, setPaymentProofPreview] = useState<any | null>(null);
+    const latestRejectedCovernoteExtension = order.collaterals
+        .flatMap((collateral: any) => collateral.covernote_extensions ?? [])
+        .filter((extension: any) => extension.status === 'ditolak')
+        .sort((left: any, right: any) => String(right.created_at ?? '').localeCompare(String(left.created_at ?? '')))[0];
     const progressOptions = useMemo(() => Object.fromEntries(
         order.collaterals.flatMap((collateral: any) => {
             const savedSteps = stepFees
@@ -782,6 +786,21 @@ export default function NotaryOrdersShow({
                             </div>
                             <ChevronDown className="mt-0.5 size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                         </summary>
+                        {latestRejectedCovernoteExtension && (
+                            <div className="mx-4 mt-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                                <div className="flex flex-wrap items-center gap-2 font-medium text-destructive">
+                                    <SimStatusBadge label="Ditolak Admin Legal" tone="danger" />
+                                    <span>Perpanjangan sebelumnya perlu diperbaiki.</span>
+                                </div>
+                                <p className="mt-2 text-foreground">
+                                    Alasan Admin Legal:{' '}
+                                    {latestRejectedCovernoteExtension.rejection_reason || 'Admin Legal meminta perbaikan data atau dokumen.'}
+                                </p>
+                                <p className="mt-1 text-muted-foreground">
+                                    Perbarui data di bawah, lalu simpan sebagai pengajuan perpanjangan baru.
+                                </p>
+                            </div>
+                        )}
                         <form
                             onSubmit={submitCovernote}
                             className="border-t p-4"
