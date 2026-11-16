@@ -1569,6 +1569,10 @@ function dateOnly(value?: string | null) {
     return value?.slice(0, 10) ?? '';
 }
 
+function statusValue(value?: string | { value?: string } | null): string {
+    return typeof value === 'object' ? value?.value ?? '' : value ?? '';
+}
+
 function formatTimelineDate(value?: string | null): string {
     if (!value) return '-';
     const date = new Date(value);
