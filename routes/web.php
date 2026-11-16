@@ -79,6 +79,7 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('orders', OrderController::class)->only(['index', 'show']);
         Route::get('orders/{order}/documents/{document}/download', [OrderDocumentController::class, 'download'])->name('orders.documents.download');
         Route::get('orders/{order}/documents/{document}/preview', [OrderDocumentController::class, 'preview'])->name('orders.documents.preview');
+        Route::get('orders/{order}/progress/{progress}/evidence', [NotaryPortalController::class, 'progressEvidence'])->name('orders.progress.evidence');
         Route::get('orders/{order}/collaterals/{collateral}/covernote/preview', [CovernoteController::class, 'preview'])->name('orders.collaterals.covernote.preview');
         Route::get('orders/{order}/collaterals/{collateral}/covernote-extensions/{extension}/preview', [CovernoteController::class, 'previewExtension'])->name('orders.collaterals.covernote-extensions.preview');
         Route::get('orders/{order}/payment-requests/{paymentRequest}/payments/{payment}/download', [PaymentRequestController::class, 'downloadProof'])->name('orders.payment-requests.payments.download');

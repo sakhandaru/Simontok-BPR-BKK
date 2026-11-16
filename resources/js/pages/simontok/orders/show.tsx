@@ -2600,6 +2600,16 @@ function OrderActivityDrawer({
                                                 </Button>
                                             </div>
                                         )}
+                                        {item.evidence_path && (
+                                            <div className="mt-2">
+                                                <Button asChild type="button" variant="outline" size="sm">
+                                                    <a href={`/orders/${order.id}/progress/${item.id}/evidence`} target="_blank" rel="noreferrer">
+                                                        <Eye className="size-4" />
+                                                        Bukti langkah
+                                                    </a>
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <time className="pl-4 text-xs text-muted-foreground">{formatTimelineDate(item.created_at)}</time>
