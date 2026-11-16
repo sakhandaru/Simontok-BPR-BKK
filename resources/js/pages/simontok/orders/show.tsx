@@ -193,6 +193,7 @@ export default function OrdersShow({
     const [documentError, setDocumentError] = useState('');
     const [documentToDelete, setDocumentToDelete] = useState<PendingDocument | null>(null);
     const [submitProcessing, setSubmitProcessing] = useState(false);
+    const [discardingDraft, setDiscardingDraft] = useState(false);
     const [leaveDraftVisit, setLeaveDraftVisit] = useState<any | null>(null);
     const allowNavigation = useRef(false);
 
@@ -222,29 +223,36 @@ export default function OrdersShow({
         const visit = leaveDraftVisit;
         if (!visit) return;
 
-        allowNavigation.current = true;
-        setLeaveDraftVisit(null);
-        router.visit(visit.url, {
-            method: visit.method,
-            data: visit.data,
-            replace: visit.replace,
-            preserveScroll: visit.preserveScroll,
-            preserveState: visit.preserveState,
-            only: visit.only,
-            except: visit.except,
-            headers: visit.headers,
-            errorBag: visit.errorBag,
-            forceFormData: visit.forceFormData,
-            queryStringArrayFormat: visit.queryStringArrayFormat,
-            async: visit.async,
-            showProgress: visit.showProgress,
-            prefetch: visit.prefetch,
-            fresh: visit.fresh,
-            reset: visit.reset,
-            preserveUrl: visit.preserveUrl,
-            preserveErrors: visit.preserveErrors,
-            invalidateCacheTags: visit.invalidateCacheTags,
-            viewTransition: visit.viewTransition,
+        setDiscardingDraft(true);
+        router.delete('/orders/' + order.id + '/draft', {
+            preserveScroll: true,
+            onSuccess: () => {
+                allowNavigation.current = true;
+                setLeaveDraftVisit(null);
+                router.visit(visit.url, {
+                    method: visit.method,
+                    data: visit.data,
+                    replace: visit.replace,
+                    preserveScroll: visit.preserveScroll,
+                    preserveState: visit.preserveState,
+                    only: visit.only,
+                    except: visit.except,
+                    headers: visit.headers,
+                    errorBag: visit.errorBag,
+                    forceFormData: visit.forceFormData,
+                    queryStringArrayFormat: visit.queryStringArrayFormat,
+                    async: visit.async,
+                    showProgress: visit.showProgress,
+                    prefetch: visit.prefetch,
+                    fresh: visit.fresh,
+                    reset: visit.reset,
+                    preserveUrl: visit.preserveUrl,
+                    preserveErrors: visit.preserveErrors,
+                    invalidateCacheTags: visit.invalidateCacheTags,
+                    viewTransition: visit.viewTransition,
+                });
+            },
+            onFinish: () => setDiscardingDraft(false),
         });
     };
 
@@ -2430,9 +2438,9 @@ export default function OrdersShow({
                         </DialogDescription>
                     </DialogHeader>
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-200">
-                        Jika keluar sekarang, pengisian sementara ini akan
-                        dibatalkan. Kamu dapat tetap di halaman untuk
-                        melengkapinya.
+                            Jika keluar sekarang, draft order dan dokumen
+                            sementara yang sudah diunggah akan dihapus. Data
+                            tersebut tidak dapat dipulihkan.
                     </div>
                     <DialogFooter className="flex-col sm:flex-col sm:justify-end">
                         <Button
@@ -2448,8 +2456,9 @@ export default function OrdersShow({
                             variant="destructive"
                             className="w-full"
                             onClick={continueLeavingDraft}
+                            disabled={discardingDraft}
                         >
-                            Keluar tanpa mengajukan
+                            {discardingDraft ? 'Membatalkan draft...' : 'Keluar dan hapus draft'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

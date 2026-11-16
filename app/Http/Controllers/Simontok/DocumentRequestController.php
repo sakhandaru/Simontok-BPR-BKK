@@ -17,6 +17,7 @@ class DocumentRequestController extends Controller
     public function store(Request $request, Order $order): RedirectResponse
     {
         abort_unless($request->user()?->notary_id && $order->notary_id === $request->user()->notary_id, 403);
+        abort_unless(! $order->hasPendingCovernoteApproval(), 422, 'Aktivitas notaris dikunci sampai covernote baru disetujui Admin Legal.');
         $data = $request->validate([
             'order_collateral_id' => ['nullable', 'integer', 'exists:order_collaterals,id'],
             'name' => ['required', 'string', 'max:255'],

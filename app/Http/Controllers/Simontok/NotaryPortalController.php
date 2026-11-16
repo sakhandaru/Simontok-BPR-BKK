@@ -128,6 +128,7 @@ class NotaryPortalController extends Controller
             $paymentBlockers[] = 'PKS notaris harus dibaca dan disetujui sebelum invoice diajukan.';
         }
         $canAct = $this->canAct($request);
+        $covernoteApprovalPending = $order->hasPendingCovernoteApproval();
         $agreement = $order->notaryAgreement ?: DocumentArchive::query()
             ->where('documentable_type', Notary::class)
             ->where('documentable_id', $order->notary_id)
@@ -157,14 +158,14 @@ class NotaryPortalController extends Controller
             TrackAStatus::PerbaikanDokumen,
             TrackAStatus::PerluPengalihanNotaris,
         ], true);
-        $canAddProgress = $canAct && $covernoteComplete && in_array($order->status, [
+        $canAddProgress = $canAct && ! $covernoteApprovalPending && $covernoteComplete && in_array($order->status, [
             TrackAStatus::CovernoteDisetujui,
             TrackAStatus::DokumenValid,
             TrackAStatus::ProsesAkta,
             TrackAStatus::ProsesBpnSamsat,
             TrackAStatus::DraftDiunggah,
         ], true);
-        $canExtendCovernote = $canAct && $order->collaterals->contains(fn ($collateral) => $collateral->covernote_end !== null)
+        $canExtendCovernote = $canAct && ! $covernoteApprovalPending && $order->collaterals->contains(fn ($collateral) => $collateral->covernote_end !== null)
             && ! in_array($order->status, [TrackAStatus::Draft, TrackAStatus::MenungguApproval, TrackAStatus::PerluPerbaikanOrder], true);
 
         return Inertia::render('simontok/notary/show', [
@@ -175,11 +176,12 @@ class NotaryPortalController extends Controller
             ], true),
             'initialDocumentsComplete' => $initialDocumentsComplete,
             'canViewDocuments' => $canViewDocuments,
-            'canRequestInvoice' => $canAct && (bool) $order->notary_agreement_acknowledged_at && in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true) && $order->paymentRequest === null && $paymentBlockers === [],
+            'canRequestInvoice' => $canAct && ! $covernoteApprovalPending && (bool) $order->notary_agreement_acknowledged_at && in_array($order->status, [TrackAStatus::DokumenFinalDiunggah, TrackAStatus::DokumenFisikDiterima], true) && $order->paymentRequest === null && $paymentBlockers === [],
             'canAddProgress' => $canAddProgress,
-            'canRequestAdditionalDocuments' => $canAct && $covernoteApprovedStage,
-            'canSubmitFinal' => $canAct && $progressComplete && $order->status === TrackAStatus::DraftDiunggah && $order->documents()->where('document_type', 'final')->exists(),
+            'canRequestAdditionalDocuments' => $canAct && ! $covernoteApprovalPending && $covernoteApprovedStage,
+            'canSubmitFinal' => $canAct && ! $covernoteApprovalPending && $progressComplete && $order->status === TrackAStatus::DraftDiunggah && $order->documents()->where('document_type', 'final')->exists(),
             'canExtendCovernote' => $canExtendCovernote,
+            'covernoteApprovalPending' => $covernoteApprovalPending,
             'isMonitor' => in_array($request->user()?->roleCode(), ['it_admin', 'admin_legal_pusat'], true),
             'paymentBlockers' => $paymentBlockers,
             'agreement' => $agreement ? [
@@ -322,6 +324,7 @@ class NotaryPortalController extends Controller
     {
         $this->authorizeOrder($request, $order);
         abort_unless($request->user()?->roleCode() === 'notaris' && $this->canAct($request), 403);
+        $this->abortIfCovernoteApprovalPending($order);
         abort_unless(in_array($order->status, [TrackAStatus::PersiapanPekerjaan, TrackAStatus::PerbaikanCovernote], true), 422, 'Biaya langkah hanya dapat diubah pada halaman persiapan pekerjaan.');
         abort_unless($order->notary_agreement_acknowledged_at, 422, 'Baca dan setujui PKS terlebih dahulu.');
         $data = $request->validate([
@@ -465,6 +468,7 @@ class NotaryPortalController extends Controller
     {
         $this->authorizeOrder($request, $order);
         abort_unless($request->user()?->roleCode() === 'notaris' && $this->canAct($request), 403);
+        $this->abortIfCovernoteApprovalPending($order);
         abort_unless(in_array($order->status, [TrackAStatus::PersiapanPekerjaan, TrackAStatus::PerbaikanCovernote], true), 422, 'Pengajuan biaya dan covernote belum tersedia pada tahap ini.');
         abort_unless($order->notary_agreement_acknowledged_at, 422, 'Baca dan setujui PKS terlebih dahulu.');
 
@@ -634,6 +638,7 @@ class NotaryPortalController extends Controller
     public function storeProgress(Request $request, Order $order): RedirectResponse
     {
         $this->authorizeOrder($request, $order);
+        $this->abortIfCovernoteApprovalPending($order);
         $covernoteApprovedStage = in_array($order->status, [
             TrackAStatus::CovernoteDisetujui,
             TrackAStatus::DokumenValid,
@@ -797,6 +802,11 @@ class NotaryPortalController extends Controller
     private function canAct(Request $request): bool
     {
         return in_array($request->user()?->roleCode(), ['notaris', 'it_admin'], true);
+    }
+
+    private function abortIfCovernoteApprovalPending(Order $order): void
+    {
+        abort_unless(! $order->hasPendingCovernoteApproval(), 422, 'Aktivitas notaris dikunci sampai covernote baru disetujui Admin Legal.');
     }
 
     private function isRequiredInitialChecklist(Order $order, $checklist): bool

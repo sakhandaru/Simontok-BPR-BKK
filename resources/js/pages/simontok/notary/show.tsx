@@ -47,6 +47,7 @@ export default function NotaryOrdersShow({
     canSubmitFinal,
     canRequestAdditionalDocuments,
     canExtendCovernote,
+    covernoteApprovalPending,
     paymentBlockers,
     agreement,
     serviceFee,
@@ -61,6 +62,7 @@ export default function NotaryOrdersShow({
     canSubmitFinal: boolean;
     canRequestAdditionalDocuments: boolean;
     canExtendCovernote: boolean;
+    covernoteApprovalPending: boolean;
     paymentBlockers: string[];
     agreement: any | null;
     serviceFee: { main: number; steps: number; total: number };
@@ -241,6 +243,19 @@ export default function NotaryOrdersShow({
         <>
             <Head title={`Portal ${order.order_no}`} />
             <div className="flex h-full flex-1 flex-col gap-6 p-4 md:p-6">
+                {covernoteApprovalPending && (
+                    <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+                        <div className="flex items-start gap-3">
+                            <Clock3 className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-300" />
+                            <div>
+                                <p className="font-medium">Aktivitas pekerjaan dikunci sementara</p>
+                                <p className="mt-1 text-muted-foreground">
+                                    Covernote baru sedang menunggu approval Admin Legal. Pekerjaan dapat dilanjutkan setelah covernote disetujui.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <div className="flex flex-wrap items-center gap-2">

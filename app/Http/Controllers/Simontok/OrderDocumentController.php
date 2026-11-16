@@ -127,6 +127,10 @@ class OrderDocumentController extends Controller
     {
         $this->authorizeDocumentAccess($request, $order);
 
+        if ($request->user()?->notary_id) {
+            abort_unless(! $order->hasPendingCovernoteApproval(), 422, 'Aktivitas notaris dikunci sampai covernote baru disetujui Admin Legal.');
+        }
+
         $data = $request->validate([
             'order_collateral_id' => ['nullable', 'integer', 'exists:order_collaterals,id'],
             'order_checklist_id' => ['nullable', 'integer', 'exists:order_checklists,id'],
@@ -291,6 +295,7 @@ class OrderDocumentController extends Controller
     {
         $this->authorizeDocumentAccess($request, $order);
         abort_unless($request->user()?->notary_id, 403);
+        abort_unless(! $order->hasPendingCovernoteApproval(), 422, 'Aktivitas notaris dikunci sampai covernote baru disetujui Admin Legal.');
         abort_unless($order->status === TrackAStatus::DraftDiunggah, 422, 'Dokumen final belum siap diajukan.');
         $order->loadMissing('collaterals');
         abort_unless($this->finalDocuments->allUploaded($order), 422, 'Seluruh pekerjaan wajib memiliki dokumen final sebelum diajukan.');

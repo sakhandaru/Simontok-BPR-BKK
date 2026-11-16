@@ -52,6 +52,7 @@ class CovernoteController extends Controller
         $user = $request->user();
         $isAssignedNotary = $user?->notary_id && $order->notary_id === $user->notary_id;
         abort_unless($isAssignedNotary, 404);
+        abort_unless(! $order->hasPendingCovernoteApproval(), 422, 'Aktivitas notaris dikunci sampai covernote baru disetujui Admin Legal.');
         abort_unless($collateral->order_id === $order->id, 404);
         abort_unless($order->sent_to_notary_at !== null, 422, 'Covernote belum tersedia sebelum order dikirim ke notaris.');
         abort_unless(! in_array($order->status, [TrackAStatus::Draft, TrackAStatus::MenungguApproval, TrackAStatus::PerluPerbaikanOrder], true), 422, 'Covernote belum tersedia pada tahap order ini.');

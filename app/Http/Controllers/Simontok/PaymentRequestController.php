@@ -24,6 +24,7 @@ class PaymentRequestController extends Controller
     public function store(Request $request, Order $order): RedirectResponse
     {
         $this->authorizeNotary($request, $order);
+        abort_unless(! $order->hasPendingCovernoteApproval(), 422, 'Aktivitas notaris dikunci sampai covernote baru disetujui Admin Legal.');
         $this->ensurePaymentPrerequisites($order);
         abort_unless($order->notary_agreement_acknowledged_at, 422, 'PKS wajib dibaca dan disetujui sebelum invoice diajukan.');
 

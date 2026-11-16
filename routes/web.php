@@ -45,6 +45,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('core/branches', [CoreAccountController::class, 'branches'])->middleware('throttle:60,1')->name('core.branches');
         Route::post('collateral-types', [OrderController::class, 'storeCollateralType'])->name('collateral-types.store');
         Route::post('orders/{order}/submit-approval', [OrderController::class, 'submitForApproval'])->name('orders.submit-approval');
+        Route::delete('orders/{order}/draft', [OrderController::class, 'discardDraft'])->name('orders.draft.discard');
         Route::get('orders/{order}/temporary-documents', [TemporaryOrderDocumentController::class, 'index'])->name('orders.temporary-documents.index');
         Route::post('orders/{order}/temporary-documents', [TemporaryOrderDocumentController::class, 'store'])->name('orders.temporary-documents.store');
         Route::get('orders/{order}/temporary-documents/{temporaryDocument}/preview', [TemporaryOrderDocumentController::class, 'preview'])->name('orders.temporary-documents.preview');

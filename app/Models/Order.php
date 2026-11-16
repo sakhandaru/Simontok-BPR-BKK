@@ -92,6 +92,16 @@ class Order extends Model
         return $this->hasMany(OrderCollateral::class);
     }
 
+    public function hasPendingCovernoteApproval(): bool
+    {
+        return in_array($this->status, [
+            TrackAStatus::MenungguApprovalCovernote,
+            TrackAStatus::MenungguApprovalCovernoteKepalaCabang,
+        ], true) || $this->collaterals()
+            ->whereHas('covernoteExtensions', fn ($query) => $query->where('status', 'menunggu_approval'))
+            ->exists();
+    }
+
     public function statusHistories(): HasMany
     {
         return $this->hasMany(OrderStatusHistory::class);

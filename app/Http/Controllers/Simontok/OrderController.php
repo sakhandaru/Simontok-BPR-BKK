@@ -18,6 +18,7 @@ use App\Models\OrderChecklist;
 use App\Models\OrderCollateral;
 use App\Models\OrderDocument;
 use App\Models\SlaPolicy;
+use App\Models\TemporaryOrderDocument;
 use App\Services\Core\CoreOrderSnapshot;
 use App\Support\Audit;
 use App\Support\DocumentArchiveService;
@@ -739,6 +740,27 @@ class OrderController extends Controller
         InAppNotification::forBranchApprovers($order, 'Order menunggu approval ulang', "Order {$order->order_no} dialihkan ke notaris baru dan menunggu approval.");
 
         return back()->with('success', 'Notaris berhasil dialihkan. Order menunggu approval Kepala Cabang.');
+    }
+
+    public function discardDraft(Request $request, Order $order): RedirectResponse
+    {
+        $this->authorizeVisibleOrder($request, $order);
+        abort_unless($request->user()?->hasPermission('orders.manage'), 403);
+
+        $paths = DB::transaction(function () use ($request, $order): array {
+            $lockedOrder = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_unless($lockedOrder->status === TrackAStatus::Draft && $lockedOrder->sent_to_notary_at === null, 422, 'Hanya draft yang belum diajukan yang dapat dibatalkan.');
+
+            $paths = TemporaryOrderDocument::where('order_id', $lockedOrder->id)->pluck('stored_path')->all();
+            Audit::record($request, 'orders', $lockedOrder, 'discard_draft', 'Draft order dibatalkan sebelum diajukan.', []);
+            $lockedOrder->delete();
+
+            return $paths;
+        });
+
+        Storage::disk('local')->delete($paths);
+
+        return to_route('orders.index')->with('success', 'Draft order dibatalkan.');
     }
 
     public function close(Request $request, Order $order): RedirectResponse
