@@ -1026,12 +1026,23 @@ export default function OrdersShow({
                         </summary>
                         <div className={`grid gap-4 p-4 ${canVerifyPayment || canApprovePayment || canUploadPaymentProof ? 'lg:grid-cols-2' : ''}`}>
                             <div className="grid gap-3 text-sm sm:grid-cols-2">
-                                <Info
-                                    label="Status"
-                                    value={paymentStatusLabel(
-                                        order.payment_request?.status,
-                                    )}
-                                />
+                                <div>
+                                    <div className="text-sm text-muted-foreground">
+                                        Status
+                                    </div>
+                                    <div className="mt-1">
+                                        <SimStatusBadge
+                                            label={paymentStatusLabel(
+                                                order.payment_request?.status,
+                                            )}
+                                            tone={toneForStatus(
+                                                statusValue(
+                                                    order.payment_request?.status,
+                                                ),
+                                            )}
+                                        />
+                                    </div>
+                                </div>
                                 <Info
                                     label="Nomor invoice"
                                     value={order.payment_request?.invoice_no}
@@ -3993,12 +4004,12 @@ function paymentStatusLabel(status?: string | null): string {
     const value = statusValue(status);
     const labels: Record<string, string> = {
         belum_ajuan: 'Belum diajukan',
-        diajukan: 'Diajukan',
-        diverifikasi_admin: 'Diverifikasi admin',
+        diajukan: 'Menunggu verifikasi',
+        diverifikasi_admin: 'Diverifikasi Admin Legal',
         disetujui: 'Disetujui',
-        dibayar: 'Dibayar',
-        ditolak_admin: 'Ditolak admin',
-        ditolak_manajemen: 'Ditolak manajemen',
+        dibayar: 'Sudah dilunasi',
+        ditolak_admin: 'Ditolak Admin Legal',
+        ditolak_manajemen: 'Ditolak Manajemen',
     };
 
     return value ? (labels[value] ?? value) : 'Belum diajukan';
