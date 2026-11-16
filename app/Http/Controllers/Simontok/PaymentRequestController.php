@@ -91,7 +91,12 @@ class PaymentRequestController extends Controller
 
         $data = $request->validate([
             'decision' => ['required', Rule::in(['verify', 'reject'])],
-            'catatan_verifikasi' => ['nullable', 'string', 'max:2000'],
+            'catatan_verifikasi' => [
+                Rule::requiredIf(fn () => $request->string('decision')->toString() === 'reject'),
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ]);
 
         DB::transaction(function () use ($request, $order, $paymentRequest, $data) {

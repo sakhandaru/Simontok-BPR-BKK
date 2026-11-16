@@ -361,6 +361,22 @@ export default function NotaryOrdersShow({
                                             ?.catatan_verifikasi
                                     }
                                 />
+                                {statusValue(order.payment_request?.status) ===
+                                    'ditolak_admin' && (
+                                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 sm:col-span-2">
+                                        <div className="font-medium text-destructive">
+                                            Invoice ditolak Admin Legal
+                                        </div>
+                                        <p className="mt-1 text-sm text-foreground">
+                                            Alasan:{' '}
+                                            {order.payment_request?.catatan_verifikasi ||
+                                                'Alasan penolakan belum tersedia.'}
+                                        </p>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            Perbaiki invoice, lalu ajukan ulang.
+                                        </p>
+                                    </div>
+                                )}
                                 {paymentBlockers.length > 0 &&
                                     !order.payment_request && (
                                         <div className="rounded-md border bg-muted/30 p-3">

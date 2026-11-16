@@ -1141,6 +1141,9 @@ export default function OrdersShow({
                                             }
                                             placeholder="Catatan verifikasi"
                                         />
+                                        <InputError
+                                            message={verification.errors.catatan_verifikasi}
+                                        />
                                         <Button
                                             className="w-fit"
                                             disabled={verification.processing}
