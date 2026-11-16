@@ -37,7 +37,7 @@ use Inertia\Response;
 
 class OrderController extends Controller
 {
-    private const PAYMENT_SCHEMES = ['Bayar sebagian', 'Bayar setelah selesai'];
+    private const PAYMENT_SCHEMES = ['Bayar awal', 'Bayar sebagian', 'Bayar setelah selesai'];
 
     public function __construct(private readonly CoreOrderSnapshot $coreSnapshot) {}
 
@@ -298,6 +298,7 @@ class OrderController extends Controller
         ]);
 
         $paymentBlockers = $this->paymentBlockers($order);
+        $paymentStatus = $order->paymentRequest?->getRawOriginal('status');
         $paymentAccount = $request->user()->hasPermission('payments.pay') ? [
             'bank_name' => $order->notary?->bank_name,
             'bank_account_number' => $order->notary?->bank_account_number,
@@ -336,10 +337,10 @@ class OrderController extends Controller
             'paymentBlockers' => $paymentBlockers,
             'paymentAccount' => $paymentAccount,
             'canVerifyPayment' => $request->user()->hasPermission('payments.verify')
-                && $order->paymentRequest?->status?->value === TrackDPaymentStatus::Diajukan,
+                && $paymentStatus === TrackDPaymentStatus::Diajukan->value,
             'canApprovePayment' => false,
             'canUploadPaymentProof' => $request->user()->hasPermission('payments.pay')
-                && in_array($order->paymentRequest?->status?->value, [
+                && in_array($paymentStatus, [
                     TrackDPaymentStatus::DiverifikasiAdmin->value,
                     TrackDPaymentStatus::Disetujui->value,
                 ], true)
