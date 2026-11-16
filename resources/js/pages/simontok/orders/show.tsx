@@ -1138,23 +1138,31 @@ export default function OrdersShow({
                                                 },
                                             ]}
                                         />
-                                        <textarea
-                                            className="sim-input min-h-20 py-2"
-                                            value={
-                                                verification.data
-                                                    .catatan_verifikasi
-                                            }
-                                            onChange={(e) =>
-                                                verification.setData(
-                                                    'catatan_verifikasi',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            placeholder="Catatan verifikasi"
-                                        />
-                                        <InputError
-                                            message={verification.errors.catatan_verifikasi}
-                                        />
+                                        {verification.data.decision ===
+                                            'reject' && (
+                                            <>
+                                                <textarea
+                                                    className="sim-input min-h-20 py-2"
+                                                    value={
+                                                        verification.data
+                                                            .catatan_verifikasi
+                                                    }
+                                                    onChange={(e) =>
+                                                        verification.setData(
+                                                            'catatan_verifikasi',
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    placeholder="Alasan penolakan"
+                                                />
+                                                <InputError
+                                                    message={
+                                                        verification.errors
+                                                            .catatan_verifikasi
+                                                    }
+                                                />
+                                            </>
+                                        )}
                                         <Button
                                             className="w-fit"
                                             disabled={verification.processing}
