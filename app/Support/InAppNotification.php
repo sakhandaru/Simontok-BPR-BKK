@@ -17,7 +17,7 @@ class InAppNotification
 
     public static function forNotary(Order $order, string $title, string $message, ?string $linkUrl = null, string $priority = 'normal'): void
     {
-        self::create('notary', $order->notary_id, $title, $message, $linkUrl ?? "/notary/orders/{$order->id}", $priority);
+        self::create('notary', $order->notary_id, $title, self::withDebtor($order, $message), $linkUrl ?? "/notary/orders/{$order->id}", $priority);
     }
 
     public static function forOrderMaker(Order $order, string $title, string $message, ?string $linkUrl = null): void
@@ -26,7 +26,7 @@ class InAppNotification
             return;
         }
 
-        self::create('user', $order->created_by, $title, $message, $linkUrl ?? "/orders/{$order->id}");
+        self::create('user', $order->created_by, $title, self::withDebtor($order, $message), $linkUrl ?? "/orders/{$order->id}");
     }
 
     public static function forInternalUsers(string $title, string $message, ?string $linkUrl = null): void
@@ -79,7 +79,7 @@ class InAppNotification
             ->get();
 
         foreach ($recipients as $recipient) {
-            self::create('user', $recipient->id, 'Aktivitas order '.$order->order_no, $description, "/orders/{$order->id}", $priority);
+            self::create('user', $recipient->id, 'Aktivitas order '.$order->order_no, self::withDebtor($order, $description), "/orders/{$order->id}", $priority);
         }
     }
 
@@ -101,6 +101,11 @@ class InAppNotification
             'status' => 'pending',
             'next_attempt_at' => now(),
         ]);
+    }
+
+    private static function withDebtor(Order $order, string $message): string
+    {
+        return 'Debitur: '.($order->customer_name ?: '-').'. '.$message;
     }
 
     private static function priorityFor(string $action): string
