@@ -787,7 +787,8 @@ class NotaryPortalController extends Controller
                         'actor_id' => $request->user()->id,
                         'reason' => 'Seluruh dokumen final otomatis diajukan untuk approval Admin Legal.',
                     ]);
-                    InAppNotification::forInternalUsers(
+                    InAppNotification::forInternalOrder(
+                        $order,
                         'Dokumen final menunggu approval',
                         "Dokumen final order {$order->order_no} menunggu approval Admin Legal.",
                         "/orders/{$order->id}",

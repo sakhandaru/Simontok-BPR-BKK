@@ -703,7 +703,7 @@ class OrderController extends Controller
         ]);
         Audit::record($request, 'orders', $order, 'return_revision', 'Order dikembalikan untuk perbaikan.', ['reason' => $data['reason']]);
         InAppNotification::forUser($order->maker, 'Order perlu perbaikan', "Order {$order->order_no} perlu diperbaiki sebelum approval.");
-        InAppNotification::forInternalUsers('Order perlu direvisi', "Order {$order->order_no} dikembalikan Pimpinan Cabang untuk perbaikan: {$data['reason']}", "/orders/{$order->id}");
+        InAppNotification::forInternalOrder($order, 'Order perlu direvisi', "Order {$order->order_no} dikembalikan Pimpinan Cabang untuk perbaikan: {$data['reason']}", "/orders/{$order->id}");
 
         return back()->with('success', 'Order dikembalikan untuk perbaikan.');
     }

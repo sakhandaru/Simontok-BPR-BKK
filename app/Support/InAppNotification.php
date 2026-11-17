@@ -37,6 +37,11 @@ class InAppNotification
             ->each(fn (User $user) => self::forUser($user, $title, $message, $linkUrl));
     }
 
+    public static function forInternalOrder(Order $order, string $title, string $message, ?string $linkUrl = null): void
+    {
+        self::forInternalUsers($title, self::withDebtor($order, $message), $linkUrl ?? "/orders/{$order->id}");
+    }
+
     public static function forBranchApprovers(Order $order, string $title, string $message, ?string $linkUrl = null): void
     {
         User::where('branch_id', $order->branch_id)

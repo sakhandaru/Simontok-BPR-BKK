@@ -72,7 +72,8 @@ class PaymentRequestController extends Controller
                 'after' => $paymentRequest->only(['invoice_no', 'nominal', 'skema_pembayaran', 'status']),
             ]);
 
-            InAppNotification::forInternalUsers(
+            InAppNotification::forInternalOrder(
+                $order,
                 'Invoice menunggu verifikasi',
                 "Invoice order {$order->order_no} diajukan notaris untuk diverifikasi.",
                 "/orders/{$order->id}",
@@ -124,7 +125,7 @@ class PaymentRequestController extends Controller
             if ($status === TrackDPaymentStatus::DitolakAdmin) {
                 InAppNotification::forNotary($order, 'Invoice ditolak admin', "Invoice order {$order->order_no} ditolak admin.");
             } else {
-                InAppNotification::forInternalUsers('Invoice siap dilunasi', "Invoice order {$order->order_no} sudah diverifikasi Admin Legal dan siap dicatat pelunasannya.", "/orders/{$order->id}");
+                InAppNotification::forInternalOrder($order, 'Invoice siap dilunasi', "Invoice order {$order->order_no} sudah diverifikasi Admin Legal dan siap dicatat pelunasannya.", "/orders/{$order->id}");
             }
         });
 
