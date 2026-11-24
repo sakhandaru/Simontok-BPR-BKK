@@ -36,6 +36,9 @@ class ReportController extends Controller
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
         $orders = $this->filteredOrders($filters, $user);
+        $notaryBranches = $filters['type'] === 'notaries'
+            ? Notary::with('branches:id,code,name')->get()->keyBy('id')
+            : collect();
         $filename = sprintf('laporan-%s-%s.csv', $filters['type'], now()->format('Ymd-His'));
 
         return response()->streamDownload(function () use ($orders, $filters, $user): void {
@@ -58,11 +61,11 @@ class ReportController extends Controller
                 $table = $filters['type'] === 'branches' ? 'branches' : 'notaries';
                 $nameColumn = $table.'.name as name';
                 $joinColumn = $filters['type'] === 'branches' ? 'branch_id' : 'notary_id';
-                fputcsv($output, $filters['type'] === 'notaries' ? ['ID Notaris', 'Nama', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'] : ['Nama', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'], ';');
+                fputcsv($output, $filters['type'] === 'notaries' ? ['ID Notaris', 'Nama', 'Cabang rekanan', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'] : ['Nama', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'], ';');
                 $selects = $filters['type'] === 'notaries' ? [$table.'.id as entity_id', $table.'.legacy_id', $nameColumn] : [$nameColumn];
                 $groupBy = [$table.'.id', $table.'.name'];
                 if ($filters['type'] === 'notaries') $groupBy[] = $table.'.legacy_id';
-                (clone $orders)->select($selects)->selectRaw('COUNT(orders.id) as total_orders')->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')->join($table, $table.'.id', '=', 'orders.'.$joinColumn)->groupBy(...$groupBy)->orderBy($table.'.name')->get()->each(function ($row) use ($output, $filters): void { $ratio = $row->total_orders > 0 ? round(($row->completed_orders / $row->total_orders) * 100) : 0; $values = [$row->name, $row->total_orders, $row->completed_orders, $row->active_orders, $row->risk_orders, $ratio.'%']; if ($filters['type'] === 'notaries') array_splice($values, 0, 0, [$row->legacy_id ?: $row->entity_id]); fputcsv($output, $values, ';'); });
+                (clone $orders)->select($selects)->selectRaw('COUNT(orders.id) as total_orders')->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')->join($table, $table.'.id', '=', 'orders.'.$joinColumn)->groupBy(...$groupBy)->orderBy($table.'.name')->get()->each(function ($row) use ($output, $filters, $notaryBranches): void { $ratio = $row->total_orders > 0 ? round(($row->completed_orders / $row->total_orders) * 100) : 0; $values = [$row->name, $row->total_orders, $row->completed_orders, $row->active_orders, $row->risk_orders, $ratio.'%']; if ($filters['type'] === 'notaries') { $branches = $notaryBranches->get($row->entity_id)?->branches->map(fn ($branch) => $branch->code.' - '.$branch->name)->implode(', ') ?: '-'; array_splice($values, 0, 0, [$row->legacy_id ?: $row->entity_id, $branches]); } fputcsv($output, $values, ';'); });
             } elseif ($filters['type'] === 'summary') {
                 fputcsv($output, ['Nomor order', 'Debitur', 'Nomor rekening', 'Cabang', 'Notaris', 'Status', 'Risiko', 'Tanggal masuk'], ';');
                 $orders->with(['branch:id,name', 'notary:id,name'])->orderBy('orders.created_at')->chunk(500, function ($rows) use ($output): void {
