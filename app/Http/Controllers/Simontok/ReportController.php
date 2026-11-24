@@ -41,7 +41,7 @@ class ReportController extends Controller
             : collect();
         $filename = sprintf('laporan-%s-%s.csv', $filters['type'], now()->format('Ymd-His'));
 
-        return response()->streamDownload(function () use ($orders, $filters, $user): void {
+        return response()->streamDownload(function () use ($orders, $filters, $user, $notaryBranches): void {
             $output = fopen('php://output', 'w');
             fwrite($output, "\xEF\xBB\xBF");
             if ($filters['type'] === 'overall') {
