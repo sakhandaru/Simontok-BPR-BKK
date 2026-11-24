@@ -41,12 +41,12 @@ export default function JobTypes({ jobTypes, filters, documents }: { jobTypes: {
                     <SimSelect value={status} onChange={setStatus} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} placeholder="Semua status" />
                 </SimTableToolbar>
                 <SimPagination links={jobTypes.links} />
-                <div className="hidden md:block"><SimTable minWidth="760px">
-                            <SimTableHead><tr><SimTableSortHeader active={sort.key === 'code'} direction={sort.direction} onClick={() => toggleSort('code')}>Kode</SimTableSortHeader><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('sla_days')}>SLA default</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('steps')}>Langkah</SimTableSortHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>
+                <div className="hidden md:block"><SimTable minWidth="980px">
+                            <SimTableHead><tr><SimTableSortHeader active={sort.key === 'code'} direction={sort.direction} onClick={() => toggleSort('code')}>Kode</SimTableSortHeader><SimTableSortHeader active={sort.key === 'name'} direction={sort.direction} onClick={() => toggleSort('name')}>Nama</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('sla_days')}>SLA default</SimTableSortHeader><SimTableSortHeader onClick={() => toggleSort('steps')}>Langkah</SimTableSortHeader><SimTableHeader>Dokumen wajib</SimTableHeader><SimTableSortHeader active={sort.key === 'is_active'} direction={sort.direction} onClick={() => toggleSort('is_active')}>Status</SimTableSortHeader><SimTableHeader>Aksi</SimTableHeader></tr></SimTableHead>
                             <tbody>
                                 {sortedRows.map((jobType) => (
                                     <tr key={jobType.id} className="border-t align-top">
-                                        <td className="px-4 py-3 font-medium">{jobType.code}</td><td className="px-4 py-3">{jobType.name}</td><td className="px-4 py-3">{jobType.sla_days ? <span className="font-medium">{jobType.sla_days} hari</span> : <span className="text-muted-foreground">Belum diatur</span>}<div className="text-xs text-muted-foreground">Hari kalender</div></td><td className="px-4 py-3 text-muted-foreground">{jobType.steps.map((step) => step.name).join(' -> ') || '-'}</td><td className="px-4 py-3"><SimStatusBadge label={jobType.is_active ? 'Aktif' : 'Nonaktif'} tone={jobType.is_active ? 'success' : 'neutral'} /></td><td className="px-4 py-3"><Button type="button" variant="ghost" size="sm" onClick={() => editJobType(jobType)}><Edit3 className="size-4" />Edit</Button></td>
+                                        <td className="px-4 py-3 font-medium">{jobType.code}</td><td className="px-4 py-3">{jobType.name}</td><td className="px-4 py-3">{jobType.sla_days ? <span className="font-medium">{jobType.sla_days} hari</span> : <span className="text-muted-foreground">Belum diatur</span>}<div className="text-xs text-muted-foreground">Hari kalender</div></td><td className="px-4 py-3 text-muted-foreground">{jobType.steps.map((step) => step.name).join(' -> ') || '-'}</td><td className="max-w-56 px-4 py-3"><DocumentSummary documents={jobType.documents} /></td><td className="px-4 py-3"><SimStatusBadge label={jobType.is_active ? 'Aktif' : 'Nonaktif'} tone={jobType.is_active ? 'success' : 'neutral'} /></td><td className="px-4 py-3"><Button type="button" variant="ghost" size="sm" onClick={() => editJobType(jobType)}><Edit3 className="size-4" />Edit</Button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -54,7 +54,7 @@ export default function JobTypes({ jobTypes, filters, documents }: { jobTypes: {
                 <div className="space-y-3 md:hidden">
                     {sortedRows.map((jobType) => <article key={jobType.id} className="space-y-4 border border-border bg-card p-4">
                         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-lg font-medium leading-6">{jobType.name}</div><div className="mt-1 text-sm text-muted-foreground">{jobType.code}</div></div><SimStatusBadge label={jobType.is_active ? 'Aktif' : 'Nonaktif'} tone={jobType.is_active ? 'success' : 'neutral'} /></div>
-                        <div className="grid grid-cols-2 gap-3 text-sm"><div><div className="text-xs text-muted-foreground">SLA default</div><div className="mt-1">{jobType.sla_days ? `${jobType.sla_days} hari kalender` : 'Belum diatur'}</div></div><div><div className="text-xs text-muted-foreground">Langkah proses</div><div className="mt-1 leading-5 text-muted-foreground">{jobType.steps.map((step) => step.name).join(' -> ') || 'Belum ada langkah'}</div></div></div>
+                        <div className="grid grid-cols-2 gap-3 text-sm"><div><div className="text-xs text-muted-foreground">SLA default</div><div className="mt-1">{jobType.sla_days ? `${jobType.sla_days} hari kalender` : 'Belum diatur'}</div></div><div><div className="text-xs text-muted-foreground">Langkah proses</div><div className="mt-1 leading-5 text-muted-foreground">{jobType.steps.map((step) => step.name).join(' -> ') || 'Belum ada langkah'}</div></div></div><div className="border-t pt-3 text-sm"><div className="text-xs text-muted-foreground">Dokumen wajib</div><div className="mt-1"><DocumentSummary documents={jobType.documents} /></div></div>
                         <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => editJobType(jobType)}><Edit3 className="size-4" />Edit jenis pekerjaan</Button>
                     </article>)}
                 </div>
@@ -76,6 +76,13 @@ export default function JobTypes({ jobTypes, filters, documents }: { jobTypes: {
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
     return <div className="grid gap-2"><Label>{label}</Label>{children}<InputError message={error} /></div>;
+}
+
+function DocumentSummary({ documents }: { documents: { id: number; name: string }[] }) {
+    if (documents.length === 0) return <span className="text-muted-foreground">Belum diatur</span>;
+    const visible = documents.slice(0, 3).map((document) => document.name).join(' · ');
+    const remaining = documents.length - Math.min(documents.length, 3);
+    return <span className="leading-5"><span className="font-medium">{documents.length} dokumen</span><span className="mt-0.5 block truncate text-muted-foreground">{visible}{remaining > 0 ? ` · +${remaining} lainnya` : ''}</span></span>;
 }
 
 JobTypes.layout = { breadcrumbs: [{ title: 'Jenis Pekerjaan', href: '/job-types' }] };
