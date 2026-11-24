@@ -9,13 +9,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('document_checklist_job_type', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('document_checklist_id')->constrained('document_checklists')->cascadeOnDelete();
-            $table->foreignId('job_type_id')->constrained('job_types')->cascadeOnDelete();
-            $table->timestamps();
-            $table->unique(['document_checklist_id', 'job_type_id'], 'doc_checklist_job_type_uq');
-        });
+        if (! Schema::hasTable('document_checklist_job_type')) {
+            Schema::create('document_checklist_job_type', function (Blueprint $table): void {
+                $table->id();
+                $table->foreignId('document_checklist_id')->constrained('document_checklists')->cascadeOnDelete();
+                $table->foreignId('job_type_id')->constrained('job_types')->cascadeOnDelete();
+                $table->timestamps();
+                $table->unique(['document_checklist_id', 'job_type_id'], 'doc_checklist_job_type_uq');
+            });
+        } elseif (! collect(Schema::getIndexes('document_checklist_job_type'))->contains(fn (array $index): bool => $index['name'] === 'doc_checklist_job_type_uq')) {
+            Schema::table('document_checklist_job_type', function (Blueprint $table): void {
+                $table->unique(['document_checklist_id', 'job_type_id'], 'doc_checklist_job_type_uq');
+            });
+        }
 
         DB::table('document_checklists')
             ->whereNotNull('job_type_id')
