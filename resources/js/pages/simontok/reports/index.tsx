@@ -174,14 +174,14 @@ export default function ReportsIndex({
                 </nav>
 
                 {activeTab === 'actions' && <>
-                <section className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                <section className="mb-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
                     <SimKpiCard label="Total order" value={summary.total_orders} note="Seluruh order pada cakupan laporan" icon={FileText} tone="info" />
                     <SimKpiCard label="Sedang diproses" value={summary.active_orders} note="Order yang belum selesai" icon={TimerReset} tone="info" />
                     <SimKpiCard label="Order selesai" value={summary.completed_orders} note="Order yang sudah ditutup" icon={FileCheck2} tone="success" />
                     <SimKpiCard label="Order berisiko" value={summary.risk_orders} note="Perlu perhatian operasional" icon={AlertTriangle} tone="danger" />
                 </section>
 
-                <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                <section className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                     <SimKpiCard
                         label="Penyelesaian"
                         value={`${reportKpis.completion_rate}%`}
