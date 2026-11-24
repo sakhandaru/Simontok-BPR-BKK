@@ -569,7 +569,7 @@ export default function OrdersShow({
         const payload = new FormData();
         payload.append('id', documentEditor.temporaryId!);
         payload.append('file', documentEditor.file);
-        payload.append('display_name', documentEditor.displayName);
+        payload.append('display_name', documentEditor.displayName === '__other__' ? '' : documentEditor.displayName);
         if (documentEditor.collateralIndex >= 0) payload.append('collateral_index', String(documentEditor.collateralIndex));
         payload.append('draft_context', JSON.stringify(draft.data));
         if (documentEditor.checklistMasterId) payload.append('checklist_master_id', String(documentEditor.checklistMasterId));
@@ -2020,22 +2020,23 @@ export default function OrdersShow({
                             {documentEditor?.kind === 'pendukung' && documentEditor.collateralIndex < 0 ? (
                                 <div className="grid gap-3">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="order-document-type">Pilih jenis dokumen</Label>
-                                        <select
-                                            id="order-document-type"
-                                            className="sim-input"
-                                            value={documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName) ? documentEditor.displayName : '__lainnya__'}
-                                            onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value === '__lainnya__' ? '' : event.target.value } : current)}
-                                        >
-                                            <option value="__lainnya__">Pilih jenis dokumen</option>
-                                            {[...new Set(documentChecklists.filter((item) => item.is_active !== false).map((item) => item.name))].map((name) => <option key={name} value={name}>{name}</option>)}
-                                            <option value="__lainnya__">Dokumen lain</option>
-                                        </select>
+                                        <Label>Pilih jenis dokumen</Label>
+                                        <div className="grid gap-2 sm:grid-cols-2">
+                                            {[...new Set(documentChecklists.filter((item) => item.is_active !== false).map((item) => item.name))].map((name) => {
+                                                const selected = documentEditor.displayName === name;
+                                                return <button key={name} type="button" className={`flex min-h-12 items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'border-primary bg-primary/5 text-foreground' : 'border-border bg-background hover:bg-muted/50'}`} onClick={() => setDocumentEditor((current) => current ? { ...current, displayName: name } : current)}><span className="flex min-w-0 items-center gap-2"><FileText className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{name}</span></span>{selected && <CheckCircle2 className="size-4 shrink-0 text-primary" />}</button>;
+                                            })}
+                                            {(() => {
+                                                const known = documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName);
+                                                const selected = documentEditor.displayName === '__other__' || (documentEditor.displayName !== '' && !known);
+                                                return <button type="button" className={`flex min-h-12 items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'border-primary bg-primary/5 text-foreground' : 'border-border bg-background hover:bg-muted/50'}`} onClick={() => setDocumentEditor((current) => current ? { ...current, displayName: selected ? '' : '__other__' } : current)}><span className="flex items-center gap-2"><FilePlus2 className="size-4 shrink-0 text-muted-foreground" />Dokumen lain</span>{selected && <CheckCircle2 className="size-4 shrink-0 text-primary" />}</button>;
+                                            })()}
+                                        </div>
                                     </div>
-                                    {!documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName) && (
+                                    {(!documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName) || documentEditor.displayName === '__other__') && (
                                         <div className="grid gap-2">
                                             <Label htmlFor="other-order-document">Keterangan dokumen</Label>
-                                            <Input id="other-order-document" value={documentEditor.displayName} onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value } : current)} placeholder="Tulis jenis dokumen" />
+                                            <Input id="other-order-document" value={documentEditor.displayName === '__other__' ? '' : documentEditor.displayName} onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value } : current)} placeholder="Tulis jenis dokumen" />
                                         </div>
                                     )}
                                 </div>
@@ -2075,7 +2076,7 @@ export default function OrdersShow({
                                     documentBusy ||
                                     !documentEditor?.file ||
                                     (documentEditor?.kind === 'pendukung' &&
-                                        !documentEditor.displayName.trim())
+                                        (!documentEditor.displayName.trim() || documentEditor.displayName === '__other__'))
                                 }
                             >
                                 <Save className="size-4" />
