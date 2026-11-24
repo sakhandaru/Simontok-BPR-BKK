@@ -170,7 +170,7 @@ export default function OrdersShow({
     paymentSchemes: string[];
     slaPolicies: Record<string, { days: number; source: string }>;
     coreProvider: string;
-    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; is_required: boolean; is_active: boolean }[];
+    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; job_type_names?: string[]; is_required: boolean; is_active: boolean }[];
     requiredDocumentIds?: number[];
     temporaryDocuments?: TemporaryOrderDocument[];
     temporaryDraftContext?: OrderDraft | null;
@@ -566,6 +566,27 @@ export default function OrdersShow({
             const result = await temporaryDocumentRequest<{ document: PendingDocument }>(`/orders/${order.id}/temporary-documents`, 'POST', payload);
             setPendingDocuments((documents) => [...documents.filter((item) => item.id !== result.document.id), result.document]);
             setDocumentEditor(null);
+        } catch (error) {
+            setDocumentError(error instanceof Error ? error.message : 'Dokumen gagal diunggah. Coba lagi.');
+        } finally {
+            documentBusyRef.current = false;
+            setDocumentBusy(false);
+        }
+    };
+    const uploadOrderDocumentDirect = async (checklistMasterId: number, displayName: string, file: File) => {
+        if (documentBusyRef.current) return;
+        const payload = new FormData();
+        payload.append('id', crypto.randomUUID());
+        payload.append('file', file);
+        payload.append('display_name', displayName);
+        payload.append('checklist_master_id', String(checklistMasterId));
+        payload.append('draft_context', JSON.stringify(draft.data));
+        documentBusyRef.current = true;
+        setDocumentBusy(true);
+        setDocumentError('');
+        try {
+            const result = await temporaryDocumentRequest<{ document: PendingDocument }>(`/orders/${order.id}/temporary-documents`, 'POST', payload);
+            setPendingDocuments((documents) => [...documents.filter((item) => item.id !== result.document.id), result.document]);
         } catch (error) {
             setDocumentError(error instanceof Error ? error.message : 'Dokumen gagal diunggah. Coba lagi.');
         } finally {
@@ -987,6 +1008,7 @@ export default function OrdersShow({
                         setCollateralJobs={setCollateralJobs}
                         openChecklistEditor={openChecklistEditor}
                         openDocumentEditor={(editor) => { setDocumentError(''); setDocumentEditor({ ...editor, temporaryId: editor.temporaryId ?? crypto.randomUUID() }); }}
+                        uploadOrderDocumentDirect={uploadOrderDocumentDirect}
                         documentChecklists={documentChecklists}
                         requiredDocumentIds={requiredDocumentIds}
                         documentFor={documentFor}
@@ -2694,6 +2716,7 @@ function DraftOrderForm({
     setCollateralJobs,
     openChecklistEditor,
     openDocumentEditor,
+    uploadOrderDocumentDirect,
     documentChecklists,
     requiredDocumentIds = [],
     documentFor,
@@ -2723,7 +2746,8 @@ function DraftOrderForm({
     setCollateralJobs: (index: number, jobs: CollateralJobDraft[]) => void;
     openChecklistEditor: (collateralIndex: number, checklistMasterId: number, jobTypeId?: number | null) => void;
     openDocumentEditor: (editor: DocumentEditor) => void;
-    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; is_required: boolean; is_active: boolean }[];
+    uploadOrderDocumentDirect: (checklistMasterId: number, displayName: string, file: File) => void;
+    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; job_type_names?: string[]; is_required: boolean; is_active: boolean }[];
     requiredDocumentIds?: number[];
     documentFor: (collateralIndex: number, checklistMasterId?: number, jobTypeId?: number | null) => PendingDocument | undefined;
     pendingDocumentsFor: (collateralIndex: number) => PendingDocument[];
@@ -2852,8 +2876,8 @@ function DraftOrderForm({
                         <FilePlus2 className="size-4" />Tambah dokumen
                     </Button>
                 </div>
-                <DocumentSection title="Dokumen wajib" description="Harus lengkap sebelum order diajukan." documents={requiredDocuments} documentFilesFor={documentFilesFor} onAdd={(document) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, displayName: document.name, kind: 'pendukung', file: null })} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} required />
-                <DocumentSection title="Dokumen tambahan" description="Opsional, pilih jika diperlukan oleh notaris." documents={addonDocuments} documentFilesFor={documentFilesFor} onAdd={(document) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, displayName: document.name, kind: 'pendukung', file: null })} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} />
+                <DocumentSection title="Dokumen wajib" description="Harus lengkap sebelum order diajukan." documents={requiredDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} required />
+                <DocumentSection title="Dokumen tambahan" description="Opsional, pilih jika diperlukan oleh notaris." documents={addonDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} />
                 {untypedOrderDocuments.length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-medium">Dokumen lain yang sudah ditambahkan</div><div className="grid gap-2 md:grid-cols-2">{untypedOrderDocuments.map((document: any) => <div key={`${document.pending ? 'pending' : 'saved'}-${document.id}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm"><div className="min-w-0"><div className="truncate font-medium">{document.display_name || document.original_name || 'Dokumen'}</div><div className="mt-1 truncate text-xs text-muted-foreground">{document.original_name}</div></div>{document.pending ? <TemporaryDocumentDetails document={document.source} onReplace={() => openDocumentEditor({ collateralIndex: -1, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })} onDelete={() => removePendingDocument(document.source)} /> : <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>}</div>)}</div></div>}
             </section>
             {incompleteFields.length > 0 && (
@@ -4128,8 +4152,8 @@ function checklistNameForDocument(
     return null;
 }
 
-function DocumentSection({ title, description, documents, documentFilesFor, onAdd, onReplace, onDelete, orderId, required = false }: { title: string; description: string; documents: { id: number; name: string }[]; documentFilesFor: (id: number) => any[]; onAdd: (document: { id: number; name: string }) => void; onReplace: (document: { id: number; name: string }, file: any) => void; onDelete: (document: PendingDocument) => void; orderId: number; required?: boolean }) {
-    return <div className="mt-5"><div className="mb-2 flex items-end justify-between gap-3"><div><h4 className="text-sm font-semibold">{title}</h4><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><span className="text-xs text-muted-foreground">{documents.filter((document) => documentFilesFor(document.id).length > 0).length}/{documents.length} lengkap</span></div><div className="grid gap-2 md:grid-cols-2">{documents.map((document) => { const files = documentFilesFor(document.id); return <div key={document.id} className={`rounded-md border bg-background p-3 ${required && files.length === 0 ? 'border-amber-300' : 'border-border'}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><FileText className="size-4 shrink-0 text-muted-foreground" /><span className="font-medium">{document.name}</span></div><div className="mt-1 text-xs text-muted-foreground">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} sudah ditambahkan` : required ? 'Belum diunggah' : 'Belum dipilih'}</div></div><SimStatusBadge label={files.length > 0 ? 'Lengkap' : required ? 'Wajib' : 'Opsional'} tone={files.length > 0 ? 'success' : required ? 'warning' : 'neutral'} /></div>{files.length > 0 && <div className="mt-3 space-y-1">{files.map((file: any) => <div key={`${file.pending ? 'pending' : 'saved'}-${file.id}`} className="flex items-center justify-between gap-2 border-t pt-2 text-xs"><span className="min-w-0 truncate">{file.original_name || file.display_name}</span>{file.pending ? <TemporaryDocumentDetails document={file.source} onReplace={() => onReplace(document, file)} onDelete={() => onDelete(file.source)} /> : <Button type="button" variant="ghost" size="sm" onClick={() => window.open(`/orders/${orderId}/documents/${file.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-3.5" />Lihat</Button>}</div>)}</div>}<Button type="button" variant="outline" size="sm" className="mt-3 w-full" onClick={() => onAdd(document)}><Upload className="size-4" />{files.length > 0 ? 'Tambah file' : 'Pilih file'}</Button></div>; })}{documents.length === 0 && <p className="text-sm text-muted-foreground">Belum ada dokumen yang dikonfigurasi.</p>}</div></div>;
+function DocumentSection({ title, description, documents, documentFilesFor, onAdd, onReplace, onDelete, orderId, required = false }: { title: string; description: string; documents: { id: number; name: string; job_type_names?: string[] }[]; documentFilesFor: (id: number) => any[]; onAdd: (document: { id: number; name: string }, file: File) => void; onReplace: (document: { id: number; name: string }, file: any) => void; onDelete: (document: PendingDocument) => void; orderId: number; required?: boolean }) {
+    return <div className="mt-5"><div className="mb-2 flex items-end justify-between gap-3"><div><h4 className="text-sm font-semibold">{title}</h4><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><span className="text-xs text-muted-foreground">{documents.filter((document) => documentFilesFor(document.id).length > 0).length}/{documents.length} lengkap</span></div><div className="grid gap-2 md:grid-cols-2">{documents.map((document) => { const files = documentFilesFor(document.id); return <div key={document.id} className={`rounded-md border bg-background p-3 ${required && files.length === 0 ? 'border-amber-300' : 'border-border'}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><FileText className="size-4 shrink-0 text-muted-foreground" /><span className="font-medium">{document.name}</span></div>{required && document.job_type_names && document.job_type_names.length > 0 && <div className="mt-1 text-xs text-muted-foreground">Dibutuhkan untuk: {document.job_type_names.join(', ')}</div>}<div className="mt-1 text-xs text-muted-foreground">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} sudah ditambahkan` : required ? 'Belum diunggah' : 'Belum dipilih'}</div></div><SimStatusBadge label={files.length > 0 ? 'Lengkap' : required ? 'Wajib' : 'Opsional'} tone={files.length > 0 ? 'success' : required ? 'warning' : 'neutral'} /></div>{files.length > 0 && <div className="mt-3 space-y-1">{files.map((file: any) => <div key={`${file.pending ? 'pending' : 'saved'}-${file.id}`} className="flex items-center justify-between gap-2 border-t pt-2 text-xs"><span className="min-w-0 truncate">{file.original_name || file.display_name}</span>{file.pending ? <TemporaryDocumentDetails document={file.source} onReplace={() => onReplace(document, file)} onDelete={() => onDelete(file.source)} /> : <Button type="button" variant="ghost" size="sm" onClick={() => window.open(`/orders/${orderId}/documents/${file.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-3.5" />Lihat</Button>}</div>)}</div>}<SimFileUpload value={null} onChange={(file) => file && onAdd(document, file)} label={files.length > 0 ? 'Tambah file lain' : 'Pilih file PDF'} /></div>; })}{documents.length === 0 && <p className="text-sm text-muted-foreground">Belum ada dokumen yang dikonfigurasi.</p>}</div></div>;
 }
 
 function isRequiredChecklist(order: any, checklist: any): boolean {

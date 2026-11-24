@@ -39,7 +39,7 @@ class Order extends Model
     protected $fillable = [
         'order_no', 'branch_id', 'notary_id', 'legacy_id', 'core_account_id', 'core_customer_id', 'core_branch_code', 'core_snapshot', 'core_synced_at', 'customer_name',
         'no_rekening', 'tgl_realisasi', 'plafon', 'baki_debet', 'kolek',
-        'stat_kred', 'tgl_masuk_notaris', 'nominal', 'skema_pembayaran',
+        'stat_kred', 'tgl_masuk_notaris', 'nominal', 'skema_pembayaran', 'required_document_snapshot',
         'status', 'risk_flag', 'sla_due_at', 'keterangan', 'created_by',
         'checked_by', 'checked_at', 'sent_to_notary_at',
         'notary_agreement_archive_id', 'notary_agreement_acknowledged_at', 'notary_agreement_acknowledged_by',
@@ -53,6 +53,7 @@ class Order extends Model
             'tgl_realisasi' => 'date',
             'tgl_masuk_notaris' => 'date',
             'core_snapshot' => 'array',
+            'required_document_snapshot' => 'array',
             'core_synced_at' => 'datetime',
             'plafon' => 'decimal:2',
             'baki_debet' => 'decimal:2',

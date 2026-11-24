@@ -538,7 +538,9 @@ class OrderController extends Controller
                 $this->storeDraftDocuments($request, $order, $uploads, $saved, $storedPaths);
                 app(TemporaryOrderDocuments::class)->promote($request, $order, $temporaryIds, $saved, $data['collaterals']);
 
-                $this->ensureReadyToSend($order->fresh());
+                $readyOrder = $order->fresh();
+                $this->ensureReadyToSend($readyOrder);
+                $readyOrder->update(['required_document_snapshot' => $this->requiredDocumentSnapshot($readyOrder)]);
                 $fromStatus = $order->status->value;
                 $isResubmission = $order->status === TrackAStatus::PerluPerbaikanOrder;
                 $order->update(['status' => TrackAStatus::MenungguApproval]);
@@ -1067,7 +1069,7 @@ class OrderController extends Controller
 
     private function documentMastersForOrder(Order $order)
     {
-        return DocumentChecklist::with('jobTypes:id')
+        return DocumentChecklist::with('jobTypes:id,name')
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'job_type_id', 'is_required', 'is_active'])
@@ -1075,12 +1077,17 @@ class OrderController extends Controller
                 return [
                     ...$document->only(['id', 'name', 'job_type_id', 'is_required', 'is_active']),
                     'job_type_ids' => $document->jobTypes->pluck('id')->push($document->job_type_id)->filter()->unique()->values()->all(),
+                    'job_type_names' => $document->jobTypes->pluck('name')->values()->all(),
                 ];
             })->values()->all();
     }
 
     private function requiredDocumentIdsForOrder(Order $order): array
     {
+        if (is_array($order->required_document_snapshot) && array_key_exists('documents', $order->required_document_snapshot)) {
+            return collect($order->required_document_snapshot['documents'])->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        }
+
         $jobTypeIds = $order->collaterals->flatMap(fn ($collateral) => $collateral->jobs->pluck('job_type_id'))->filter()->map(fn ($id) => (int) $id)->unique()->values();
         if ($jobTypeIds->isEmpty()) {
             return [];
@@ -1093,6 +1100,16 @@ class OrderController extends Controller
                     ->orWhereIn('job_type_id', $jobTypeIds);
             })
             ->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    private function requiredDocumentSnapshot(Order $order): array
+    {
+        $ids = $this->requiredDocumentIdsForOrder($order);
+
+        return [
+            'created_at' => now()->toIso8601String(),
+            'documents' => DocumentChecklist::whereIn('id', $ids)->orderBy('name')->get(['id', 'name'])->map(fn ($document) => $document->only(['id', 'name']))->values()->all(),
+        ];
     }
 
     private function authorizeVisibleOrder(Request $request, Order $order): void
