@@ -29,19 +29,39 @@ class ReportController extends Controller
         }
 
         $filters = $request->validate([
-            'type' => ['required', 'in:summary,performance'],
+            'type' => ['required', 'in:overall,branches,notaries'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
         $orders = $this->filteredOrders($filters, $user);
-        $filename = sprintf('laporan-%s-%s.csv', $filters['type'] === 'summary' ? 'ringkasan-order' : 'performa', now()->format('Ymd-His'));
+        $filename = sprintf('laporan-%s-%s.csv', $filters['type'], now()->format('Ymd-His'));
 
-        return response()->streamDownload(function () use ($orders, $filters): void {
+        return response()->streamDownload(function () use ($orders, $filters, $user): void {
             $output = fopen('php://output', 'w');
             fwrite($output, "\xEF\xBB\xBF");
-            if ($filters['type'] === 'summary') {
+            if ($filters['type'] === 'overall') {
+                $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+                $total = (clone $orders)->count();
+                $completed = (clone $orders)->where('status', TrackAStatus::Selesai->value)->count();
+                $active = (clone $orders)->whereNotIn('status', $closedStatuses)->count();
+                $risk = (clone $orders)->where('risk_flag', true)->count();
+                $finalUploaded = OrderCollateral::whereIn('doc_status', [TrackBDocStatus::FinalDiunggah->value, TrackBDocStatus::FinalDivalidasi->value])->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))->count();
+                $finalValidated = OrderCollateral::where('doc_status', TrackBDocStatus::FinalDivalidasi->value)->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))->count();
+                $covernoteAttention = OrderCollateral::whereIn('covernote_status', [TrackCCovernoteStatus::Kedaluwarsa->value, TrackCCovernoteStatus::MendekatiJatuhTempo->value])->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))->count();
+                $overdue = OrderCollateral::whereNotNull('sla_due_at')->where('sla_due_at', '<', now())->whereHas('order', function ($query) use ($filters, $closedStatuses, $user): void { $this->applyOrderFilters($query, $filters, $user); $query->whereNotIn('status', $closedStatuses); })->count();
+                fputcsv($output, ['Indikator', 'Nilai'], ';');
+                foreach ([['Total order', $total], ['Order aktif', $active], ['Order selesai', $completed], ['Order berisiko', $risk], ['Rasio penyelesaian', ($total > 0 ? round(($completed / $total) * 100) : 0).'%'], ['Dokumen final diunggah', $finalUploaded], ['Dokumen final tervalidasi', $finalValidated], ['Covernote perhatian', $covernoteAttention], ['SLA terlambat', $overdue]] as $row) fputcsv($output, $row, ';');
+            } elseif ($filters['type'] === 'branches' || $filters['type'] === 'notaries') {
+                $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+                $table = $filters['type'] === 'branches' ? 'branches' : 'notaries';
+                $nameColumn = $table.'.name as name';
+                $joinColumn = $filters['type'] === 'branches' ? 'branch_id' : 'notary_id';
+                $label = $filters['type'] === 'branches' ? 'Cabang' : 'Notaris';
+                fputcsv($output, ['Tipe', 'Nama', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'], ';');
+                (clone $orders)->select($nameColumn)->selectRaw('COUNT(orders.id) as total_orders')->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')->join($table, $table.'.id', '=', 'orders.'.$joinColumn)->groupBy($table.'.id', $table.'.name')->orderBy($table.'.name')->get()->each(function ($row) use ($output, $label): void { $ratio = $row->total_orders > 0 ? round(($row->completed_orders / $row->total_orders) * 100) : 0; fputcsv($output, [$label, $row->name, $row->total_orders, $row->completed_orders, $row->active_orders, $row->risk_orders, $ratio.'%'], ';'); });
+            } elseif ($filters['type'] === 'summary') {
                 fputcsv($output, ['Nomor order', 'Debitur', 'Nomor rekening', 'Cabang', 'Notaris', 'Status', 'Risiko', 'Tanggal masuk'], ';');
                 $orders->with(['branch:id,name', 'notary:id,name'])->orderBy('orders.created_at')->chunk(500, function ($rows) use ($output): void {
                     foreach ($rows as $order) {

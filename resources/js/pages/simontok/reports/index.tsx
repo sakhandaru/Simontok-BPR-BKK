@@ -3,6 +3,7 @@ import {
     AlertTriangle,
     Building2,
     CalendarDays,
+    Download,
     FileCheck2,
     FileText,
     Filter,
@@ -22,6 +23,7 @@ import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 import { SimTable } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type Option = { id: number; code?: string; name: string };
 type ReportTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
@@ -114,6 +116,7 @@ export default function ReportsIndex({
 }) {
     const { data, setData } = useForm(filters);
     const [activeTab, setActiveTab] = useState<'actions' | 'progress' | 'performance'>(initialTab);
+    const [exportOpen, setExportOpen] = useState(false);
     const selectedBranch = branches.find((branch) => String(branch.id) === filters.branch_id);
     const scopeLabel = branchLocked
         ? `Cabang ${selectedBranch?.name ?? 'akun Anda'}`
@@ -125,7 +128,7 @@ export default function ReportsIndex({
         event.preventDefault();
         router.get('/reports', data, { preserveState: true, replace: true });
     };
-    const exportUrl = (type: 'summary' | 'performance') => {
+    const exportUrl = (type: 'overall' | 'branches' | 'notaries') => {
         const params = new URLSearchParams({ type });
         if (data.branch_id) params.set('branch_id', data.branch_id);
         if (data.notary_id) params.set('notary_id', data.notary_id);
@@ -141,8 +144,19 @@ export default function ReportsIndex({
                 <SimPageHeader
                     title="Laporan operasional"
                     description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
-                    actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={exportUrl('summary')}>Export ringkasan</a></Button><Button asChild variant="outline"><a href={exportUrl('performance')}>Export performa</a></Button></div>}
+                    actions={<Button type="button" variant="outline" onClick={() => setExportOpen(true)}><Download className="size-4" />Export laporan</Button>}
                 />
+
+                <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+                    <DialogContent className="sm:max-w-2xl">
+                        <DialogHeader><DialogTitle>Export laporan</DialogTitle><DialogDescription>Semua file mengikuti filter laporan yang sedang dipilih.</DialogDescription></DialogHeader>
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <ExportCard href={exportUrl('overall')} icon={FileText} title="Ringkasan keseluruhan" description="KPI dan kondisi operasional secara umum." />
+                            <ExportCard href={exportUrl('branches')} icon={Building2} title="Rekap cabang" description="Perbandingan beban kerja dan penyelesaian cabang." />
+                            <ExportCard href={exportUrl('notaries')} icon={Users} title="Rekap notaris" description="Jumlah pekerjaan, selesai, proses, dan rasio notaris." />
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
                 <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">
                     <div className="text-sm font-medium text-muted-foreground">Cakupan laporan</div>
@@ -820,6 +834,10 @@ function covernoteStatusLabel(status: string) {
             belum_ada: 'Belum ada covernote',
         }[status] ?? 'Status tidak diketahui'
     );
+}
+
+function ExportCard({ href, icon: Icon, title, description }: { href: string; icon: LucideIcon; title: string; description: string }) {
+    return <a href={href} className="group rounded-lg border border-border p-4 transition-colors hover:border-primary hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon className="size-5 text-muted-foreground group-hover:text-primary" /><div className="mt-3 font-medium">{title}</div><div className="mt-1 text-sm leading-5 text-muted-foreground">{description}</div><div className="mt-4 text-sm font-medium text-primary">Unduh CSV untuk Excel →</div></a>;
 }
 
 ReportsIndex.layout = {
