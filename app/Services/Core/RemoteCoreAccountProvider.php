@@ -195,7 +195,7 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
             'credit' => [
                 ...((array) ($account['credit'] ?? [])),
                 'loan_amount' => $account['plafond'] ?? data_get($account, 'credit.loan_amount'),
-                'realization_date' => data_get($account, 'credit.realization_date'),
+                'realization_date' => $account['tgl_realisasi'] ?? data_get($account, 'credit.realization_date'),
             ],
             'collaterals' => collect($account['collaterals'] ?? [])
                 ->filter(fn ($collateral): bool => is_array($collateral))
