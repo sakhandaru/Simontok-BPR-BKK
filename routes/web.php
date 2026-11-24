@@ -8,6 +8,7 @@ use App\Http\Controllers\Simontok\CoreAccountController;
 use App\Http\Controllers\Simontok\CovernoteController;
 use App\Http\Controllers\Simontok\DashboardController;
 use App\Http\Controllers\Simontok\DocumentArchiveController;
+use App\Http\Controllers\Simontok\DocumentChecklistController;
 use App\Http\Controllers\Simontok\DocumentRequestController;
 use App\Http\Controllers\Simontok\JobTypeController;
 use App\Http\Controllers\Simontok\NotaryController;
@@ -162,6 +163,7 @@ Route::middleware(['auth'])->group(function () {
     });
     Route::middleware('permission:job_types.manage')->group(function () {
         Route::resource('job-types', JobTypeController::class)->only(['index', 'store', 'update']);
+        Route::resource('document-masters', DocumentChecklistController::class)->only(['index', 'store', 'update'])->parameters(['document-masters' => 'documentChecklist']);
     });
     Route::middleware('permission:users.manage')->group(function () {
         Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy']);

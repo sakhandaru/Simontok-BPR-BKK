@@ -169,9 +169,8 @@ class NotaryPortalController extends Controller
             ->where('status', 'active')
             ->latest('version')
             ->first();
-        $initialDocumentsComplete = $order->collaterals->isNotEmpty()
-            && $order->collaterals->every(fn ($collateral) => $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->isNotEmpty()
-                && $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id));
+        // Dokumen awal dipilih Legal sesuai kebutuhan pengikatan; tidak ada lagi daftar wajib global.
+        $initialDocumentsComplete = $order->collaterals->isNotEmpty();
         $covernoteApprovedStage = in_array($order->status, [
             TrackAStatus::CovernoteDisetujui,
             TrackAStatus::DokumenValid,
@@ -426,15 +425,6 @@ class NotaryPortalController extends Controller
     {
         $this->authorizeOrder($request, $order);
         abort_unless($this->canAct($request) && $order->status === TrackAStatus::MenungguVerifikasiNotaris, 422, 'Order sudah diproses atau belum tersedia untuk diterima.');
-        $order->loadMissing('collaterals.checklists.documentChecklist');
-        abort_unless(
-            $order->collaterals->isNotEmpty()
-                && $order->collaterals->every(fn ($collateral) => $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->isNotEmpty()
-                    && $collateral->checklists->filter(fn ($checklist) => $this->isRequiredInitialChecklist($order, $checklist))->every(fn ($checklist) => $checklist->is_checked && $checklist->order_document_id)),
-            422,
-            'Dokumen checklist belum lengkap. Periksa dokumen atau minta perbaikan terlebih dahulu.',
-        );
-
         DB::transaction(function () use ($request, $order) {
             $before = $order->status;
 

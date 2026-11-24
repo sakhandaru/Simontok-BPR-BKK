@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Archive, ArrowLeft, ArrowRight, BarChart3, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Megaphone, Moon, RefreshCw, Scale, Sun, UserCheck, UserRoundCog, Users, ListTodo, Settings2 } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, BarChart3, BriefcaseBusiness, Building2, ClipboardList, FileText, KeyRound, LayoutGrid, Megaphone, Moon, RefreshCw, Scale, Sun, UserCheck, UserRoundCog, Users, ListTodo, Settings2, Files } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -34,6 +34,7 @@ const referenceNavItems: NavItem[] = [
     { title: 'Kantor Cabang', href: '/branches', icon: Building2 },
     { title: 'Notaris', href: '/notaries', icon: Scale },
     { title: 'Jenis Pekerjaan', href: '/job-types', icon: BriefcaseBusiness },
+    { title: 'Master Dokumen', href: '/document-masters', icon: Files },
 ];
 
 const administrationNavItems: NavItem[] = [
@@ -121,6 +122,7 @@ export function AppSidebar() {
                     if (item.href === '/branches') return can('branches.manage');
                     if (item.href === '/notaries') return can('notaries.manage');
                     if (item.href === '/job-types') return can('job_types.manage');
+                    if (item.href === '/document-masters') return can('job_types.manage');
                     return false;
                 })} label="Referensi" />
                 <NavMain items={administrationNavItems.filter((item) => {
