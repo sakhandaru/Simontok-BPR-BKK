@@ -341,7 +341,7 @@ export default function ReportsIndex({
 
                 {activeTab === 'performance' && <div className="grid items-start gap-4 xl:grid-cols-12">
                     <ReportPanel
-                        className="xl:col-span-6 xl:h-[32rem]"
+                        className="xl:col-span-6"
                         title="Performa cabang"
                         subtitle="Bandingkan beban kerja, penyelesaian, dan risiko per cabang."
                         icon={Building2}
@@ -354,7 +354,7 @@ export default function ReportsIndex({
                     </ReportPanel>
 
                     <ReportPanel
-                        className="xl:col-span-6 xl:h-[32rem]"
+                        className="xl:col-span-6"
                         title="Performa notaris"
                         subtitle="Lihat beban kerja, penyelesaian, dan risiko setiap notaris."
                         icon={Users}
