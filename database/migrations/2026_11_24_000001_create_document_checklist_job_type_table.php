@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('document_checklist_id')->constrained('document_checklists')->cascadeOnDelete();
             $table->foreignId('job_type_id')->constrained('job_types')->cascadeOnDelete();
             $table->timestamps();
-            $table->unique(['document_checklist_id', 'job_type_id']);
+            $table->unique(['document_checklist_id', 'job_type_id'], 'doc_checklist_job_type_uq');
         });
 
         DB::table('document_checklists')
