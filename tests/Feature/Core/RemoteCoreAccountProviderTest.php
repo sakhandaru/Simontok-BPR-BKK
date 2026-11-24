@@ -74,6 +74,9 @@ class RemoteCoreAccountProviderTest extends TestCase
                     'marital_status' => 'married',
                     'collateral_count' => 5,
                     'plafond' => '200000000.00',
+                    'tgl_realisasi' => '2026-06-24',
+                    'tgl_jatuh_tempo' => '2027-06-24',
+                    'status_kredit' => 'KREDIT AKTIF',
                     'branch' => ['code' => '001', 'name' => 'Kc. Utama', 'is_active' => true],
                     'selectable' => true,
                 ]],
@@ -103,6 +106,9 @@ class RemoteCoreAccountProviderTest extends TestCase
         $this->assertSame('ARIEF LUKMAN', $account['customer_name']);
         $this->assertSame('married', $account['customer']['marital_status']);
         $this->assertSame('200000000.00', $account['credit']['loan_amount']);
+        $this->assertSame('2026-06-24', $account['credit']['realization_date']);
+        $this->assertSame('2027-06-24', $account['tgl_jatuh_tempo']);
+        $this->assertSame('KREDIT AKTIF', $account['status_kredit']);
         $this->assertSame(5, $account['collateral_count']);
         $this->assertCount(1, $account['collaterals']);
         Http::assertSentCount(2);
