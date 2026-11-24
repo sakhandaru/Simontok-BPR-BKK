@@ -142,7 +142,7 @@ export default function ReportsIndex({
                 <SimPageHeader
                     title="Laporan operasional"
                     description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
-                    actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline" size="sm"><a href={exportUrl('overall')}><Download className="size-4" />Ringkasan keseluruhan</a></Button><Button asChild variant="outline" size="sm"><a href={exportUrl('branches')}><Building2 className="size-4" />Rekap cabang</a></Button><Button asChild variant="outline" size="sm"><a href={exportUrl('notaries')}><Users className="size-4" />Rekap notaris</a></Button></div>}
+                    actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline" size="sm"><a href={exportUrl('overall')}><Download className="size-4" />Ringkasan keseluruhan</a></Button><Button asChild variant="outline" size="sm"><a href={exportUrl('branches')}><Download className="size-4" />Rekap cabang</a></Button><Button asChild variant="outline" size="sm"><a href={exportUrl('notaries')}><Download className="size-4" />Rekap notaris</a></Button></div>}
                 />
 
                 <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">
