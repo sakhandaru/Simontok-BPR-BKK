@@ -10,7 +10,7 @@ import {
     TimerReset,
     Users,
 } from 'lucide-react';
-import type { FormEvent, ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,6 +102,13 @@ export default function ReportsIndex({
     }[];
 }) {
     const { data, setData } = useForm(filters);
+    const [activeTab, setActiveTab] = useState<'actions' | 'progress' | 'performance'>('actions');
+    const selectedBranch = branches.find((branch) => String(branch.id) === filters.branch_id);
+    const scopeLabel = branchLocked
+        ? `Cabang ${selectedBranch?.name ?? 'akun Anda'}`
+        : filters.branch_id && selectedBranch
+          ? `Cabang ${selectedBranch.name}`
+          : 'Seluruh cabang';
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -113,13 +120,52 @@ export default function ReportsIndex({
             <Head title="Laporan" />
             <div className="sim-workspace">
                 <SimPageHeader
-                    title="Laporan"
-                    description="Ringkasan pekerjaan notaris berdasarkan posisi, risiko, covernote, dan dokumen."
+                    title="Laporan operasional"
+                    description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
                 />
 
-                <section className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">
+                    <div className="text-sm font-medium text-muted-foreground">Cakupan laporan</div>
+                    <div className="text-lg font-semibold">{scopeLabel}</div>
+                    <p className="text-sm text-muted-foreground">
+                        {branchLocked ? 'Data mengikuti cabang yang terdaftar pada akun Anda.' : 'Data dapat mencakup satu cabang atau seluruh cabang.'}
+                    </p>
+                </div>
+
+                <form onSubmit={submit} className="sim-panel mb-4 overflow-hidden">
+                    <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-3 md:px-5">
+                        <Filter className="size-4 text-muted-foreground" aria-hidden="true" />
+                        <div>
+                            <h2 className="text-base font-semibold">Atur laporan</h2>
+                            <p className="mt-0.5 text-sm text-muted-foreground">Pilih periode, cabang, atau notaris yang ingin dilihat.</p>
+                        </div>
+                    </div>
+                    <div className="grid gap-3 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-[1.25fr_1.25fr_0.8fr_0.8fr_auto] xl:items-end">
+                        <ReportField label="Cabang">
+                            <SimSelect value={branchLocked ? filters.branch_id : data.branch_id} disabled={branchLocked} onChange={(value) => setData('branch_id', value)} options={branches.map((branch) => ({ value: String(branch.id), label: `${branch.code} - ${branch.name}` }))} placeholder={branchLocked ? 'Cabang akun' : 'Semua cabang'} />
+                        </ReportField>
+                        <ReportField label="Notaris">
+                            <SimSelect value={data.notary_id} onChange={(value) => setData('notary_id', value)} options={notaries.map((notary) => ({ value: String(notary.id), label: notary.name }))} placeholder="Semua notaris" />
+                        </ReportField>
+                        <ReportField label="Mulai"><Input aria-label="Tanggal mulai" type="date" value={data.date_from} onChange={(event) => setData('date_from', event.target.value)} /></ReportField>
+                        <ReportField label="Sampai"><Input aria-label="Tanggal akhir" type="date" value={data.date_to} onChange={(event) => setData('date_to', event.target.value)} /></ReportField>
+                        <div className="flex gap-2 md:col-span-2 xl:col-span-1">
+                            <Button type="submit"><Filter className="size-4" />Terapkan</Button>
+                            <Button type="button" variant="outline" onClick={() => router.get('/reports')}><RotateCcw className="size-4" />Reset</Button>
+                        </div>
+                    </div>
+                </form>
+
+                <nav aria-label="Bagian laporan" className="mb-4 grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1">
+                    <ReportTab active={activeTab === 'actions'} onClick={() => setActiveTab('actions')}>Perlu tindakan</ReportTab>
+                    <ReportTab active={activeTab === 'progress'} onClick={() => setActiveTab('progress')}>Progres pekerjaan</ReportTab>
+                    <ReportTab active={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performa</ReportTab>
+                </nav>
+
+                {activeTab === 'actions' && <>
+                <section className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
                     <SimKpiCard label="Total order" value={summary.total_orders} note="Seluruh order pada cakupan laporan" icon={FileText} tone="info" />
-                    <SimKpiCard label="Order aktif" value={summary.active_orders} note="Belum selesai, ditolak, atau dibatalkan" icon={TimerReset} tone="info" />
+                    <SimKpiCard label="Sedang diproses" value={summary.active_orders} note="Order yang belum selesai" icon={TimerReset} tone="info" />
                     <SimKpiCard label="Order selesai" value={summary.completed_orders} note="Order yang sudah ditutup" icon={FileCheck2} tone="success" />
                     <SimKpiCard label="Order berisiko" value={summary.risk_orders} note="Perlu perhatian operasional" icon={AlertTriangle} tone="danger" />
                 </section>
@@ -163,94 +209,9 @@ export default function ReportsIndex({
                     />
                 </section>
 
-                <form onSubmit={submit} className="sim-panel overflow-hidden">
-                    <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-3 md:px-5">
-                        <Filter
-                            className="size-4 text-muted-foreground"
-                            aria-hidden="true"
-                        />
-                        <div>
-                            <h2 className="text-sm font-semibold">
-                                Periode dan cakupan laporan
-                            </h2>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                                Gunakan filter untuk memeriksa beban kerja
-                                tertentu.
-                            </p>
-                        </div>
-                    </div>
-                    <div className="grid gap-3 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-[1.25fr_1.25fr_0.8fr_0.8fr_auto] xl:items-end">
-                        <ReportField label="Cabang">
-                            <SimSelect
-                                value={
-                                    branchLocked
-                                        ? filters.branch_id
-                                        : data.branch_id
-                                }
-                                disabled={branchLocked}
-                                onChange={(value) =>
-                                    setData('branch_id', value)
-                                }
-                                options={branches.map((branch) => ({
-                                    value: String(branch.id),
-                                    label: `${branch.code} - ${branch.name}`,
-                                }))}
-                                placeholder={
-                                    branchLocked ? 'Cabang akun' : 'Semua cabang'
-                                }
-                            />
-                        </ReportField>
-                        <ReportField label="Notaris">
-                            <SimSelect
-                                value={data.notary_id}
-                                onChange={(value) =>
-                                    setData('notary_id', value)
-                                }
-                                options={notaries.map((notary) => ({
-                                    value: String(notary.id),
-                                    label: notary.name,
-                                }))}
-                                placeholder="Semua notaris"
-                            />
-                        </ReportField>
-                        <ReportField label="Mulai">
-                            <Input
-                                aria-label="Tanggal mulai"
-                                type="date"
-                                value={data.date_from}
-                                onChange={(event) =>
-                                    setData('date_from', event.target.value)
-                                }
-                            />
-                        </ReportField>
-                        <ReportField label="Sampai">
-                            <Input
-                                aria-label="Tanggal akhir"
-                                type="date"
-                                value={data.date_to}
-                                onChange={(event) =>
-                                    setData('date_to', event.target.value)
-                                }
-                            />
-                        </ReportField>
-                        <div className="flex gap-2 md:col-span-2 xl:col-span-1">
-                            <Button type="submit">
-                                <Filter className="size-4" />
-                                Terapkan
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => router.get('/reports')}
-                            >
-                                <RotateCcw className="size-4" />
-                                Reset
-                            </Button>
-                        </div>
-                    </div>
-                </form>
+                </>}
 
-                <div className="grid items-start gap-4 xl:grid-cols-12">
+                {activeTab === 'progress' && <div className="grid items-start gap-4 xl:grid-cols-12">
                     <ReportPanel
                         className="xl:col-span-7 xl:h-full"
                         title="Covernote"
@@ -342,10 +303,13 @@ export default function ReportsIndex({
                         )}
                     </ReportPanel>
 
+                </div>}
+
+                {activeTab === 'performance' && <div className="grid items-start gap-4 xl:grid-cols-12">
                     <ReportPanel
                         className="xl:col-span-6 xl:h-[32rem]"
-                        title="Per cabang"
-                        subtitle="Beban, penyelesaian, dan risiko per cabang."
+                        title="Performa cabang"
+                        subtitle="Bandingkan beban kerja, penyelesaian, dan risiko per cabang."
                         icon={Building2}
                     >
                         <DistributionTable
@@ -357,8 +321,8 @@ export default function ReportsIndex({
 
                     <ReportPanel
                         className="xl:col-span-6 xl:h-[32rem]"
-                        title="Per notaris"
-                        subtitle="Beban, penyelesaian, dan risiko per notaris."
+                        title="Performa notaris"
+                        subtitle="Lihat beban kerja, penyelesaian, dan risiko setiap notaris."
                         icon={Users}
                     >
                         <DistributionTable
@@ -368,6 +332,9 @@ export default function ReportsIndex({
                         />
                     </ReportPanel>
 
+                </div>}
+
+                {activeTab === 'actions' && <div className="grid items-start gap-4 xl:grid-cols-12">
                     <ReportPanel
                         className="xl:col-span-12"
                         title="Pekerjaan yang masih berjalan"
@@ -551,7 +518,7 @@ export default function ReportsIndex({
                             </div>
                         )}
                     </ReportPanel>
-                </div>
+                </div>}
             </div>
         </>
     );
@@ -588,6 +555,27 @@ function ReportPanel({
             </div>
             {children}
         </section>
+    );
+}
+
+function ReportTab({
+    active,
+    onClick,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={`min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'}`}
+        >
+            {children}
+        </button>
     );
 }
 
