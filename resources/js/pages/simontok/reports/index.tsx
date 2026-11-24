@@ -65,6 +65,7 @@ export default function ReportsIndex({
         overdue_sla: number;
     };
     byBranch: PaginatedRows<{
+        branch_id: number;
         code: string;
         name: string;
         total_orders: number;
@@ -308,11 +309,11 @@ export default function ReportsIndex({
 
                     <ReportPanel
                         className="xl:col-span-12"
-                        title={filters.notary_id ? `Debitur yang ditangani ${notaries.find((notary) => String(notary.id) === filters.notary_id)?.name ?? 'notaris'}` : 'Debitur dan order yang sedang berjalan'}
-                        subtitle={filters.notary_id ? 'Daftar ini mengikuti notaris dan periode yang dipilih.' : 'Pilih Lihat debitur pada tab Performa untuk melihat pekerjaan satu notaris.'}
+                        title={filters.notary_id ? `Debitur yang ditangani ${notaries.find((notary) => String(notary.id) === filters.notary_id)?.name ?? 'notaris'}` : filters.branch_id ? `Debitur pada ${selectedBranch?.name ?? 'cabang ini'}` : 'Debitur dan order yang sedang berjalan'}
+                        subtitle={filters.notary_id || filters.branch_id ? 'Daftar ini mengikuti cakupan dan periode yang dipilih.' : 'Pilih Lihat debitur pada tab Performa untuk melihat pekerjaan satu cabang atau notaris.'}
                         icon={Users}
                     >
-                        {filters.notary_id ? (
+                        {filters.notary_id || filters.branch_id ? (
                             <div className="overflow-x-auto">
                                 <table className="sim-table min-w-[720px]">
                                     <thead className="bg-muted/20 text-left text-xs text-muted-foreground">
@@ -320,7 +321,7 @@ export default function ReportsIndex({
                                     </thead>
                                     <tbody>
                                         {outstandingOrders.data.length === 0 ? (
-                                            <tr><td colSpan={5}><EmptyReport message="Tidak ada order aktif untuk notaris ini pada cakupan yang dipilih." /></td></tr>
+                                            <tr><td colSpan={5}><EmptyReport message="Tidak ada order aktif pada cakupan yang dipilih." /></td></tr>
                                         ) : outstandingOrders.data.map((order) => (
                                             <tr key={order.id} className="border-t">
                                                 <td><div className="font-medium">{order.customer_name}</div><div className="text-sm text-muted-foreground">{order.no_rekening}</div></td>
@@ -333,8 +334,8 @@ export default function ReportsIndex({
                                     </tbody>
                                 </table>
                             </div>
-                        ) : <EmptyReport message="Pilih seorang notaris dari tab Performa untuk melihat debiturnya." />}
-                        {filters.notary_id && <SimPagination links={outstandingOrders.links} />}
+                        ) : <EmptyReport message="Pilih cabang atau notaris dari tab Performa untuk melihat debiturnya." />}
+                        {(filters.notary_id || filters.branch_id) && <SimPagination links={outstandingOrders.links} />}
                     </ReportPanel>
 
                 </div>}
@@ -350,6 +351,7 @@ export default function ReportsIndex({
                             rows={byBranch}
                             firstLabel="Cabang"
                             firstValue={(row) => `${row.code} - ${row.name}`}
+                            action={(row) => <Button variant="outline" size="sm" asChild><Link href={`/reports?branch_id=${row.branch_id}&view=progress`}>Lihat debitur</Link></Button>}
                         />
                     </ReportPanel>
 

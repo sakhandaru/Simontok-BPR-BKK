@@ -85,13 +85,13 @@ class ReportController extends Controller
                     ->count(),
             ],
             'byBranch' => (clone $orders)
-                ->select('branches.code', 'branches.name')
+                ->select('branches.id as branch_id', 'branches.code', 'branches.name')
                 ->selectRaw('COUNT(orders.id) as total_orders')
                 ->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)
                 ->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])
                 ->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')
                 ->join('branches', 'branches.id', '=', 'orders.branch_id')
-                ->groupBy('branches.code', 'branches.name')
+                ->groupBy('branches.id', 'branches.code', 'branches.name')
                 ->orderBy('branches.code')
                 ->paginate(10)->withQueryString()->through(function ($row) {
                     $row->total_orders = (int) $row->total_orders;
