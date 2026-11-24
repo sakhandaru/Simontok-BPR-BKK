@@ -2024,21 +2024,15 @@ export default function OrdersShow({
                                         <div className="grid gap-2 sm:grid-cols-2">
                                             {[...new Set(documentChecklists.filter((item) => item.is_active !== false).map((item) => item.name))].map((name) => {
                                                 const selected = documentEditor.displayName === name;
-                                                return <button key={name} type="button" className={`flex min-h-12 items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'border-primary bg-primary/5 text-foreground' : 'border-border bg-background hover:bg-muted/50'}`} onClick={() => setDocumentEditor((current) => current ? { ...current, displayName: name } : current)}><span className="flex min-w-0 items-center gap-2"><FileText className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{name}</span></span>{selected && <CheckCircle2 className="size-4 shrink-0 text-primary" />}</button>;
+                                                return <div key={name} className={`overflow-hidden rounded-md border ${selected ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}><button type="button" className="flex min-h-12 w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setDocumentEditor((current) => current ? { ...current, displayName: name } : current)}><span className="flex min-w-0 items-center gap-2"><FileText className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{name}</span></span>{selected && <CheckCircle2 className="size-4 shrink-0 text-primary" />}</button>{selected && <div className="border-t border-primary/30 p-3"><SimFileUpload value={documentEditor.file} onChange={(file) => setDocumentEditor((current) => current ? { ...current, file } : current)} label="Pilih file untuk dokumen ini" /></div>}</div>;
                                             })}
                                             {(() => {
                                                 const known = documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName);
                                                 const selected = documentEditor.displayName === '__other__' || (documentEditor.displayName !== '' && !known);
-                                                return <button type="button" className={`flex min-h-12 items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'border-primary bg-primary/5 text-foreground' : 'border-border bg-background hover:bg-muted/50'}`} onClick={() => setDocumentEditor((current) => current ? { ...current, displayName: selected ? '' : '__other__' } : current)}><span className="flex items-center gap-2"><FilePlus2 className="size-4 shrink-0 text-muted-foreground" />Dokumen lain</span>{selected && <CheckCircle2 className="size-4 shrink-0 text-primary" />}</button>;
+                                                return <div className={`overflow-hidden rounded-md border ${selected ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}><button type="button" className="flex min-h-12 w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setDocumentEditor((current) => current ? { ...current, displayName: selected ? '' : '__other__' } : current)}><span className="flex items-center gap-2"><FilePlus2 className="size-4 shrink-0 text-muted-foreground" />Dokumen lain</span>{selected && <CheckCircle2 className="size-4 shrink-0 text-primary" />}</button>{selected && <div className="grid gap-3 border-t border-primary/30 p-3"><Input id="other-order-document" value={documentEditor.displayName === '__other__' ? '' : documentEditor.displayName} onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value } : current)} placeholder="Tulis jenis dokumen" /><SimFileUpload value={documentEditor.file} onChange={(file) => setDocumentEditor((current) => current ? { ...current, file } : current)} label="Pilih file untuk dokumen ini" /></div>}</div>;
                                             })()}
                                         </div>
                                     </div>
-                                    {(!documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName) || documentEditor.displayName === '__other__') && (
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="other-order-document">Keterangan dokumen</Label>
-                                            <Input id="other-order-document" value={documentEditor.displayName === '__other__' ? '' : documentEditor.displayName} onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value } : current)} placeholder="Tulis jenis dokumen" />
-                                        </div>
-                                    )}
                                 </div>
                             ) : documentEditor?.kind === 'pendukung' && (
                                 <div className="grid gap-2">
@@ -2046,7 +2040,7 @@ export default function OrdersShow({
                                     <Input value={documentEditor.displayName} onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value } : current)} placeholder="Contoh: Surat kuasa, KTP debitur, atau sertifikat" />
                                 </div>
                             )}
-                            <SimFileUpload
+                            {documentEditor?.collateralIndex !== undefined && documentEditor.collateralIndex >= 0 && <SimFileUpload
                                 value={documentEditor?.file ?? null}
                                 onChange={(file) =>
                                     setDocumentEditor((current) =>
@@ -2058,7 +2052,7 @@ export default function OrdersShow({
                                 label={
                                     'Pilih file PDF'
                                 }
-                            />
+                            />}
                         </div>
                         <DialogFooter>
                             <Button
