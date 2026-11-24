@@ -2017,25 +2017,32 @@ export default function OrdersShow({
                         </DialogHeader>
                         {documentError && <p role="alert" className="text-sm text-destructive">{documentError}</p>}
                         <div className="grid gap-4">
-                            {documentEditor?.kind === 'pendukung' && (
+                            {documentEditor?.kind === 'pendukung' && documentEditor.collateralIndex < 0 ? (
+                                <div className="grid gap-3">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="order-document-type">Pilih jenis dokumen</Label>
+                                        <select
+                                            id="order-document-type"
+                                            className="sim-input"
+                                            value={documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName) ? documentEditor.displayName : '__lainnya__'}
+                                            onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value === '__lainnya__' ? '' : event.target.value } : current)}
+                                        >
+                                            <option value="__lainnya__">Pilih jenis dokumen</option>
+                                            {[...new Set(documentChecklists.filter((item) => item.is_active !== false).map((item) => item.name))].map((name) => <option key={name} value={name}>{name}</option>)}
+                                            <option value="__lainnya__">Dokumen lain</option>
+                                        </select>
+                                    </div>
+                                    {!documentChecklists.some((item) => item.is_active !== false && item.name === documentEditor.displayName) && (
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="other-order-document">Keterangan dokumen</Label>
+                                            <Input id="other-order-document" value={documentEditor.displayName} onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value } : current)} placeholder="Tulis jenis dokumen" />
+                                        </div>
+                                    )}
+                                </div>
+                            ) : documentEditor?.kind === 'pendukung' && (
                                 <div className="grid gap-2">
                                     <Label>Jenis atau keterangan dokumen</Label>
-                                    <Input
-                                        value={documentEditor.displayName}
-                                        onChange={(event) =>
-                                            setDocumentEditor((current) =>
-                                                current
-                                                    ? {
-                                                          ...current,
-                                                          displayName:
-                                                              event.target
-                                                                  .value,
-                                                      }
-                                                    : current,
-                                            )
-                                        }
-                                        placeholder="Contoh: Surat kuasa, KTP debitur, atau sertifikat"
-                                    />
+                                    <Input value={documentEditor.displayName} onChange={(event) => setDocumentEditor((current) => current ? { ...current, displayName: event.target.value } : current)} placeholder="Contoh: Surat kuasa, KTP debitur, atau sertifikat" />
                                 </div>
                             )}
                             <SimFileUpload
