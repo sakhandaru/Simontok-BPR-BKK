@@ -2005,20 +2005,21 @@ export default function OrdersShow({
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>
-                                {documentEditor?.kind === 'pendukung'
-                                    ? 'Tambah dokumen pendukung'
+                                {documentEditor?.collateralIndex !== undefined && documentEditor.collateralIndex < 0
+                                    ? 'Tambah dokumen order'
+                                    : documentEditor?.kind === 'pendukung'
+                                      ? 'Tambah dokumen pendukung'
                                     : 'Input dokumen agunan'}
                             </DialogTitle>
                             <DialogDescription>
-                                Unggah PDF agar dapat dilihat dan diganti sebelum pengajuan.
-                                Dokumen menjadi bagian resmi order saat diajukan ke Kabid Ops.
+                                Pilih berkas dokumen yang sudah tersedia. Dokumen menjadi bagian resmi order saat diajukan ke Kabid Ops.
                             </DialogDescription>
                         </DialogHeader>
                         {documentError && <p role="alert" className="text-sm text-destructive">{documentError}</p>}
                         <div className="grid gap-4">
                             {documentEditor?.kind === 'pendukung' && (
                                 <div className="grid gap-2">
-                                    <Label>Nama dokumen</Label>
+                                    <Label>Jenis atau keterangan dokumen</Label>
                                     <Input
                                         value={documentEditor.displayName}
                                         onChange={(event) =>
@@ -2033,7 +2034,7 @@ export default function OrdersShow({
                                                     : current,
                                             )
                                         }
-                                        placeholder="Contoh: Surat kuasa tambahan"
+                                        placeholder="Contoh: Surat kuasa, KTP debitur, atau sertifikat"
                                     />
                                 </div>
                             )}
