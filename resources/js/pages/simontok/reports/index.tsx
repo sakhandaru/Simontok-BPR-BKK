@@ -11,6 +11,7 @@ import {
     Users,
 } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,10 +21,16 @@ import { SimSelect } from '@/components/sim-select';
 import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 import { SimTable } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 
 type Option = { id: number; code?: string; name: string };
 type ReportTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 type PaginatedRows<T> = { data: T[]; links: SimPaginationLink[] };
+
+const reportTrendConfig = {
+    incoming: { label: 'Masuk', color: 'var(--status-info)' },
+    completed: { label: 'Selesai', color: 'var(--track-success)' },
+} satisfies ChartConfig;
 
 export default function ReportsIndex({
     filters,
@@ -298,11 +305,22 @@ export default function ReportsIndex({
                         icon={CalendarDays}
                     >
                         {monthlyTrend.length === 0 ? <EmptyReport message="Belum ada tren pada cakupan ini." /> : (
-                            <div className="overflow-auto">
-                                <table className="sim-table min-w-[520px]">
-                                    <thead className="bg-muted/20 text-left text-xs text-muted-foreground"><tr><th>Bulan</th><th className="text-right">Masuk</th><th className="text-right">Selesai</th><th className="text-right">Rasio</th></tr></thead>
-                                    <tbody>{monthlyTrend.map((month) => <tr key={month.month} className="border-t"><td className="font-medium">{formatMonth(month.month)}</td><td className="text-right tabular-nums">{month.total_orders}</td><td className="text-right tabular-nums text-[var(--track-success)]">{month.completed_orders}</td><td className="text-right tabular-nums">{month.total_orders > 0 ? `${Math.round((month.completed_orders / month.total_orders) * 100)}%` : '0%'}</td></tr>)}</tbody>
-                                </table>
+                            <div className="p-4">
+                                <ChartContainer config={reportTrendConfig} className="h-64 w-full">
+                                    <LineChart data={monthlyTrend.map((month) => ({
+                                        label: formatMonth(month.month),
+                                        incoming: month.total_orders,
+                                        completed: month.completed_orders,
+                                    }))} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                                        <CartesianGrid vertical={false} stroke="var(--border)" />
+                                        <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} tick={{ fontSize: 12 }} />
+                                        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} width={32} allowDecimals={false} />
+                                        <ChartTooltip content={<ChartTooltipContent />} />
+                                        <Line dataKey="incoming" stroke="var(--color-incoming)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                                        <Line dataKey="completed" stroke="var(--color-completed)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                                        <ChartLegend content={<ChartLegendContent />} />
+                                    </LineChart>
+                                </ChartContainer>
                             </div>
                         )}
                     </ReportPanel>
