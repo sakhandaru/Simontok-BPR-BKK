@@ -982,10 +982,6 @@ class OrderController extends Controller
             $missing[] = 'data agunan lengkap';
         }
 
-        if ($order->collaterals->contains(fn ($collateral) => $collateral->checklists->contains(fn ($checklist) => $this->isRequiredOrderChecklist($order, $checklist) && (! $checklist->is_checked || ! $checklist->order_document_id)))) {
-            $missing[] = 'dokumen checklist lengkap';
-        }
-
         if ($order->collaterals->contains(fn ($collateral) => $collateral->sla_source === 'override' && blank($collateral->sla_override_reason))) {
             $missing[] = 'alasan perubahan SLA';
         }

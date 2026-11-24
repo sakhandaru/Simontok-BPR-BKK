@@ -297,7 +297,7 @@ export default function OrdersShow({
                 });
             });
         });
-        draft.data.collaterals.flatMap((_, index) => pendingDocumentsFor(index)).forEach((document, index) => {
+        [...pendingDocumentsFor(-1), ...draft.data.collaterals.flatMap((_, index) => pendingDocumentsFor(index))].forEach((document, index) => {
             payload.append(`temporary_document_ids[${index}]`, document.id);
         });
         setSubmitProcessing(true);
@@ -416,6 +416,9 @@ export default function OrdersShow({
         draft.setData('collaterals', next);
     };
     const pendingDocumentsFor = (collateralIndex: number) => {
+        if (collateralIndex < 0) {
+            return pendingDocuments.filter((item) => item.coreAccountId === draft.data.core_account_id && item.collateralKey === 'order');
+        }
         const collateral = draft.data.collaterals[collateralIndex];
         return collateral ? pendingDocuments.filter((item) =>
             item.coreAccountId === draft.data.core_account_id && item.collateralKey === collateralDocumentKey(collateral) &&
@@ -567,7 +570,7 @@ export default function OrdersShow({
         payload.append('id', documentEditor.temporaryId!);
         payload.append('file', documentEditor.file);
         payload.append('display_name', documentEditor.displayName);
-        payload.append('collateral_index', String(documentEditor.collateralIndex));
+        if (documentEditor.collateralIndex >= 0) payload.append('collateral_index', String(documentEditor.collateralIndex));
         payload.append('draft_context', JSON.stringify(draft.data));
         if (documentEditor.checklistMasterId) payload.append('checklist_master_id', String(documentEditor.checklistMasterId));
         if (documentEditor.jobTypeId) payload.append('job_type_id', String(documentEditor.jobTypeId));
@@ -2758,6 +2761,8 @@ function DraftOrderForm({
     const activeSummaryJobs = activeSourceCollateral?.jobs?.length
         ? activeSourceCollateral.jobs
         : activeCollateral?.jobs ?? [];
+    const pendingOrderDocuments = pendingDocumentsFor(-1);
+    const savedOrderDocuments = order.documents ?? [];
     const activeSummaryDocuments = [
               ...pendingDocumentsFor(collateralModal?.index ?? -1).map((document) => ({
                   id: document.id,
@@ -2832,6 +2837,27 @@ function DraftOrderForm({
                 error={draft.errors.core_account_id}
                 onSelect={selectCoreAccount}
             />
+            <section className="border-y bg-muted/10 px-4 py-4 md:px-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 className="font-medium">Dokumen order</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">Masukkan dokumen apa pun yang diperlukan untuk order ini. Dokumen tidak perlu dipilih per pekerjaan atau agunan.</p>
+                    </div>
+                    <Button type="button" variant="outline" className="w-fit" onClick={() => openDocumentEditor({ collateralIndex: -1, displayName: '', file: null, kind: 'pendukung' })}>
+                        <FilePlus2 className="size-4" />Tambah dokumen
+                    </Button>
+                </div>
+                {(pendingOrderDocuments.length + savedOrderDocuments.length) > 0 ? (
+                    <div className="mt-4 grid gap-2 md:grid-cols-2">
+                        {[...savedOrderDocuments.map((document: any) => ({ ...document, pending: false })), ...pendingOrderDocuments.map((document) => ({ id: document.id, display_name: document.displayName, original_name: document.originalName, pending: true, source: document }))].map((document: any) => (
+                            <div key={`${document.pending ? 'pending' : 'saved'}-${document.id}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm">
+                                <div className="min-w-0"><div className="truncate font-medium">{document.display_name || document.original_name || 'Dokumen'}</div><div className="mt-1 truncate text-xs text-muted-foreground">{document.original_name}</div></div>
+                                {document.pending ? <TemporaryDocumentDetails document={document.source} onReplace={() => openDocumentEditor({ collateralIndex: -1, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })} onDelete={() => removePendingDocument(document.source)} /> : <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>}
+                            </div>
+                        ))}
+                    </div>
+                ) : <p className="mt-4 text-sm text-muted-foreground">Belum ada dokumen order.</p>}
+            </section>
             {incompleteFields.length > 0 && (
                 <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                     <span className="font-medium">Belum siap dikirim.</span>{' '}
@@ -3003,9 +3029,6 @@ function DraftOrderForm({
                                         <Button type="button" size="sm" onClick={() => setCollateralModal({ index, tab: 'jobs' })}>
                                             <BriefcaseBusiness className="size-4" />Pekerjaan
                                             <span className="text-xs opacity-75">({item.jobs.length})</span>
-                                        </Button>
-                                        <Button type="button" variant="outline" size="sm" onClick={() => setCollateralModal({ index, tab: 'documents' })}>
-                                            <FileText className="size-4" />Dokumen
                                         </Button>
                                     </div>
                                 </div>

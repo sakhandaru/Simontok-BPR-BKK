@@ -36,7 +36,7 @@ class TemporaryOrderDocumentController extends Controller
             'checklist_master_id' => ['nullable', 'integer', 'exists:document_checklists,id'],
             'job_type_id' => ['nullable', 'integer', 'exists:job_types,id'],
             'display_name' => ['nullable', 'string', 'max:255'],
-            'collateral_index' => ['required', 'integer', 'min:0'],
+            'collateral_index' => ['nullable', 'integer', 'min:0'],
             'draft_context' => ['required', 'json', 'max:65536'],
         ], [
             'file.required' => 'Pilih file PDF terlebih dahulu.',
@@ -54,11 +54,14 @@ class TemporaryOrderDocumentController extends Controller
             'context.collaterals.*.draft_key' => ['nullable', 'uuid'],
         ])->validate()['context'];
         $context = Arr::only($context, ['core_account_id', 'branch_id', 'notary_id', 'customer_name', 'no_rekening', 'tgl_masuk_notaris', 'tgl_realisasi', 'plafon', 'nominal', 'skema_pembayaran', 'keterangan', 'collaterals', 'customer_marital_status']);
-        $collateral = $context['collaterals'][$data['collateral_index']] ?? null;
-        if (! $collateral || TemporaryOrderDocuments::collateralKey($collateral) === 'draft:') {
-            throw ValidationException::withMessages(['file' => 'Pilih agunan untuk dokumen ini terlebih dahulu.']);
+        $collateral = $data['collateral_index'] === null ? null : ($context['collaterals'][$data['collateral_index']] ?? null);
+        if ($data['collateral_index'] !== null && (! $collateral || TemporaryOrderDocuments::collateralKey($collateral) === 'draft:')) {
+            throw ValidationException::withMessages(['file' => 'Agunan dokumen tidak tersedia. Muat ulang halaman lalu coba lagi.']);
         }
-        $key = TemporaryOrderDocuments::collateralKey($collateral);
+        $key = $collateral ? TemporaryOrderDocuments::collateralKey($collateral) : 'order';
+        if ($key === 'order' && (! empty($data['checklist_master_id']) || ! empty($data['job_type_id']))) {
+            throw ValidationException::withMessages(['file' => 'Dokumen order tidak memakai checklist pekerjaan.']);
+        }
         $checklist = ! empty($data['checklist_master_id']) ? DocumentChecklist::where('is_active', true)->findOrFail($data['checklist_master_id']) : null;
         if ($checklist && (int) $checklist->job_type_id !== (int) ($data['job_type_id'] ?? null)) {
             throw ValidationException::withMessages(['file' => 'Checklist tidak sesuai dengan jenis pekerjaan.']);

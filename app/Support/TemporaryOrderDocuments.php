@@ -49,13 +49,15 @@ class TemporaryOrderDocuments
         foreach ($ids as $id) {
             $temporary = $documents[$id];
             $index = collect($submitted)->search(fn ($item) => self::collateralKey($item) === $temporary->collateral_key);
-            $collateral = $index !== false ? ($savedCollaterals[$index] ?? null) : null;
-            if (! $collateral || $temporary->core_account_id !== (string) $order->core_account_id) {
+            $collateral = $temporary->collateral_key === 'order'
+                ? null
+                : ($index !== false ? ($savedCollaterals[$index] ?? null) : null);
+            if (($temporary->collateral_key !== 'order' && ! $collateral) || $temporary->core_account_id !== (string) $order->core_account_id) {
                 throw ValidationException::withMessages(['temporary_document_ids' => 'Dokumen sementara tidak sesuai dengan rekening atau agunan pengajuan.']);
             }
-            $job = $temporary->job_type_id ? $collateral->jobs()->where('job_type_id', $temporary->job_type_id)->first() : null;
+            $job = $collateral && $temporary->job_type_id ? $collateral->jobs()->where('job_type_id', $temporary->job_type_id)->first() : null;
             $checklist = $temporary->checklist_master_id ? OrderChecklist::where('order_id', $order->id)
-                ->where('order_collateral_id', $collateral->id)
+                ->when($collateral, fn ($query) => $query->where('order_collateral_id', $collateral->id))
                 ->where('document_checklist_id', $temporary->checklist_master_id)
                 ->where('order_collateral_job_id', $job?->id)->first() : null;
             if (($temporary->checklist_master_id && ! $checklist) || ($temporary->job_type_id && ! $job)) {
@@ -66,11 +68,11 @@ class TemporaryOrderDocuments
             }
             $type = $checklist ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
             $document = $order->documents()->create([
-                'order_collateral_id' => $collateral->id,
+                'order_collateral_id' => $collateral?->id,
                 'order_collateral_job_id' => $job?->id,
                 'document_type' => $type,
                 'display_name' => $temporary->display_name,
-                'version' => ((int) $collateral->documents()->where('document_type', $type->value)->max('version')) + 1,
+                'version' => ((int) $order->documents()->where('document_type', $type->value)->max('version')) + 1,
                 'original_name' => $temporary->original_name,
                 'stored_name' => basename($temporary->stored_path),
                 'stored_path' => $temporary->stored_path,
@@ -80,7 +82,11 @@ class TemporaryOrderDocuments
             ]);
             $checklist?->update(['order_document_id' => $document->id, 'is_checked' => true, 'checked_by' => $request->user()->id, 'checked_at' => now()]);
             $temporary->update(['promoted_at' => now(), 'order_document_id' => $document->id, 'draft_context' => null]);
-            DocumentArchiveService::archiveOrderDocument($request, $document);
+            if ($document->order_collateral_id) {
+                DocumentArchiveService::archiveOrderDocument($request, $document);
+            } else {
+                DocumentArchiveService::archiveFile($request, Order::class, $order->id, 'order_document', str($document->display_name ?: $document->document_type->value)->slug('_'), 'dokumen_order', $document->display_name ?: $document->document_type->value, $document->original_name, $document->stored_path, $document->file_size, ['order_id' => $order->id, 'order_document_id' => $document->id], 'Dokumen order diunggah bersama pengajuan.');
+            }
             Audit::record($request, 'documents', $order, 'upload', 'Dokumen sementara disahkan bersama pengajuan.', ['document_id' => $document->id, 'temporary_document_id' => $temporary->id]);
         }
     }
