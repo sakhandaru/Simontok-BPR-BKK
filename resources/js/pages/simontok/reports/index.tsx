@@ -27,6 +27,7 @@ type PaginatedRows<T> = { data: T[]; links: SimPaginationLink[] };
 
 export default function ReportsIndex({
     filters,
+    initialTab,
     branchLocked,
     branches,
     notaries,
@@ -41,6 +42,7 @@ export default function ReportsIndex({
     monthlyTrend,
     stalledOrders,
 }: {
+    initialTab: 'actions' | 'progress';
     branchLocked: boolean;
     filters: {
         branch_id: string;
@@ -70,6 +72,7 @@ export default function ReportsIndex({
         risk_orders: number;
     }>;
     byNotary: PaginatedRows<{
+        notary_id: number;
         name: string;
         total_orders: number;
         completed_orders: number;
@@ -102,7 +105,7 @@ export default function ReportsIndex({
     }[];
 }) {
     const { data, setData } = useForm(filters);
-    const [activeTab, setActiveTab] = useState<'actions' | 'progress' | 'performance'>('actions');
+    const [activeTab, setActiveTab] = useState<'actions' | 'progress' | 'performance'>(initialTab);
     const selectedBranch = branches.find((branch) => String(branch.id) === filters.branch_id);
     const scopeLabel = branchLocked
         ? `Cabang ${selectedBranch?.name ?? 'akun Anda'}`
@@ -303,6 +306,37 @@ export default function ReportsIndex({
                         )}
                     </ReportPanel>
 
+                    <ReportPanel
+                        className="xl:col-span-12"
+                        title={filters.notary_id ? `Debitur yang ditangani ${notaries.find((notary) => String(notary.id) === filters.notary_id)?.name ?? 'notaris'}` : 'Debitur dan order yang sedang berjalan'}
+                        subtitle={filters.notary_id ? 'Daftar ini mengikuti notaris dan periode yang dipilih.' : 'Pilih Lihat debitur pada tab Performa untuk melihat pekerjaan satu notaris.'}
+                        icon={Users}
+                    >
+                        {filters.notary_id ? (
+                            <div className="overflow-x-auto">
+                                <table className="sim-table min-w-[720px]">
+                                    <thead className="bg-muted/20 text-left text-xs text-muted-foreground">
+                                        <tr><th>Debitur</th><th>Order</th><th>Status</th><th>Terakhir diperbarui</th><th className="text-right">Aksi</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {outstandingOrders.data.length === 0 ? (
+                                            <tr><td colSpan={5}><EmptyReport message="Tidak ada order aktif untuk notaris ini pada cakupan yang dipilih." /></td></tr>
+                                        ) : outstandingOrders.data.map((order) => (
+                                            <tr key={order.id} className="border-t">
+                                                <td><div className="font-medium">{order.customer_name}</div><div className="text-sm text-muted-foreground">{order.no_rekening}</div></td>
+                                                <td>{order.order_no}</td>
+                                                <td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td>
+                                                <td>{order.created_at}</td>
+                                                <td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka order</Link></Button></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : <EmptyReport message="Pilih seorang notaris dari tab Performa untuk melihat debiturnya." />}
+                        {filters.notary_id && <SimPagination links={outstandingOrders.links} />}
+                    </ReportPanel>
+
                 </div>}
 
                 {activeTab === 'performance' && <div className="grid items-start gap-4 xl:grid-cols-12">
@@ -329,6 +363,7 @@ export default function ReportsIndex({
                             rows={byNotary}
                             firstLabel="Notaris"
                             firstValue={(row) => row.name}
+                            action={(row) => <Button variant="outline" size="sm" asChild><Link href={`/reports?notary_id=${row.notary_id}&view=progress`}>Lihat debitur</Link></Button>}
                         />
                     </ReportPanel>
 
@@ -583,10 +618,12 @@ function DistributionTable({
     rows,
     firstLabel,
     firstValue,
+    action,
 }: {
     rows: PaginatedRows<any>;
     firstLabel: string;
     firstValue: (row: any) => string;
+    action?: (row: any) => ReactNode;
 }) {
     if (rows.data.length === 0)
         return <EmptyReport message="Belum ada data pada cakupan ini." />;
@@ -602,6 +639,7 @@ function DistributionTable({
                             <th className="text-right">Selesai</th>
                             <th className="text-right">Rasio</th>
                             <th className="text-right">Risiko</th>
+                            {action && <th className="text-right">Aksi</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -627,6 +665,7 @@ function DistributionTable({
                                 >
                                     {row.risk_orders}
                                 </td>
+                                {action && <td className="text-right">{action(row)}</td>}
                             </tr>
                         ))}
                     </tbody>
@@ -661,6 +700,7 @@ function DistributionTable({
                                     row.risk_orders > 0 ? 'danger' : 'neutral'
                                 }
                             />
+                            {action && <div className="col-span-4">{action(row)}</div>}
                         </div>
                     </article>
                 ))}

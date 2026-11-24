@@ -54,6 +54,7 @@ class ReportController extends Controller
             ->count();
 
         return Inertia::render('simontok/reports/index', [
+            'initialTab' => $request->string('view')->value() === 'progress' ? 'progress' : 'actions',
             'branchLocked' => $branchScopeId !== null,
             'filters' => [
                 'branch_id' => (string) ($filters['branch_id'] ?? ''),
@@ -102,7 +103,7 @@ class ReportController extends Controller
                     return $row;
                 }),
             'byNotary' => (clone $orders)
-                ->select('notaries.name')
+                ->select('notaries.id as notary_id', 'notaries.name')
                 ->selectRaw('COUNT(orders.id) as total_orders')
                 ->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])
                 ->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')
