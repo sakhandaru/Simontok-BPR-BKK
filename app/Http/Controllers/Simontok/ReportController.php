@@ -16,9 +16,54 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
+    public function export(Request $request): StreamedResponse
+    {
+        $user = $request->user();
+        $branchScopeId = $user->branchScopeId();
+        if ($branchScopeId !== null) {
+            $request->merge(['branch_id' => $branchScopeId]);
+        }
+
+        $filters = $request->validate([
+            'type' => ['required', 'in:summary,performance'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+            'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+        ]);
+        $orders = $this->filteredOrders($filters, $user);
+        $filename = sprintf('laporan-%s-%s.csv', $filters['type'] === 'summary' ? 'ringkasan-order' : 'performa', now()->format('Ymd-His'));
+
+        return response()->streamDownload(function () use ($orders, $filters): void {
+            $output = fopen('php://output', 'w');
+            fwrite($output, "\xEF\xBB\xBF");
+            if ($filters['type'] === 'summary') {
+                fputcsv($output, ['Nomor order', 'Debitur', 'Nomor rekening', 'Cabang', 'Notaris', 'Status', 'Risiko', 'Tanggal masuk'], ';');
+                $orders->with(['branch:id,name', 'notary:id,name'])->orderBy('orders.created_at')->chunk(500, function ($rows) use ($output): void {
+                    foreach ($rows as $order) {
+                        fputcsv($output, [$order->order_no, $order->customer_name, $order->no_rekening, $order->branch?->name, $order->notary?->name, $order->status->label(), $order->risk_flag ? 'Ya' : 'Tidak', $order->created_at?->format('d/m/Y H:i')], ';');
+                    }
+                });
+            } else {
+                $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+                fputcsv($output, ['Tipe', 'Nama', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'], ';');
+                (clone $orders)->select('branches.name as name')->selectRaw('COUNT(orders.id) as total_orders')->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')->join('branches', 'branches.id', '=', 'orders.branch_id')->groupBy('branches.id', 'branches.name')->orderBy('branches.name')->get()->each(function ($row) use ($output): void {
+                    $ratio = $row->total_orders > 0 ? round(($row->completed_orders / $row->total_orders) * 100) : 0;
+                    fputcsv($output, ['Cabang', $row->name, $row->total_orders, $row->completed_orders, $row->active_orders, $row->risk_orders, $ratio.'%'], ';');
+                });
+                (clone $orders)->select('notaries.name as name')->selectRaw('COUNT(orders.id) as total_orders')->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')->join('notaries', 'notaries.id', '=', 'orders.notary_id')->groupBy('notaries.id', 'notaries.name')->orderBy('notaries.name')->get()->each(function ($row) use ($output): void {
+                    $ratio = $row->total_orders > 0 ? round(($row->completed_orders / $row->total_orders) * 100) : 0;
+                    fputcsv($output, ['Notaris', $row->name, $row->total_orders, $row->completed_orders, $row->active_orders, $row->risk_orders, $ratio.'%'], ';');
+                });
+            }
+            fclose($output);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -201,6 +246,16 @@ class ReportController extends Controller
         $query
             ->submitted()
             ->visibleTo($user)
+            ->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value)
+            ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
+            ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))
+            ->when($filters['date_from'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn ($query, string $date) => $query->whereDate('orders.created_at', '<=', $date));
+    }
+
+    private function filteredOrders(array $filters, User $user)
+    {
+        return Order::query()->submitted()->visibleTo($user)
             ->where('status', '!=', TrackAStatus::PerluPengalihanNotaris->value)
             ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->where('branch_id', $branchId))
             ->when($filters['notary_id'] ?? null, fn ($query, int $notaryId) => $query->where('notary_id', $notaryId))

@@ -125,6 +125,14 @@ export default function ReportsIndex({
         event.preventDefault();
         router.get('/reports', data, { preserveState: true, replace: true });
     };
+    const exportUrl = (type: 'summary' | 'performance') => {
+        const params = new URLSearchParams({ type });
+        if (data.branch_id) params.set('branch_id', data.branch_id);
+        if (data.notary_id) params.set('notary_id', data.notary_id);
+        if (data.date_from) params.set('date_from', data.date_from);
+        if (data.date_to) params.set('date_to', data.date_to);
+        return `/reports/export?${params.toString()}`;
+    };
 
     return (
         <>
@@ -133,6 +141,7 @@ export default function ReportsIndex({
                 <SimPageHeader
                     title="Laporan operasional"
                     description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
+                    actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={exportUrl('summary')} download>Export ringkasan</a></Button><Button asChild variant="outline"><a href={exportUrl('performance')} download>Export performa</a></Button></div>}
                 />
 
                 <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">

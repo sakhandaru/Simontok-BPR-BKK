@@ -91,7 +91,10 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('permission:orders.manage')->group(function () {
         Route::resource('orders', OrderController::class)->only(['edit', 'update']);
     });
-    Route::middleware('permission:reports.view')->get('reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::middleware('permission:reports.view')->group(function () {
+        Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
+    });
     Route::middleware('permission:orders.view')->get('work-queue', WorkQueueController::class)->name('work-queue.index');
     Route::middleware('permission:branches.monitor')->get('branch-monitoring', BranchMonitoringController::class)->name('branch-monitoring.index');
     Route::middleware('permission:system.settings')->group(function () {
