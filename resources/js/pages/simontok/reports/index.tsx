@@ -141,7 +141,7 @@ export default function ReportsIndex({
                 <SimPageHeader
                     title="Laporan operasional"
                     description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
-                    actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={exportUrl('summary')} download>Export ringkasan</a></Button><Button asChild variant="outline"><a href={exportUrl('performance')} download>Export performa</a></Button></div>}
+                    actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={exportUrl('summary')}>Export ringkasan</a></Button><Button asChild variant="outline"><a href={exportUrl('performance')}>Export performa</a></Button></div>}
                 />
 
                 <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">
