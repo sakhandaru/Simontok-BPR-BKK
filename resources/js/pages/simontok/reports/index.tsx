@@ -156,7 +156,7 @@ export default function ReportsIndex({
                     </div>
                 </form>
 
-                <nav aria-label="Bagian laporan" className="mb-4 grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/30 p-1">
+                <nav aria-label="Bagian laporan" className="mb-5 grid grid-cols-3 border-b border-border">
                     <ReportTab active={activeTab === 'actions'} onClick={() => setActiveTab('actions')}>Perlu tindakan</ReportTab>
                     <ReportTab active={activeTab === 'progress'} onClick={() => setActiveTab('progress')}>Progres pekerjaan</ReportTab>
                     <ReportTab active={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performa</ReportTab>
@@ -572,7 +572,7 @@ function ReportTab({
             type="button"
             onClick={onClick}
             aria-pressed={active}
-            className={`min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'}`}
+            className={`min-h-11 border-b-2 px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'}`}
         >
             {children}
         </button>
