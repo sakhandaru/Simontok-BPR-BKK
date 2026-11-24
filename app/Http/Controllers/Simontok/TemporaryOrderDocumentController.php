@@ -54,8 +54,9 @@ class TemporaryOrderDocumentController extends Controller
             'context.collaterals.*.draft_key' => ['nullable', 'uuid'],
         ])->validate()['context'];
         $context = Arr::only($context, ['core_account_id', 'branch_id', 'notary_id', 'customer_name', 'no_rekening', 'tgl_masuk_notaris', 'tgl_realisasi', 'plafon', 'nominal', 'skema_pembayaran', 'keterangan', 'collaterals', 'customer_marital_status']);
-        $collateral = $data['collateral_index'] === null ? null : ($context['collaterals'][$data['collateral_index']] ?? null);
-        if ($data['collateral_index'] !== null && (! $collateral || TemporaryOrderDocuments::collateralKey($collateral) === 'draft:')) {
+        $collateralIndex = $data['collateral_index'] ?? null;
+        $collateral = $collateralIndex === null ? null : ($context['collaterals'][$collateralIndex] ?? null);
+        if ($collateralIndex !== null && (! $collateral || TemporaryOrderDocuments::collateralKey($collateral) === 'draft:')) {
             throw ValidationException::withMessages(['file' => 'Agunan dokumen tidak tersedia. Muat ulang halaman lalu coba lagi.']);
         }
         $key = $collateral ? TemporaryOrderDocuments::collateralKey($collateral) : 'order';
