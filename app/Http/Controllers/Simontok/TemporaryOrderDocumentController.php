@@ -60,11 +60,11 @@ class TemporaryOrderDocumentController extends Controller
             throw ValidationException::withMessages(['file' => 'Agunan dokumen tidak tersedia. Muat ulang halaman lalu coba lagi.']);
         }
         $key = $collateral ? TemporaryOrderDocuments::collateralKey($collateral) : 'order';
-        if ($key === 'order' && (! empty($data['checklist_master_id']) || ! empty($data['job_type_id']))) {
-            throw ValidationException::withMessages(['file' => 'Dokumen order tidak memakai checklist pekerjaan.']);
+        if ($key === 'order' && ! empty($data['job_type_id'])) {
+            throw ValidationException::withMessages(['file' => 'Dokumen order tidak memakai satu jenis pekerjaan tertentu.']);
         }
         $checklist = ! empty($data['checklist_master_id']) ? DocumentChecklist::where('is_active', true)->findOrFail($data['checklist_master_id']) : null;
-        if ($checklist && (int) $checklist->job_type_id !== (int) ($data['job_type_id'] ?? null)) {
+        if ($checklist && $key !== 'order' && (int) $checklist->job_type_id !== (int) ($data['job_type_id'] ?? null)) {
             throw ValidationException::withMessages(['file' => 'Checklist tidak sesuai dengan jenis pekerjaan.']);
         }
         if (! $checklist && blank($data['display_name'] ?? null)) {

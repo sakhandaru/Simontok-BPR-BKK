@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Simontok;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobType;
+use App\Models\DocumentChecklist;
 use App\Models\SlaPolicy;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
@@ -22,7 +23,7 @@ class JobTypeController extends Controller
         ]);
 
         return Inertia::render('simontok/masters/job-types', [
-            'jobTypes' => JobType::with('steps:id,job_type_id,name,sort_order,is_active')
+            'jobTypes' => JobType::with(['steps:id,job_type_id,name,sort_order,is_active', 'documents:id,name,is_active'])
                 ->with(['slaPolicies' => fn ($query) => $query->whereNull('branch_id')->where('is_active', true)])
                 ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($query) => $query->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")))
                 ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('is_active', true))
@@ -31,12 +32,15 @@ class JobTypeController extends Controller
                 ->paginate(15)->withQueryString()->through(fn (JobType $jobType) => [
                     ...$jobType->only(['id', 'code', 'name', 'is_active']),
                     'steps' => $jobType->steps->map(fn ($step) => $step->only(['id', 'name', 'sort_order']))->values()->all(),
+                    'document_ids' => $jobType->documents->pluck('id')->values()->all(),
+                    'documents' => $jobType->documents->map(fn ($document) => $document->only(['id', 'name']))->values()->all(),
                     'sla_days' => $jobType->slaPolicies->first()?->days,
                 ]),
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'status' => $filters['status'] ?? '',
             ],
+            'documents' => DocumentChecklist::where('is_active', true)->whereNull('job_type_id')->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -47,6 +51,8 @@ class JobTypeController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'steps' => ['nullable', 'string'],
             'sla_days' => ['required', 'integer', 'min:1', 'max:365'],
+            'document_ids' => ['nullable', 'array'],
+            'document_ids.*' => ['integer', 'exists:document_checklists,id'],
         ]);
 
         $jobType = JobType::create([
@@ -69,6 +75,7 @@ class JobTypeController extends Controller
             ['job_type_id' => $jobType->id, 'branch_id' => null],
             ['days' => $data['sla_days'], 'is_active' => true],
         );
+        $jobType->documents()->sync(DocumentChecklist::whereIn('id', $data['document_ids'] ?? [])->where('is_active', true)->pluck('id'));
 
         Audit::record($request, 'masters', $jobType, 'create_job_type', 'Jenis pekerjaan ditambahkan.', [
             'after' => $jobType->load('steps')->toArray(),
@@ -85,6 +92,8 @@ class JobTypeController extends Controller
             'steps' => ['nullable', 'string'],
             'is_active' => ['boolean'],
             'sla_days' => ['required', 'integer', 'min:1', 'max:365'],
+            'document_ids' => ['nullable', 'array'],
+            'document_ids.*' => ['integer', 'exists:document_checklists,id'],
         ]);
 
         DB::transaction(function () use ($jobType, $data) {
@@ -92,6 +101,7 @@ class JobTypeController extends Controller
             $jobType->steps()->delete();
             collect(preg_split('/\r\n|\r|\n/', $data['steps'] ?? ''))->map(fn (?string $step) => trim((string) $step))->filter()->values()->each(fn (string $step, int $index) => $jobType->steps()->create(['name' => $step, 'sort_order' => $index + 1, 'is_active' => true]));
             SlaPolicy::updateOrCreate(['job_type_id' => $jobType->id, 'branch_id' => null], ['days' => $data['sla_days'], 'is_active' => true]);
+            $jobType->documents()->sync(DocumentChecklist::whereIn('id', $data['document_ids'] ?? [])->where('is_active', true)->pluck('id'));
         });
 
         Audit::record($request, 'masters', $jobType, 'update_job_type', 'Jenis pekerjaan diperbarui.', ['after' => $jobType->load('steps')->toArray()]);

@@ -135,6 +135,7 @@ export default function OrdersShow({
     slaPolicies,
     coreProvider,
     documentChecklists,
+    requiredDocumentIds = [],
     temporaryDocuments = [],
     temporaryDraftContext,
 }: {
@@ -169,7 +170,8 @@ export default function OrdersShow({
     paymentSchemes: string[];
     slaPolicies: Record<string, { days: number; source: string }>;
     coreProvider: string;
-    documentChecklists: { id: number; name: string; job_type_id: number | null; is_required: boolean; is_active: boolean }[];
+    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; is_required: boolean; is_active: boolean }[];
+    requiredDocumentIds?: number[];
     temporaryDocuments?: TemporaryOrderDocument[];
     temporaryDraftContext?: OrderDraft | null;
 }) {
@@ -428,14 +430,6 @@ export default function OrdersShow({
     const documentFor = (collateralIndex: number, checklistMasterId?: number, jobTypeId?: number | null) =>
         pendingDocumentsFor(collateralIndex).find((item) => item.checklistMasterId === checklistMasterId && item.jobTypeId === (jobTypeId ?? null));
 
-    const checklistOrder = {
-        ...order,
-        core_snapshot: {
-            ...order.core_snapshot,
-            customer_marital_status: draft.data.customer_marital_status ?? order.core_snapshot?.customer_marital_status ?? '',
-        },
-    };
-
     const canSend = Boolean(
         draft.data.branch_id &&
         draft.data.notary_id &&
@@ -445,26 +439,17 @@ export default function OrdersShow({
         draft.data.collaterals.length > 0 &&
         draft.data.collaterals.every((item) => item.nama_agunan && item.jobs.length > 0 && item.jobs.every((job) => job.job_type_id)),
     );
-    const missingRequiredDocument = draft.data.collaterals.some((collateral, collateralIndex) =>
-        documentChecklists.some((checklist) => {
-            const applicableJobs = checklist.job_type_id === null
-                ? [null]
-                : collateral.jobs
-                    .filter((job) => Number(job.job_type_id) === checklist.job_type_id)
-                    .map((job) => Number(job.job_type_id));
-            if (!isRequiredChecklist(checklistOrder, { document_checklist: checklist })) return false;
-            return applicableJobs.some((jobTypeId) => {
-                const sourceCollateral = order.collaterals?.find((item: any) =>
-                    item.agunan_id === collateral.agunan_id || String(item.id) === String(collateral.id),
-                );
-                const existing = sourceCollateral?.checklists?.some((item: any) =>
-                    item.document_checklist?.id === checklist.id && item.order_document_id &&
-                    (checklist.job_type_id === null || item.job?.job_type_id === jobTypeId),
-                );
-                return !existing && !documentFor(collateralIndex, checklist.id, jobTypeId);
-            });
-        }),
-    );
+    const checklistOrder = order;
+    const selectedJobTypeIds = draft.data.collaterals.flatMap((collateral) => collateral.jobs.map((job) => Number(job.job_type_id))).filter(Boolean);
+    const effectiveRequiredDocumentIds = selectedJobTypeIds.length > 0
+        ? documentChecklists.filter((document) => (document.job_type_ids ?? [document.job_type_id]).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId)))).map((document) => document.id)
+        : requiredDocumentIds;
+    const requiredDocumentMasters = documentChecklists.filter((document) => effectiveRequiredDocumentIds.includes(document.id));
+    const uploadedOrderDocumentIds = new Set<number>([
+        ...(order.documents ?? []).map((document: any) => Number(document.document_checklist_id)).filter(Boolean),
+        ...pendingDocumentsFor(-1).map((document) => Number(document.checklistMasterId)).filter(Boolean),
+    ]);
+    const missingRequiredDocument = requiredDocumentMasters.some((document) => !uploadedOrderDocumentIds.has(document.id));
     const incompleteFields = [
         !draft.data.branch_id && 'Cabang',
         !draft.data.notary_id && 'Notaris',
@@ -1003,6 +988,7 @@ export default function OrdersShow({
                         openChecklistEditor={openChecklistEditor}
                         openDocumentEditor={(editor) => { setDocumentError(''); setDocumentEditor({ ...editor, temporaryId: editor.temporaryId ?? crypto.randomUUID() }); }}
                         documentChecklists={documentChecklists}
+                        requiredDocumentIds={requiredDocumentIds}
                         documentFor={documentFor}
                         pendingDocumentsFor={pendingDocumentsFor}
                         removePendingDocument={(document) => { setDocumentError(''); setDocumentToDelete(document); }}
@@ -2709,6 +2695,7 @@ function DraftOrderForm({
     openChecklistEditor,
     openDocumentEditor,
     documentChecklists,
+    requiredDocumentIds = [],
     documentFor,
     pendingDocumentsFor,
     removePendingDocument,
@@ -2736,7 +2723,8 @@ function DraftOrderForm({
     setCollateralJobs: (index: number, jobs: CollateralJobDraft[]) => void;
     openChecklistEditor: (collateralIndex: number, checklistMasterId: number, jobTypeId?: number | null) => void;
     openDocumentEditor: (editor: DocumentEditor) => void;
-    documentChecklists: { id: number; name: string; job_type_id: number | null; is_required: boolean; is_active: boolean }[];
+    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; is_required: boolean; is_active: boolean }[];
+    requiredDocumentIds?: number[];
     documentFor: (collateralIndex: number, checklistMasterId?: number, jobTypeId?: number | null) => PendingDocument | undefined;
     pendingDocumentsFor: (collateralIndex: number) => PendingDocument[];
     removePendingDocument: (document: PendingDocument) => void;
@@ -2766,6 +2754,20 @@ function DraftOrderForm({
         : activeCollateral?.jobs ?? [];
     const pendingOrderDocuments = pendingDocumentsFor(-1);
     const savedOrderDocuments = order.documents ?? [];
+    const selectedJobTypeIds = draft.data.collaterals.flatMap((collateral: any) => collateral.jobs.map((job: any) => Number(job.job_type_id))).filter(Boolean);
+    const effectiveRequiredDocumentIds = selectedJobTypeIds.length > 0
+        ? documentChecklists.filter((document) => (document.job_type_ids ?? [document.job_type_id]).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId)))).map((document) => document.id)
+        : requiredDocumentIds;
+    const requiredDocuments = documentChecklists.filter((document) => effectiveRequiredDocumentIds.includes(document.id));
+    const addonDocuments = documentChecklists.filter((document) => !effectiveRequiredDocumentIds.includes(document.id));
+    const documentFilesFor = (documentId: number) => [
+        ...savedOrderDocuments.filter((document: any) => Number(document.document_checklist_id) === documentId).map((document: any) => ({ ...document, pending: false })),
+        ...pendingOrderDocuments.filter((document) => Number(document.checklistMasterId) === documentId).map((document) => ({ id: document.id, display_name: document.displayName, original_name: document.originalName, pending: true, source: document })),
+    ];
+    const untypedOrderDocuments = [
+        ...savedOrderDocuments.filter((document: any) => !document.document_checklist_id).map((document: any) => ({ ...document, pending: false })),
+        ...pendingOrderDocuments.filter((document) => !document.checklistMasterId).map((document) => ({ id: document.id, display_name: document.displayName, original_name: document.originalName, pending: true, source: document })),
+    ];
     const activeSummaryDocuments = [
               ...pendingDocumentsFor(collateralModal?.index ?? -1).map((document) => ({
                   id: document.id,
@@ -2844,22 +2846,15 @@ function DraftOrderForm({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h3 className="font-medium">Dokumen order</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">Masukkan dokumen apa pun yang diperlukan untuk order ini. Dokumen tidak perlu dipilih per pekerjaan atau agunan.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Dokumen wajib dihitung otomatis dari seluruh pekerjaan. Dokumen tambahan bisa dipilih sesuai kebutuhan notaris.</p>
                     </div>
                     <Button type="button" variant="outline" className="w-fit" onClick={() => openDocumentEditor({ collateralIndex: -1, displayName: '', file: null, kind: 'pendukung' })}>
                         <FilePlus2 className="size-4" />Tambah dokumen
                     </Button>
                 </div>
-                {(pendingOrderDocuments.length + savedOrderDocuments.length) > 0 ? (
-                    <div className="mt-4 grid gap-2 md:grid-cols-2">
-                        {[...savedOrderDocuments.map((document: any) => ({ ...document, pending: false })), ...pendingOrderDocuments.map((document) => ({ id: document.id, display_name: document.displayName, original_name: document.originalName, pending: true, source: document }))].map((document: any) => (
-                            <div key={`${document.pending ? 'pending' : 'saved'}-${document.id}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm">
-                                <div className="min-w-0"><div className="truncate font-medium">{document.display_name || document.original_name || 'Dokumen'}</div><div className="mt-1 truncate text-xs text-muted-foreground">{document.original_name}</div></div>
-                                {document.pending ? <TemporaryDocumentDetails document={document.source} onReplace={() => openDocumentEditor({ collateralIndex: -1, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })} onDelete={() => removePendingDocument(document.source)} /> : <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>}
-                            </div>
-                        ))}
-                    </div>
-                ) : <p className="mt-4 text-sm text-muted-foreground">Belum ada dokumen order.</p>}
+                <DocumentSection title="Dokumen wajib" description="Harus lengkap sebelum order diajukan." documents={requiredDocuments} documentFilesFor={documentFilesFor} onAdd={(document) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, displayName: document.name, kind: 'pendukung', file: null })} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} required />
+                <DocumentSection title="Dokumen tambahan" description="Opsional, pilih jika diperlukan oleh notaris." documents={addonDocuments} documentFilesFor={documentFilesFor} onAdd={(document) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, displayName: document.name, kind: 'pendukung', file: null })} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} />
+                {untypedOrderDocuments.length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-medium">Dokumen lain yang sudah ditambahkan</div><div className="grid gap-2 md:grid-cols-2">{untypedOrderDocuments.map((document: any) => <div key={`${document.pending ? 'pending' : 'saved'}-${document.id}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm"><div className="min-w-0"><div className="truncate font-medium">{document.display_name || document.original_name || 'Dokumen'}</div><div className="mt-1 truncate text-xs text-muted-foreground">{document.original_name}</div></div>{document.pending ? <TemporaryDocumentDetails document={document.source} onReplace={() => openDocumentEditor({ collateralIndex: -1, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })} onDelete={() => removePendingDocument(document.source)} /> : <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>}</div>)}</div></div>}
             </section>
             {incompleteFields.length > 0 && (
                 <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -4131,6 +4126,10 @@ function checklistNameForDocument(
             return checklist.document_checklist.name;
     }
     return null;
+}
+
+function DocumentSection({ title, description, documents, documentFilesFor, onAdd, onReplace, onDelete, orderId, required = false }: { title: string; description: string; documents: { id: number; name: string }[]; documentFilesFor: (id: number) => any[]; onAdd: (document: { id: number; name: string }) => void; onReplace: (document: { id: number; name: string }, file: any) => void; onDelete: (document: PendingDocument) => void; orderId: number; required?: boolean }) {
+    return <div className="mt-5"><div className="mb-2 flex items-end justify-between gap-3"><div><h4 className="text-sm font-semibold">{title}</h4><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><span className="text-xs text-muted-foreground">{documents.filter((document) => documentFilesFor(document.id).length > 0).length}/{documents.length} lengkap</span></div><div className="grid gap-2 md:grid-cols-2">{documents.map((document) => { const files = documentFilesFor(document.id); return <div key={document.id} className={`rounded-md border bg-background p-3 ${required && files.length === 0 ? 'border-amber-300' : 'border-border'}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><FileText className="size-4 shrink-0 text-muted-foreground" /><span className="font-medium">{document.name}</span></div><div className="mt-1 text-xs text-muted-foreground">{files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} sudah ditambahkan` : required ? 'Belum diunggah' : 'Belum dipilih'}</div></div><SimStatusBadge label={files.length > 0 ? 'Lengkap' : required ? 'Wajib' : 'Opsional'} tone={files.length > 0 ? 'success' : required ? 'warning' : 'neutral'} /></div>{files.length > 0 && <div className="mt-3 space-y-1">{files.map((file: any) => <div key={`${file.pending ? 'pending' : 'saved'}-${file.id}`} className="flex items-center justify-between gap-2 border-t pt-2 text-xs"><span className="min-w-0 truncate">{file.original_name || file.display_name}</span>{file.pending ? <TemporaryDocumentDetails document={file.source} onReplace={() => onReplace(document, file)} onDelete={() => onDelete(file.source)} /> : <Button type="button" variant="ghost" size="sm" onClick={() => window.open(`/orders/${orderId}/documents/${file.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-3.5" />Lihat</Button>}</div>)}</div>}<Button type="button" variant="outline" size="sm" className="mt-3 w-full" onClick={() => onAdd(document)}><Upload className="size-4" />{files.length > 0 ? 'Tambah file' : 'Pilih file'}</Button></div>; })}{documents.length === 0 && <p className="text-sm text-muted-foreground">Belum ada dokumen yang dikonfigurasi.</p>}</div></div>;
 }
 
 function isRequiredChecklist(order: any, checklist: any): boolean {

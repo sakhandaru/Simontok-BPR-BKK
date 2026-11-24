@@ -68,6 +68,7 @@ class TemporaryOrderDocuments
             }
             $type = $checklist ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
             $document = $order->documents()->create([
+                'document_checklist_id' => $temporary->checklist_master_id,
                 'order_collateral_id' => $collateral?->id,
                 'order_collateral_job_id' => $job?->id,
                 'document_type' => $type,

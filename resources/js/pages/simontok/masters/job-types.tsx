@@ -13,10 +13,10 @@ import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTable
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 import { SimTableToolbar } from '@/components/sim-table-toolbar';
 
-type JobType = { id: number; code: string; name: string; is_active: boolean; sla_days?: number | null; steps: { id: number; name: string; sort_order: number }[] };
+type JobType = { id: number; code: string; name: string; is_active: boolean; sla_days?: number | null; steps: { id: number; name: string; sort_order: number }[]; document_ids: number[]; documents: { id: number; name: string }[] };
 
-export default function JobTypes({ jobTypes, filters }: { jobTypes: { data: JobType[]; links: SimPaginationLink[] }; filters: { search: string; status: string } }) {
-    const { data, setData, post, put, processing, reset, errors } = useForm({ code: '', name: '', steps: '', sla_days: '', is_active: true });
+export default function JobTypes({ jobTypes, filters, documents }: { jobTypes: { data: JobType[]; links: SimPaginationLink[] }; filters: { search: string; status: string }; documents: { id: number; name: string }[] }) {
+    const { data, setData, post, put, processing, reset, errors } = useForm({ code: '', name: '', steps: '', sla_days: '', document_ids: [] as number[], is_active: true });
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formOpen, setFormOpen] = useState(false);
     const { sortedRows, sort, toggleSort } = useSimTableSort(jobTypes.data, 'name');
@@ -28,7 +28,7 @@ export default function JobTypes({ jobTypes, filters }: { jobTypes: { data: JobT
         const options = { onSuccess: () => { reset(); setEditingId(null); setFormOpen(false); } };
         editingId ? put(`/job-types/${editingId}`, options) : post('/job-types', options);
     };
-    const editJobType = (jobType: JobType) => { setEditingId(jobType.id); setData({ code: jobType.code, name: jobType.name, steps: jobType.steps.map((step) => step.name).join('\n'), sla_days: jobType.sla_days ? String(jobType.sla_days) : '', is_active: jobType.is_active }); setFormOpen(true); };
+    const editJobType = (jobType: JobType) => { setEditingId(jobType.id); setData({ code: jobType.code, name: jobType.name, steps: jobType.steps.map((step) => step.name).join('\n'), sla_days: jobType.sla_days ? String(jobType.sla_days) : '', document_ids: jobType.document_ids ?? [], is_active: jobType.is_active }); setFormOpen(true); };
     const openCreate = () => { reset(); setEditingId(null); setFormOpen(true); };
     const cancelEdit = () => { reset(); setEditingId(null); setFormOpen(false); };
 
@@ -66,6 +66,7 @@ export default function JobTypes({ jobTypes, filters }: { jobTypes: { data: JobT
                             <Label>Langkah proses</Label>
                             <textarea className="min-h-32 rounded-md border bg-background px-3 py-2 text-sm" value={data.steps} onChange={(e) => setData('steps', e.target.value)} placeholder="Satu langkah per baris" />
                         </div>
+                        <div className="grid gap-2"><Label>Dokumen wajib</Label><p className="text-xs text-muted-foreground">Dokumen ini otomatis diminta saat pekerjaan dipilih di order.</p><div className="grid gap-2 rounded-md border p-3 sm:grid-cols-2">{documents.map((document) => <label key={document.id} className="flex items-start gap-3 text-sm"><input type="checkbox" checked={data.document_ids.includes(document.id)} onChange={(event) => setData('document_ids', event.target.checked ? [...data.document_ids, document.id] : data.document_ids.filter((id) => id !== document.id))} /><span>{document.name}</span></label>)}{documents.length === 0 && <span className="text-sm text-muted-foreground">Belum ada master dokumen aktif.</span>}</div></div>
                         <DialogFooter><Button type="button" variant="outline" onClick={cancelEdit}><X className="size-4" />Batal</Button><Button type="submit" disabled={processing}>{editingId ? <Edit3 className="size-4" /> : <Plus className="size-4" />}{editingId ? 'Simpan perubahan' : 'Tambah jenis'}</Button></DialogFooter>
                     </form></DialogContent></Dialog>
             </div>

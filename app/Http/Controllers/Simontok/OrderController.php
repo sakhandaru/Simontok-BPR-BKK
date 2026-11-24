@@ -285,6 +285,7 @@ class OrderController extends Controller
             'progress.user:id,name',
             'documentRequests.requester:id,name',
             'documentRequests.document:id,original_name,file_size,stored_path',
+            'documents:id,order_id,document_checklist_id,display_name,original_name,file_size,version,order_collateral_id,uploaded_by,created_at,mime_type',
             'documents.uploader:id,name',
             'documents.collateral.jobType:id,name',
             'handovers.collateral.jobType:id,name',
@@ -321,7 +322,10 @@ class OrderController extends Controller
             'temporaryDraftContext' => $temporaryDocuments->first()?->draft_context,
             'coreProvider' => config('core.provider'),
             'documentChecklists' => $this->canEditDraft($order)
-                ? DocumentChecklist::where('is_active', true)->get(['id', 'name', 'job_type_id', 'is_required', 'is_active'])
+                ? $this->documentMastersForOrder($order)
+                : [],
+            'requiredDocumentIds' => $this->canEditDraft($order)
+                ? $this->requiredDocumentIdsForOrder($order)
                 : [],
             'canEdit' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
             'canSubmitApproval' => $request->user()->hasPermission('orders.manage') && $this->canEditDraft($order),
@@ -961,7 +965,7 @@ class OrderController extends Controller
 
     private function ensureReadyToSend(Order $order): void
     {
-        $order->loadMissing('collaterals.checklists.documentChecklist', 'collaterals.jobs');
+        $order->loadMissing('collaterals.jobs', 'documents');
         $missing = [];
 
         if ($order->core_account_id) {
@@ -984,6 +988,16 @@ class OrderController extends Controller
 
         if ($order->collaterals->contains(fn ($collateral) => $collateral->sla_source === 'override' && blank($collateral->sla_override_reason))) {
             $missing[] = 'alasan perubahan SLA';
+        }
+
+        $requiredDocumentIds = $this->requiredDocumentIdsForOrder($order);
+        if ($requiredDocumentIds !== []) {
+            $uploadedDocumentIds = $order->documents->whereNotNull('document_checklist_id')->pluck('document_checklist_id')->map(fn ($id) => (int) $id);
+            $missingDocumentIds = collect($requiredDocumentIds)->diff($uploadedDocumentIds);
+            if ($missingDocumentIds->isNotEmpty()) {
+                $missingNames = DocumentChecklist::whereIn('id', $missingDocumentIds)->pluck('name')->implode(', ');
+                $missing[] = 'dokumen wajib: '.$missingNames;
+            }
         }
 
         if ($missing !== []) {
@@ -1049,6 +1063,36 @@ class OrderController extends Controller
     {
         return in_array($order->status, [TrackAStatus::Draft, TrackAStatus::Diajukan, TrackAStatus::PerluPerbaikanOrder], true)
             && $order->sent_to_notary_at === null;
+    }
+
+    private function documentMastersForOrder(Order $order)
+    {
+        return DocumentChecklist::with('jobTypes:id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'job_type_id', 'is_required', 'is_active'])
+            ->map(function (DocumentChecklist $document): array {
+                return [
+                    ...$document->only(['id', 'name', 'job_type_id', 'is_required', 'is_active']),
+                    'job_type_ids' => $document->jobTypes->pluck('id')->push($document->job_type_id)->filter()->unique()->values()->all(),
+                ];
+            })->values()->all();
+    }
+
+    private function requiredDocumentIdsForOrder(Order $order): array
+    {
+        $jobTypeIds = $order->collaterals->flatMap(fn ($collateral) => $collateral->jobs->pluck('job_type_id'))->filter()->map(fn ($id) => (int) $id)->unique()->values();
+        if ($jobTypeIds->isEmpty()) {
+            return [];
+        }
+
+        return DocumentChecklist::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($jobTypeIds): void {
+                $query->whereHas('jobTypes', fn ($jobQuery) => $jobQuery->whereIn('job_types.id', $jobTypeIds))
+                    ->orWhereIn('job_type_id', $jobTypeIds);
+            })
+            ->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
     }
 
     private function authorizeVisibleOrder(Request $request, Order $order): void

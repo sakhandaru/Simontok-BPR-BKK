@@ -10,6 +10,7 @@ class OrderDocument extends Model
 {
     protected $fillable = [
         'order_id',
+        'document_checklist_id',
         'order_collateral_id',
         'order_collateral_job_id',
         'document_type',
@@ -36,6 +37,11 @@ class OrderDocument extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function documentChecklist(): BelongsTo
+    {
+        return $this->belongsTo(DocumentChecklist::class);
     }
 
     public function collateral(): BelongsTo
