@@ -108,7 +108,7 @@ class ReportController extends Controller
                 ->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])
                 ->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')
                 ->join('notaries', 'notaries.id', '=', 'orders.notary_id')
-                ->groupBy('notaries.name')
+                ->groupBy('notaries.id', 'notaries.name')
                 ->orderByDesc('total_orders')
                 ->paginate(10)->withQueryString(),
             'covernoteReport' => OrderCollateral::query()
