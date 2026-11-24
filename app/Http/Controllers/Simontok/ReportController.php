@@ -122,6 +122,7 @@ class ReportController extends Controller
         $finalDocuments = OrderCollateral::whereIn('doc_status', [TrackBDocStatus::FinalDiunggah->value, TrackBDocStatus::FinalDivalidasi->value])
             ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))
             ->count();
+        $notaryBranchNames = Notary::with('branches:id,code,name')->get()->keyBy('id');
 
         return Inertia::render('simontok/reports/index', [
             'initialTab' => $request->string('view')->value() === 'progress' ? 'progress' : 'actions',
@@ -173,14 +174,23 @@ class ReportController extends Controller
                     return $row;
                 }),
             'byNotary' => (clone $orders)
-                ->select('notaries.id as notary_id', 'notaries.name')
+                ->select('notaries.id as notary_id', 'notaries.legacy_id', 'notaries.name')
                 ->selectRaw('COUNT(orders.id) as total_orders')
                 ->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])
+                ->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)
                 ->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')
                 ->join('notaries', 'notaries.id', '=', 'orders.notary_id')
-                ->groupBy('notaries.id', 'notaries.name')
+                ->groupBy('notaries.id', 'notaries.legacy_id', 'notaries.name')
                 ->orderByDesc('total_orders')
-                ->paginate(10)->withQueryString(),
+                ->paginate(10)->withQueryString()->through(function ($row) use ($notaryBranchNames) {
+                    $row->total_orders = (int) $row->total_orders;
+                    $row->active_orders = (int) $row->active_orders;
+                    $row->completed_orders = (int) $row->completed_orders;
+                    $row->risk_orders = (int) $row->risk_orders;
+                    $row->branches = $notaryBranchNames->get($row->notary_id)?->branches->map(fn ($branch) => $branch->code.' - '.$branch->name)->implode(', ') ?: '-';
+
+                    return $row;
+                }),
             'covernoteReport' => OrderCollateral::query()
                 ->select('covernote_status', DB::raw('COUNT(*) as total'))
                 ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))

@@ -81,14 +81,18 @@ export default function ReportsIndex({
         name: string;
         total_orders: number;
         completed_orders: number;
+        active_orders?: number;
         risk_orders: number;
     }>;
     byNotary: PaginatedRows<{
         notary_id: number;
+        legacy_id?: string | null;
         name: string;
         total_orders: number;
         completed_orders: number;
+        active_orders?: number;
         risk_orders: number;
+        branches?: string;
     }>;
     covernoteReport: { status: string; total: number }[];
     outstandingOrders: PaginatedRows<{
@@ -152,7 +156,7 @@ export default function ReportsIndex({
                 <Dialog open={previewType !== null} onOpenChange={(open) => !open && setPreviewType(null)}>
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
                         <DialogHeader><DialogTitle>{previewType ? exportTitle(previewType) : 'Preview laporan'}</DialogTitle><DialogDescription>Periksa isi laporan sebelum dicetak atau diunduh.</DialogDescription></DialogHeader>
-                        {previewType && <div id="report-export-preview" className="rounded-md border border-border bg-background p-4"><ExportPreview type={previewType} summary={summary} reportKpis={reportKpis} byBranch={byBranch.data} byNotary={byNotary.data} scopeLabel={scopeLabel} filters={filters} /></div>}
+                        {previewType && <div id="report-export-preview" className="rounded-md border border-border bg-background p-4"><ExportPreview type={previewType} summary={summary} reportKpis={reportKpis} documentValidation={documentValidation} byBranch={byBranch.data} byNotary={byNotary.data} scopeLabel={scopeLabel} filters={filters} /></div>}
                         <DialogFooter><Button type="button" variant="outline" onClick={() => previewType && printReport(previewType)}><Printer className="size-4" />Cetak</Button>{previewType && <Button asChild><a href={exportUrl(previewType)}><Download className="size-4" />Unduh CSV untuk Excel</a></Button>}</DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -839,12 +843,19 @@ function exportTitle(type: ExportType) {
     return ({ overall: 'Preview ringkasan keseluruhan', branches: 'Preview rekap cabang', notaries: 'Preview rekap notaris' })[type];
 }
 
-function ExportPreview({ type, summary, reportKpis, byBranch, byNotary, scopeLabel, filters }: { type: ExportType; summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number }; reportKpis: { completion_rate: number; validation_rate: number; covernote_attention: number; overdue_sla: number }; byBranch: { code: string; name: string; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number }[]; byNotary: { name: string; notary_id: number; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number }[]; scopeLabel: string; filters: { date_from: string; date_to: string } }) {
+function ExportPreview({ type, summary, reportKpis, documentValidation, byBranch, byNotary, scopeLabel, filters }: { type: ExportType; summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number }; reportKpis: { completion_rate: number; validation_rate: number; covernote_attention: number; overdue_sla: number }; documentValidation: { final_validated: number; final_uploaded: number }; byBranch: { code: string; name: string; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number }[]; byNotary: { name: string; notary_id: number; legacy_id?: string | null; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number; branches?: string }[]; scopeLabel: string; filters: { date_from: string; date_to: string } }) {
     const period = filters.date_from || filters.date_to ? `${filters.date_from || 'awal'} s.d. ${filters.date_to || 'sekarang'}` : 'Semua periode';
-    if (type === 'overall') return <div className="space-y-4"><div><div className="text-lg font-semibold">Ringkasan keseluruhan</div><div className="text-sm text-muted-foreground">{scopeLabel} · {period}</div></div><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[['Total order', summary.total_orders], ['Order aktif', summary.active_orders], ['Order selesai', summary.completed_orders], ['Order berisiko', summary.risk_orders], ['Penyelesaian', `${reportKpis.completion_rate}%`], ['Validasi final', `${reportKpis.validation_rate}%`], ['Covernote perhatian', reportKpis.covernote_attention], ['SLA terlambat', reportKpis.overdue_sla]].map(([label, value]) => <div key={String(label)} className="rounded-md border border-border p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 text-xl font-semibold">{value}</div></div>)}</div></div>;
-    const rows = type === 'branches' ? byBranch.map((row) => [row.code, row.name, row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]) : byNotary.map((row) => [row.notary_id, row.name, '—', row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]);
-    const headers = type === 'branches' ? ['Kode', 'Cabang', 'Total', 'Selesai', 'Aktif', 'Risiko', 'Rasio'] : ['ID', 'Notaris', 'Cabang rekanan', 'Total', 'Selesai', 'Aktif', 'Risiko', 'Rasio'];
-    return <div><div className="mb-3"><div className="text-lg font-semibold">{type === 'branches' ? 'Rekap cabang' : 'Rekap notaris'}</div><div className="text-sm text-muted-foreground">{scopeLabel} · {period}</div></div><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b text-xs text-muted-foreground">{headers.map((header) => <th key={header} className="px-3 py-2 font-medium">{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index} className="border-b last:border-0">{row.map((value, cellIndex) => <td key={cellIndex} className="px-3 py-2">{value}</td>)}</tr>)}</tbody></table>{rows.length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">Belum ada data pada filter ini.</div>}</div></div>;
+    if (type === 'overall') {
+        const rows = [['Total order', summary.total_orders], ['Order aktif', summary.active_orders], ['Order selesai', summary.completed_orders], ['Order berisiko', summary.risk_orders], ['Rasio penyelesaian', `${reportKpis.completion_rate}%`], ['Dokumen final diunggah', documentValidation.final_uploaded], ['Dokumen final tervalidasi', documentValidation.final_validated], ['Covernote perhatian', reportKpis.covernote_attention], ['SLA terlambat', reportKpis.overdue_sla]];
+        return <ExportTable title="Ringkasan keseluruhan" subtitle={`${scopeLabel} · ${period}`} headers={['Indikator', 'Nilai']} rows={rows} />;
+    }
+    const rows = type === 'branches' ? byBranch.map((row) => [row.name, row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]) : byNotary.map((row) => [row.legacy_id || row.notary_id, row.name, row.branches ?? '—', row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]);
+    const headers = type === 'branches' ? ['Nama', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'] : ['ID Notaris', 'Nama', 'Cabang rekanan', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'];
+    return <ExportTable title={type === 'branches' ? 'Rekap cabang' : 'Rekap notaris'} subtitle={`${scopeLabel} · ${period}`} headers={headers} rows={rows} />;
+}
+
+function ExportTable({ title, subtitle, headers, rows }: { title: string; subtitle: string; headers: string[]; rows: (string | number)[][] }) {
+    return <div><div className="mb-3"><div className="text-lg font-semibold">{title}</div><div className="text-sm text-muted-foreground">{subtitle}</div></div><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b text-xs text-muted-foreground">{headers.map((header) => <th key={header} className="px-3 py-2 font-medium">{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index} className="border-b last:border-0">{row.map((value, cellIndex) => <td key={cellIndex} className="px-3 py-2">{value}</td>)}</tr>)}</tbody></table>{rows.length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">Belum ada data pada filter ini.</div>}</div></div>;
 }
 
 function printReport(title: string) {
