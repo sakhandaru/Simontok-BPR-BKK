@@ -4,6 +4,7 @@ import {
     Building2,
     CalendarDays,
     Download,
+    Printer,
     FileCheck2,
     FileText,
     Filter,
@@ -23,10 +24,12 @@ import { SimStatusBadge, toneForStatus } from '@/components/sim-status-badge';
 import { SimTable } from '@/components/sim-table';
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type Option = { id: number; code?: string; name: string };
 type ReportTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 type PaginatedRows<T> = { data: T[]; links: SimPaginationLink[] };
+type ExportType = 'overall' | 'branches' | 'notaries';
 
 const reportTrendConfig = {
     incoming: { label: 'Masuk', color: 'var(--status-info)' },
@@ -115,6 +118,7 @@ export default function ReportsIndex({
 }) {
     const { data, setData } = useForm(filters);
     const [activeTab, setActiveTab] = useState<'actions' | 'progress' | 'performance'>(initialTab);
+    const [previewType, setPreviewType] = useState<ExportType | null>(null);
     const selectedBranch = branches.find((branch) => String(branch.id) === filters.branch_id);
     const scopeLabel = branchLocked
         ? `Cabang ${selectedBranch?.name ?? 'akun Anda'}`
@@ -126,7 +130,7 @@ export default function ReportsIndex({
         event.preventDefault();
         router.get('/reports', data, { preserveState: true, replace: true });
     };
-    const exportUrl = (type: 'overall' | 'branches' | 'notaries') => {
+    const exportUrl = (type: ExportType) => {
         const params = new URLSearchParams({ type });
         if (data.branch_id) params.set('branch_id', data.branch_id);
         if (data.notary_id) params.set('notary_id', data.notary_id);
@@ -142,8 +146,16 @@ export default function ReportsIndex({
                 <SimPageHeader
                     title="Laporan operasional"
                     description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
-                    actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline" size="sm"><a href={exportUrl('overall')}><Download className="size-4" />Ringkasan keseluruhan</a></Button><Button asChild variant="outline" size="sm"><a href={exportUrl('branches')}><Download className="size-4" />Rekap cabang</a></Button><Button asChild variant="outline" size="sm"><a href={exportUrl('notaries')}><Download className="size-4" />Rekap notaris</a></Button></div>}
+                    actions={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('overall')}><Download className="size-4" />Ringkasan keseluruhan</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('branches')}><Download className="size-4" />Rekap cabang</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('notaries')}><Download className="size-4" />Rekap notaris</Button></div>}
                 />
+
+                <Dialog open={previewType !== null} onOpenChange={(open) => !open && setPreviewType(null)}>
+                    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
+                        <DialogHeader><DialogTitle>{previewType ? exportTitle(previewType) : 'Preview laporan'}</DialogTitle><DialogDescription>Periksa isi laporan sebelum dicetak atau diunduh.</DialogDescription></DialogHeader>
+                        {previewType && <div id="report-export-preview" className="rounded-md border border-border bg-background p-4"><ExportPreview type={previewType} summary={summary} reportKpis={reportKpis} byBranch={byBranch.data} byNotary={byNotary.data} scopeLabel={scopeLabel} filters={filters} /></div>}
+                        <DialogFooter><Button type="button" variant="outline" onClick={() => previewType && printReport(previewType)}><Printer className="size-4" />Cetak</Button>{previewType && <Button asChild><a href={exportUrl(previewType)}><Download className="size-4" />Unduh CSV untuk Excel</a></Button>}</DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">
                     <div className="text-sm font-medium text-muted-foreground">Cakupan laporan</div>
@@ -821,6 +833,29 @@ function covernoteStatusLabel(status: string) {
             belum_ada: 'Belum ada covernote',
         }[status] ?? 'Status tidak diketahui'
     );
+}
+
+function exportTitle(type: ExportType) {
+    return ({ overall: 'Preview ringkasan keseluruhan', branches: 'Preview rekap cabang', notaries: 'Preview rekap notaris' })[type];
+}
+
+function ExportPreview({ type, summary, reportKpis, byBranch, byNotary, scopeLabel, filters }: { type: ExportType; summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number }; reportKpis: { completion_rate: number; validation_rate: number; covernote_attention: number; overdue_sla: number }; byBranch: { code: string; name: string; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number }[]; byNotary: { name: string; notary_id: number; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number }[]; scopeLabel: string; filters: { date_from: string; date_to: string } }) {
+    const period = filters.date_from || filters.date_to ? `${filters.date_from || 'awal'} s.d. ${filters.date_to || 'sekarang'}` : 'Semua periode';
+    if (type === 'overall') return <div className="space-y-4"><div><div className="text-lg font-semibold">Ringkasan keseluruhan</div><div className="text-sm text-muted-foreground">{scopeLabel} · {period}</div></div><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[['Total order', summary.total_orders], ['Order aktif', summary.active_orders], ['Order selesai', summary.completed_orders], ['Order berisiko', summary.risk_orders], ['Penyelesaian', `${reportKpis.completion_rate}%`], ['Validasi final', `${reportKpis.validation_rate}%`], ['Covernote perhatian', reportKpis.covernote_attention], ['SLA terlambat', reportKpis.overdue_sla]].map(([label, value]) => <div key={String(label)} className="rounded-md border border-border p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 text-xl font-semibold">{value}</div></div>)}</div></div>;
+    const rows = type === 'branches' ? byBranch.map((row) => [row.code, row.name, row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]) : byNotary.map((row) => [row.notary_id, row.name, '—', row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]);
+    const headers = type === 'branches' ? ['Kode', 'Cabang', 'Total', 'Selesai', 'Aktif', 'Risiko', 'Rasio'] : ['ID', 'Notaris', 'Cabang rekanan', 'Total', 'Selesai', 'Aktif', 'Risiko', 'Rasio'];
+    return <div><div className="mb-3"><div className="text-lg font-semibold">{type === 'branches' ? 'Rekap cabang' : 'Rekap notaris'}</div><div className="text-sm text-muted-foreground">{scopeLabel} · {period}</div></div><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b text-xs text-muted-foreground">{headers.map((header) => <th key={header} className="px-3 py-2 font-medium">{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index} className="border-b last:border-0">{row.map((value, cellIndex) => <td key={cellIndex} className="px-3 py-2">{value}</td>)}</tr>)}</tbody></table>{rows.length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">Belum ada data pada filter ini.</div>}</div></div>;
+}
+
+function printReport(title: string) {
+    const content = document.getElementById('report-export-preview')?.innerHTML;
+    if (!content) return;
+    const printWindow = window.open('', '_blank', 'width=1200,height=800');
+    if (!printWindow) return;
+    printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;color:#111;padding:32px}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:12px}.text-muted-foreground{color:#666}.text-xl{font-size:20px}.text-lg{font-size:18px}.font-semibold{font-weight:600}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.rounded-md{border:1px solid #ddd;border-radius:6px;padding:12px}.mt-1{margin-top:4px}.mb-3{margin-bottom:12px}.space-y-4>*+*{margin-top:16px}</style></head><body>${content}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => printWindow.print(), 250);
 }
 
 ReportsIndex.layout = {
