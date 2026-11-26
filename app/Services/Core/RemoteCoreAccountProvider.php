@@ -20,7 +20,7 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
             return [];
         }
 
-        $response = $this->get('/api/v1/simontok/credit-accounts', array_filter([
+        $response = $this->get('/api/v1/nora/credit-accounts', array_filter([
             'query' => $query,
             'branch_code' => $branchCode,
             'limit' => min(max($limit, 1), 50),
@@ -31,7 +31,7 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
 
     public function find(string $accountId, ?string $branchCode = null, ?string $accountNumber = null): ?array
     {
-        $account = $this->dataObject($this->get('/api/v1/simontok/credit-accounts/'.rawurlencode($accountId)));
+        $account = $this->dataObject($this->get('/api/v1/nora/credit-accounts/'.rawurlencode($accountId)));
 
         if ($account === null) {
             return null;
@@ -83,14 +83,14 @@ class RemoteCoreAccountProvider implements CoreAccountProvider
             return [];
         }
 
-        $response = $this->get('/api/v1/simontok/credit-accounts/'.rawurlencode($accountId).'/collaterals');
+        $response = $this->get('/api/v1/nora/credit-accounts/'.rawurlencode($accountId).'/collaterals');
 
         return $this->dataList($response);
     }
 
     public function branches(bool $active = true): array
     {
-        $response = $this->get('/api/v1/simontok/branches', ['active' => $active ? 'true' : 'false'], false);
+        $response = $this->get('/api/v1/nora/branches', ['active' => $active ? 'true' : 'false'], false);
 
         return $this->dataList($response);
     }

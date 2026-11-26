@@ -18,11 +18,11 @@ class RemoteCoreAccountProviderTest extends TestCase
         session(['simontok_api.jwt' => Crypt::encryptString('user-jwt')]);
         config([
             'services.simontok_api.url' => 'https://api.test',
-            'services.simontok_api.app' => 'simontok',
+            'services.simontok_api.app' => 'nora',
             'services.simontok_api.app_token' => 'app-token',
         ]);
         Http::fake([
-            'https://api.test/api/v1/simontok/credit-accounts*' => Http::response([
+            'https://api.test/api/v1/nora/credit-accounts*' => Http::response([
                 'status' => 200,
                 'data' => [['account_id' => 'account-1']],
             ]),
@@ -31,9 +31,9 @@ class RemoteCoreAccountProviderTest extends TestCase
         $result = (new RemoteCoreAccountProvider)->search('001135000003', '001', 30);
 
         $this->assertSame('account-1', $result[0]['account_id']);
-        Http::assertSent(fn ($request) => $request->url() === 'https://api.test/api/v1/simontok/credit-accounts?query=001135000003&branch_code=001&limit=30'
+        Http::assertSent(fn ($request) => $request->url() === 'https://api.test/api/v1/nora/credit-accounts?query=001135000003&branch_code=001&limit=30'
             && $request->hasHeader('X-App-Token', 'app-token')
-            && $request->hasHeader('App', 'simontok')
+            && $request->hasHeader('App', 'nora')
             && $request->hasHeader('Authorization', 'Bearer user-jwt'));
     }
 
@@ -64,7 +64,7 @@ class RemoteCoreAccountProviderTest extends TestCase
             'services.simontok_api.app_token' => 'app-token',
         ]);
         Http::fake([
-            'https://api.test/api/v1/simontok/credit-accounts?query=001135000004*' => Http::response([
+            'https://api.test/api/v1/nora/credit-accounts?query=001135000004*' => Http::response([
                 'status' => 200,
                 'data' => [[
                     'account_id' => 'account-4',
@@ -81,7 +81,7 @@ class RemoteCoreAccountProviderTest extends TestCase
                     'selectable' => true,
                 ]],
             ]),
-            'https://api.test/api/v1/simontok/credit-accounts/account-4' => Http::response([
+            'https://api.test/api/v1/nora/credit-accounts/account-4' => Http::response([
                 'status' => 200,
                 'data' => [
                     'account_id' => 'account-4',

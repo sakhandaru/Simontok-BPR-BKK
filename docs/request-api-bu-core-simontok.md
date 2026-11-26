@@ -110,7 +110,7 @@ Nama/path endpoint dapat disesuaikan dengan standar API internal. Struktur respo
 ### 1. Cari rekening
 
 ```http
-GET /api/v1/simontok/credit-accounts?query={keyword}&branch_code={kode_kantor}&limit=20
+GET /api/v1/nora/credit-accounts?query={keyword}&branch_code={kode_kantor}&limit=20
 ```
 
 Parameter:
@@ -154,7 +154,7 @@ Catatan:
 ### 2. Detail rekening dan nasabah
 
 ```http
-GET /api/v1/simontok/credit-accounts/{account_id}
+GET /api/v1/nora/credit-accounts/{account_id}
 ```
 
 Respons minimal:
@@ -209,7 +209,7 @@ Jangan mengirim data sensitif yang tidak diperlukan oleh proses order.
 Jika tidak digabungkan dalam endpoint detail, sediakan endpoint terpisah:
 
 ```http
-GET /api/v1/simontok/credit-accounts/{account_id}/collaterals
+GET /api/v1/nora/credit-accounts/{account_id}/collaterals
 ```
 
 Respons contoh:
@@ -244,7 +244,7 @@ Jika satu rekening memiliki beberapa agunan, seluruhnya harus dikembalikan. SIMO
 ### 4. Master cabang
 
 ```http
-GET /api/v1/simontok/branches?active=true
+GET /api/v1/nora/branches?active=true
 ```
 
 Respons minimal:
