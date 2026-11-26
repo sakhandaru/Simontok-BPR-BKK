@@ -29,7 +29,7 @@ class ReportController extends Controller
         }
 
         $filters = $request->validate([
-            'type' => ['required', 'in:overall,branches,notaries'],
+            'type' => ['required', 'in:overall,branches,notaries,debtors'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
             'date_from' => ['nullable', 'date'],
@@ -44,7 +44,24 @@ class ReportController extends Controller
         return response()->streamDownload(function () use ($orders, $filters, $user, $notaryBranches): void {
             $output = fopen('php://output', 'w');
             fwrite($output, "\xEF\xBB\xBF");
-            if ($filters['type'] === 'overall') {
+            if ($filters['type'] === 'debtors') {
+                fputcsv($output, ['Nama debitur', 'Nomor rekening', 'Status kredit', 'Tanggal realisasi', 'Tanggal jatuh tempo', 'Kolek', 'Cabang', 'Notaris', 'Nomor order'], ';');
+                $orders->with(['branch:id,name', 'notary:id,name'])->orderBy('orders.created_at')->chunk(500, function ($rows) use ($output): void {
+                    foreach ($rows as $order) {
+                        fputcsv($output, [
+                            $order->customer_name,
+                            $order->no_rekening,
+                            $order->status_kredit ?: '-',
+                            $order->tgl_realisasi?->format('d/m/Y') ?: '-',
+                            $order->tgl_jatuh_tempo?->format('d/m/Y') ?: '-',
+                            $this->kolekValue($order) ?? '-',
+                            $order->branch?->name ?: '-',
+                            $order->notary?->name ?: '-',
+                            $order->order_no,
+                        ], ';');
+                    }
+                });
+            } elseif ($filters['type'] === 'overall') {
                 $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
                 $total = (clone $orders)->count();
                 $completed = (clone $orders)->where('status', TrackAStatus::Selesai->value)->count();
@@ -211,7 +228,7 @@ class ReportController extends Controller
                 ->with(['branch:id,code,name', 'notary:id,name'])
                 ->whereNotIn('status', $closedStatuses)
                 ->latest()
-                ->paginate(10, ['id', 'order_no', 'branch_id', 'notary_id', 'customer_name', 'no_rekening', 'status', 'risk_flag', 'created_at'])
+                ->paginate(10, ['id', 'order_no', 'branch_id', 'notary_id', 'customer_name', 'no_rekening', 'status', 'risk_flag', 'created_at', 'status_kredit', 'tgl_realisasi', 'tgl_jatuh_tempo', 'kolek', 'core_snapshot'])
                 ->withQueryString()
                 ->through(fn (Order $order) => [
                     'id' => $order->id,
@@ -223,7 +240,28 @@ class ReportController extends Controller
                     'status' => $order->status->label(),
                     'risk_flag' => $order->risk_flag,
                     'created_at' => $order->created_at?->format('d M Y'),
+                    'status_kredit' => $order->status_kredit,
+                    'tgl_realisasi' => $order->tgl_realisasi?->format('d M Y'),
+                    'tgl_jatuh_tempo' => $order->tgl_jatuh_tempo?->format('d M Y'),
+                    'kolek' => $this->kolekValue($order),
                 ]),
+            'reportDebtors' => (clone $orders)
+                ->with(['branch:id,name', 'notary:id,name'])
+                ->latest()
+                ->limit(25)
+                ->get(['id', 'order_no', 'branch_id', 'notary_id', 'customer_name', 'no_rekening', 'status_kredit', 'tgl_realisasi', 'tgl_jatuh_tempo', 'kolek', 'core_snapshot'])
+                ->map(fn (Order $order) => [
+                    'id' => $order->id,
+                    'order_no' => $order->order_no,
+                    'customer_name' => $order->customer_name,
+                    'no_rekening' => $order->no_rekening,
+                    'branch' => $order->branch?->name,
+                    'notary' => $order->notary?->name,
+                    'status_kredit' => $order->status_kredit,
+                    'tgl_realisasi' => $order->tgl_realisasi?->format('d M Y'),
+                    'tgl_jatuh_tempo' => $order->tgl_jatuh_tempo?->format('d M Y'),
+                    'kolek' => $this->kolekValue($order),
+                ])->values()->all(),
             'documentValidation' => [
                 'final_validated' => OrderCollateral::where('doc_status', TrackBDocStatus::FinalDivalidasi->value)->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))->count(),
                 'final_uploaded' => OrderCollateral::where('doc_status', TrackBDocStatus::FinalDiunggah->value)->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))->count(),
@@ -274,6 +312,11 @@ class ReportController extends Controller
                 'total_orders' => (int) $row->total_orders,
                 'completed_orders' => (int) $row->completed_orders,
             ])->all();
+    }
+
+    private function kolekValue(Order $order): mixed
+    {
+        return data_get($order->core_snapshot, 'kolek', $order->kolek);
     }
 
     private function applyOrderFilters($query, array $filters, User $user): void

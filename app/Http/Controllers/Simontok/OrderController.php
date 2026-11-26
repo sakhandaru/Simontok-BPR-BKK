@@ -881,7 +881,7 @@ class OrderController extends Controller
             ? $this->coreSnapshot->prepare($accountId, $request->input('collaterals') ?? [], $request->user(), $order, $selection['no_rekening'] ?? $order?->no_rekening)
             : [];
         if ($core !== []) {
-            $request->merge(collect($core)->only(['core_account_id', 'branch_id', 'customer_name', 'no_rekening', 'plafon', 'collaterals'])->all());
+            $request->merge(collect($core)->only(['core_account_id', 'branch_id', 'customer_name', 'no_rekening', 'tgl_realisasi', 'tgl_jatuh_tempo', 'plafon', 'kolek', 'status_kredit', 'collaterals'])->all());
         }
 
         $data = $request->validate([
@@ -891,6 +891,7 @@ class OrderController extends Controller
             'customer_name' => ['required', 'string', 'max:255'],
             'no_rekening' => ['required', 'string', 'max:30'],
             'tgl_realisasi' => ['nullable', 'date'],
+            'tgl_jatuh_tempo' => ['nullable', 'date'],
             'tgl_masuk_notaris' => ['nullable', 'date'],
             'plafon' => ['nullable', 'numeric', 'min:0'],
             'nominal' => ['nullable', 'numeric', 'min:0'],
@@ -919,7 +920,7 @@ class OrderController extends Controller
             'collaterals.*.jobs.*.sla_override_reason.required' => 'Alasan perubahan SLA wajib diisi.',
         ]);
 
-        $data = [...$data, ...collect($core)->only(['core_customer_id', 'core_branch_code', 'core_snapshot', 'core_synced_at', 'plafon'])->all()];
+        $data = [...$data, ...collect($core)->only(['core_customer_id', 'core_branch_code', 'core_snapshot', 'core_synced_at', 'tgl_realisasi', 'tgl_jatuh_tempo', 'plafon', 'kolek', 'status_kredit'])->all()];
 
         $this->authorizeBranchAssignment($request, (int) $data['branch_id']);
 

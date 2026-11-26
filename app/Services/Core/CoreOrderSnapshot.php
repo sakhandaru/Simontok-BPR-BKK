@@ -85,7 +85,11 @@ class CoreOrderSnapshot
             'branch_id' => $branch->id,
             'customer_name' => $account['customer_name'],
             'no_rekening' => $account['account_number'],
+            'tgl_realisasi' => data_get($account, 'credit.realization_date'),
+            'tgl_jatuh_tempo' => $account['tgl_jatuh_tempo'] ?? null,
             'plafon' => $account['credit']['loan_amount'] ?? null,
+            'kolek' => is_numeric($account['kolek'] ?? null) ? (int) $account['kolek'] : null,
+            'status_kredit' => $account['status_kredit'] ?? null,
             'collaterals' => $collaterals,
         ];
     }

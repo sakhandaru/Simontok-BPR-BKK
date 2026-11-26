@@ -29,7 +29,19 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 type Option = { id: number; code?: string; name: string };
 type ReportTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 type PaginatedRows<T> = { data: T[]; links: SimPaginationLink[] };
-type ExportType = 'overall' | 'branches' | 'notaries';
+type ExportType = 'overall' | 'branches' | 'notaries' | 'debtors';
+type ReportDebtor = {
+    id: number;
+    order_no: string;
+    customer_name: string;
+    no_rekening: string;
+    branch: string | null;
+    notary: string | null;
+    status_kredit: string | null;
+    tgl_realisasi: string | null;
+    tgl_jatuh_tempo: string | null;
+    kolek: number | string | null;
+};
 
 const reportTrendConfig = {
     incoming: { label: 'Masuk', color: 'var(--status-info)' },
@@ -52,6 +64,7 @@ export default function ReportsIndex({
     stageSummary,
     monthlyTrend,
     stalledOrders,
+    reportDebtors,
 }: {
     initialTab: 'actions' | 'progress';
     branchLocked: boolean;
@@ -105,6 +118,10 @@ export default function ReportsIndex({
         status: string;
         risk_flag: boolean;
         created_at: string;
+        status_kredit: string | null;
+        tgl_realisasi: string | null;
+        tgl_jatuh_tempo: string | null;
+        kolek: number | string | null;
     }>;
     documentValidation: { final_validated: number; final_uploaded: number };
     stageSummary: { key: string; label: string; total: number }[];
@@ -119,6 +136,7 @@ export default function ReportsIndex({
         risk_flag: boolean;
         updated_at: string;
     }[];
+    reportDebtors: ReportDebtor[];
 }) {
     const { data, setData } = useForm(filters);
     const [activeTab, setActiveTab] = useState<'actions' | 'progress' | 'performance'>(initialTab);
@@ -150,13 +168,13 @@ export default function ReportsIndex({
                 <SimPageHeader
                     title="Laporan operasional"
                     description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
-                    actions={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('overall')}><Download className="size-4" />Ringkasan keseluruhan</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('branches')}><Download className="size-4" />Rekap cabang</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('notaries')}><Download className="size-4" />Rekap notaris</Button></div>}
+                    actions={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('overall')}><Download className="size-4" />Ringkasan keseluruhan</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('debtors')}><Download className="size-4" />Data debitur</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('branches')}><Download className="size-4" />Rekap cabang</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('notaries')}><Download className="size-4" />Rekap notaris</Button></div>}
                 />
 
                 <Dialog open={previewType !== null} onOpenChange={(open) => !open && setPreviewType(null)}>
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
                         <DialogHeader><DialogTitle>{previewType ? exportTitle(previewType) : 'Preview laporan'}</DialogTitle><DialogDescription>Periksa isi laporan sebelum dicetak atau diunduh.</DialogDescription></DialogHeader>
-                        {previewType && <div id="report-export-preview" className="rounded-md border border-border bg-background p-4"><ExportPreview type={previewType} summary={summary} reportKpis={reportKpis} documentValidation={documentValidation} byBranch={byBranch.data} byNotary={byNotary.data} scopeLabel={scopeLabel} filters={filters} /></div>}
+                        {previewType && <div id="report-export-preview" className="rounded-md border border-border bg-background p-4"><ExportPreview type={previewType} summary={summary} reportKpis={reportKpis} documentValidation={documentValidation} byBranch={byBranch.data} byNotary={byNotary.data} debtors={reportDebtors} scopeLabel={scopeLabel} filters={filters} /></div>}
                         <DialogFooter><Button type="button" variant="outline" onClick={() => previewType && printReport(previewType)}><Printer className="size-4" />Cetak</Button>{previewType && <Button asChild><a href={exportUrl(previewType)}><Download className="size-4" />Unduh CSV untuk Excel</a></Button>}</DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -361,17 +379,20 @@ export default function ReportsIndex({
                             <div className="overflow-x-auto">
                                 <table className="sim-table min-w-[720px]">
                                     <thead className="bg-muted/20 text-left text-xs text-muted-foreground">
-                                        <tr><th>Debitur</th><th>Order</th><th>Status</th><th>Terakhir diperbarui</th><th className="text-right">Aksi</th></tr>
+                                        <tr><th>Debitur</th><th>Status kredit</th><th>Realisasi</th><th>Jatuh tempo</th><th>Kolek</th><th>Order</th><th>Status pekerjaan</th><th className="text-right">Aksi</th></tr>
                                     </thead>
                                     <tbody>
                                         {outstandingOrders.data.length === 0 ? (
-                                            <tr><td colSpan={5}><EmptyReport message="Tidak ada order aktif pada cakupan yang dipilih." /></td></tr>
+                                            <tr><td colSpan={8}><EmptyReport message="Tidak ada order aktif pada cakupan yang dipilih." /></td></tr>
                                         ) : outstandingOrders.data.map((order) => (
                                             <tr key={order.id} className="border-t">
                                                 <td><div className="font-medium">{order.customer_name}</div><div className="text-sm text-muted-foreground">{order.no_rekening}</div></td>
+                                                <td>{order.status_kredit || '—'}</td>
+                                                <td>{order.tgl_realisasi || '—'}</td>
+                                                <td>{order.tgl_jatuh_tempo || '—'}</td>
+                                                <td>{order.kolek ?? '—'}</td>
                                                 <td>{order.order_no}</td>
                                                 <td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td>
-                                                <td>{order.created_at}</td>
                                                 <td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka order</Link></Button></td>
                                             </tr>
                                         ))}
@@ -840,14 +861,18 @@ function covernoteStatusLabel(status: string) {
 }
 
 function exportTitle(type: ExportType) {
-    return ({ overall: 'Preview ringkasan keseluruhan', branches: 'Preview rekap cabang', notaries: 'Preview rekap notaris' })[type];
+    return ({ overall: 'Preview ringkasan keseluruhan', debtors: 'Preview data debitur', branches: 'Preview rekap cabang', notaries: 'Preview rekap notaris' })[type];
 }
 
-function ExportPreview({ type, summary, reportKpis, documentValidation, byBranch, byNotary, scopeLabel, filters }: { type: ExportType; summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number }; reportKpis: { completion_rate: number; validation_rate: number; covernote_attention: number; overdue_sla: number }; documentValidation: { final_validated: number; final_uploaded: number }; byBranch: { code: string; name: string; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number }[]; byNotary: { name: string; notary_id: number; legacy_id?: string | null; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number; branches?: string }[]; scopeLabel: string; filters: { date_from: string; date_to: string } }) {
+function ExportPreview({ type, summary, reportKpis, documentValidation, byBranch, byNotary, debtors, scopeLabel, filters }: { type: ExportType; summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number }; reportKpis: { completion_rate: number; validation_rate: number; covernote_attention: number; overdue_sla: number }; documentValidation: { final_validated: number; final_uploaded: number }; byBranch: { code: string; name: string; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number }[]; byNotary: { name: string; notary_id: number; legacy_id?: string | null; total_orders: number; completed_orders: number; active_orders?: number; risk_orders: number; branches?: string }[]; debtors: ReportDebtor[]; scopeLabel: string; filters: { date_from: string; date_to: string } }) {
     const period = filters.date_from || filters.date_to ? `${filters.date_from || 'awal'} s.d. ${filters.date_to || 'sekarang'}` : 'Semua periode';
     if (type === 'overall') {
         const rows = [['Total order', summary.total_orders], ['Order aktif', summary.active_orders], ['Order selesai', summary.completed_orders], ['Order berisiko', summary.risk_orders], ['Rasio penyelesaian', `${reportKpis.completion_rate}%`], ['Dokumen final diunggah', documentValidation.final_uploaded], ['Dokumen final tervalidasi', documentValidation.final_validated], ['Covernote perhatian', reportKpis.covernote_attention], ['SLA terlambat', reportKpis.overdue_sla]];
         return <ExportTable title="Ringkasan keseluruhan" subtitle={`${scopeLabel} · ${period}`} headers={['Indikator', 'Nilai']} rows={rows} />;
+    }
+    if (type === 'debtors') {
+        const rows = debtors.map((row) => [row.customer_name, row.no_rekening, row.status_kredit || '—', row.tgl_realisasi || '—', row.tgl_jatuh_tempo || '—', row.kolek ?? '—', row.branch || '—', row.notary || '—', row.order_no]);
+        return <ExportTable title="Data debitur" subtitle={`${scopeLabel} · ${period} · Maksimal 25 baris pada preview`} headers={['Debitur', 'No. rekening', 'Status kredit', 'Realisasi', 'Jatuh tempo', 'Kolek', 'Cabang', 'Notaris', 'Order']} rows={rows} />;
     }
     const rows = type === 'branches' ? byBranch.map((row) => [row.name, row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]) : byNotary.map((row) => [row.legacy_id || row.notary_id, row.name, row.branches ?? '—', row.total_orders, row.completed_orders, row.active_orders ?? row.total_orders - row.completed_orders, row.risk_orders, `${row.total_orders ? Math.round((row.completed_orders / row.total_orders) * 100) : 0}%`]);
     const headers = type === 'branches' ? ['Nama', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'] : ['ID Notaris', 'Nama', 'Cabang rekanan', 'Total order', 'Order selesai', 'Order aktif', 'Order berisiko', 'Rasio selesai'];
