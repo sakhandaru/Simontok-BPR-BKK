@@ -797,8 +797,8 @@ function BranchFolderCard({
                 <FolderOpen className="size-14 stroke-[1.25] text-foreground" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-                <div className="text-sm font-medium text-muted-foreground">{branch.code}</div>
-                <h3 className="mt-0.5 truncate text-xl font-semibold leading-7">{branch.name}</h3>
+                <div className="text-xs font-medium text-muted-foreground">{branch.code}</div>
+                <h3 className="mt-0.5 truncate text-base font-semibold leading-6">{branch.name}</h3>
             </div>
             <ChevronRight className="ml-auto size-6 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
