@@ -172,6 +172,7 @@ class ReportController extends Controller
             ->values();
 
         return Inertia::render('simontok/reports/index', [
+            'directoryMode' => $request->missing('scope') && !($filters['branch_id'] ?? null),
             'initialTab' => match ($request->string('view')->value()) {
                 'orders' => 'orders',
                 'debtors' => 'debtors',
