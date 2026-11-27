@@ -3,7 +3,9 @@ import {
     AlertTriangle,
     Building2,
     CalendarDays,
+    ChevronRight,
     Download,
+    FolderOpen,
     Printer,
     FileCheck2,
     FileText,
@@ -57,6 +59,7 @@ export default function ReportsIndex({
     summary,
     reportKpis,
     byBranch,
+    branchDirectory,
     byNotary,
     covernoteReport,
     outstandingOrders,
@@ -97,6 +100,15 @@ export default function ReportsIndex({
         active_orders?: number;
         risk_orders: number;
     }>;
+    branchDirectory: {
+        branch_id: number;
+        code: string;
+        name: string;
+        total_orders: number;
+        completed_orders: number;
+        active_orders: number;
+        risk_orders: number;
+    }[];
     byNotary: PaginatedRows<{
         notary_id: number;
         legacy_id?: string | null;
@@ -168,7 +180,18 @@ export default function ReportsIndex({
                 <SimPageHeader
                     title="Laporan operasional"
                     description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
-                    actions={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('overall')}><Download className="size-4" />Ringkasan keseluruhan</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('debtors')}><Download className="size-4" />Data debitur</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('branches')}><Download className="size-4" />Rekap cabang</Button><Button type="button" variant="outline" size="sm" onClick={() => setPreviewType('notaries')}><Download className="size-4" />Rekap notaris</Button></div>}
+                    actions={<details className="relative">
+                        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                            <Download className="size-4" aria-hidden="true" />
+                            <span>Unduh laporan</span>
+                        </summary>
+                        <div className="absolute right-0 z-20 mt-2 grid w-64 gap-1 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md">
+                            <ExportMenuButton label="Ringkasan keseluruhan" onClick={() => setPreviewType('overall')} />
+                            <ExportMenuButton label="Data debitur" onClick={() => setPreviewType('debtors')} />
+                            <ExportMenuButton label="Rekap cabang" onClick={() => setPreviewType('branches')} />
+                            <ExportMenuButton label="Rekap notaris" onClick={() => setPreviewType('notaries')} />
+                        </div>
+                    </details>}
                 />
 
                 <Dialog open={previewType !== null} onOpenChange={(open) => !open && setPreviewType(null)}>
@@ -180,6 +203,7 @@ export default function ReportsIndex({
                 </Dialog>
 
                 <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">
+                    {filters.branch_id && !branchLocked && <Link href={buildReportUrl(filters, { branch_id: '' })} className="mb-1 inline-flex w-fit items-center gap-1 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"><ChevronRight className="size-4 rotate-180" aria-hidden="true" />Kembali ke semua cabang</Link>}
                     <div className="text-sm font-medium text-muted-foreground">Cakupan laporan</div>
                     <div className="text-lg font-semibold">{scopeLabel}</div>
                     <p className="text-sm text-muted-foreground">
@@ -218,6 +242,16 @@ export default function ReportsIndex({
                 </nav>
 
                 {activeTab === 'actions' && <>
+                {!filters.branch_id && <section className="sim-panel mb-4 overflow-hidden">
+                    <div className="flex items-start justify-between gap-4 border-b bg-muted/30 px-4 py-3 md:px-5">
+                        <div>
+                            <h2 className="text-base font-semibold">Pilih cabang</h2>
+                            <p className="mt-1 text-sm text-muted-foreground">Buka folder cabang untuk melihat laporan dan pekerjaan yang perlu ditindaklanjuti.</p>
+                        </div>
+                        <Building2 className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    </div>
+                    {branchDirectory.length === 0 ? <EmptyReport message="Belum ada data cabang pada filter ini." /> : <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:p-5">{branchDirectory.map((branch) => <BranchFolderCard key={branch.branch_id} branch={branch} filters={filters} />)}</div>}
+                </section>}
                 <section className="mb-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
                     <SimKpiCard label="Total order" value={summary.total_orders} note="Seluruh order pada cakupan laporan" icon={FileText} tone="info" />
                     <SimKpiCard label="Sedang diproses" value={summary.active_orders} note="Order yang belum selesai" icon={TimerReset} tone="info" />
@@ -624,6 +658,66 @@ export default function ReportsIndex({
             </div>
         </>
     );
+}
+
+function ExportMenuButton({ label, onClick }: { label: string; onClick: () => void }) {
+    return (
+        <button type="button" onClick={onClick} className="flex min-h-10 items-center gap-2 rounded-sm px-3 text-left text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Download className="size-4 text-muted-foreground" aria-hidden="true" />
+            {label}
+        </button>
+    );
+}
+
+function BranchFolderCard({
+    branch,
+    filters,
+}: {
+    branch: {
+        branch_id: number;
+        code: string;
+        name: string;
+        total_orders: number;
+        completed_orders: number;
+        active_orders: number;
+        risk_orders: number;
+    };
+    filters: { branch_id: string; notary_id: string; date_from: string; date_to: string };
+}) {
+    return (
+        <Link
+            href={buildReportUrl(filters, { branch_id: String(branch.branch_id), view: 'actions' })}
+            className="group flex min-h-44 flex-col justify-between rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label={`Buka laporan cabang ${branch.code} ${branch.name}`}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <FolderOpen className="size-12 stroke-[1.35] text-foreground" aria-hidden="true" />
+                <ChevronRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+            </div>
+            <div>
+                <div className="text-xs font-semibold tracking-wide text-muted-foreground">{branch.code}</div>
+                <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-6">{branch.name}</h3>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs">
+                    <ReportValue label="Total" value={String(branch.total_orders)} />
+                    <ReportValue label="Aktif" value={String(branch.active_orders)} />
+                    <ReportValue label="Risiko" value={String(branch.risk_orders)} />
+                </div>
+            </div>
+        </Link>
+    );
+}
+
+function buildReportUrl(
+    filters: { branch_id: string; notary_id: string; date_from: string; date_to: string },
+    overrides: Partial<typeof filters> & { view?: string },
+) {
+    const params = new URLSearchParams();
+    const values = { ...filters, ...overrides };
+    Object.entries(values).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+    });
+    const query = params.toString();
+    return query ? `/reports?${query}` : '/reports';
 }
 
 function ReportPanel({

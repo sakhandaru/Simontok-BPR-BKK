@@ -140,6 +140,36 @@ class ReportController extends Controller
             ->whereHas('order', fn ($query) => $this->applyOrderFilters($query, $filters, $user))
             ->count();
         $notaryBranchNames = Notary::with('branches:id,code,name')->get()->keyBy('id');
+        $branchMetrics = (clone $orders)
+            ->select('branches.id as branch_id', 'branches.code', 'branches.name')
+            ->selectRaw('COUNT(orders.id) as total_orders')
+            ->selectRaw('SUM(CASE WHEN orders.status NOT IN (?, ?, ?) THEN 1 ELSE 0 END) as active_orders', $closedStatuses)
+            ->selectRaw('SUM(CASE WHEN orders.status = ? THEN 1 ELSE 0 END) as completed_orders', [TrackAStatus::Selesai->value])
+            ->selectRaw('SUM(CASE WHEN orders.risk_flag = 1 THEN 1 ELSE 0 END) as risk_orders')
+            ->join('branches', 'branches.id', '=', 'orders.branch_id')
+            ->groupBy('branches.id', 'branches.code', 'branches.name')
+            ->orderBy('branches.code')
+            ->get()
+            ->keyBy('branch_id');
+        $branchDirectory = Branch::query()
+            ->when($branchScopeId, fn ($query, int $branchId) => $query->whereKey($branchId))
+            ->when($filters['branch_id'] ?? null, fn ($query, int $branchId) => $query->whereKey($branchId))
+            ->orderBy('code')
+            ->get(['id', 'code', 'name'])
+            ->map(function (Branch $branch) use ($branchMetrics): array {
+                $metrics = $branchMetrics->get($branch->id);
+
+                return [
+                    'branch_id' => $branch->id,
+                    'code' => $branch->code,
+                    'name' => $branch->name,
+                    'total_orders' => (int) ($metrics?->total_orders ?? 0),
+                    'active_orders' => (int) ($metrics?->active_orders ?? 0),
+                    'completed_orders' => (int) ($metrics?->completed_orders ?? 0),
+                    'risk_orders' => (int) ($metrics?->risk_orders ?? 0),
+                ];
+            })
+            ->values();
 
         return Inertia::render('simontok/reports/index', [
             'initialTab' => $request->string('view')->value() === 'progress' ? 'progress' : 'actions',
@@ -151,6 +181,7 @@ class ReportController extends Controller
                 'date_to' => $filters['date_to'] ?? '',
             ],
             'branches' => Branch::when($branchScopeId, fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('code')->get(['id', 'code', 'name']),
+            'branchDirectory' => $branchDirectory,
             'notaries' => Notary::when($branchScopeId, fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
             'summary' => [
                 'total_orders' => $totalOrders,
