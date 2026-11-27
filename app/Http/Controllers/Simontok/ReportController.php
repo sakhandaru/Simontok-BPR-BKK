@@ -150,7 +150,7 @@ class ReportController extends Controller
                 'date_from' => $filters['date_from'] ?? '',
                 'date_to' => $filters['date_to'] ?? '',
             ],
-            'branches' => Branch::when($branchScopeId, fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('name')->get(['id', 'code', 'name']),
+            'branches' => Branch::when($branchScopeId, fn ($query, int $branchId) => $query->whereKey($branchId))->orderBy('code')->get(['id', 'code', 'name']),
             'notaries' => Notary::when($branchScopeId, fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
             'summary' => [
                 'total_orders' => $totalOrders,

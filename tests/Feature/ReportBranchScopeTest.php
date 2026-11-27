@@ -139,6 +139,17 @@ class ReportBranchScopeTest extends TestCase
                 ->where('summary.total_orders', 2));
     }
 
+    public function test_branch_filter_options_are_sorted_by_branch_code(): void
+    {
+        $user = $this->makeUser('admin_legal_pusat');
+
+        $this->actingAs($user)->get(route('reports.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('branches.0.code', '002')
+                ->where('branches.1.code', '025'));
+    }
+
     private function makeUser(string $roleCode): User
     {
         $permission = Permission::create(['code' => 'reports.view', 'name' => 'Lihat laporan', 'module' => 'reports']);
