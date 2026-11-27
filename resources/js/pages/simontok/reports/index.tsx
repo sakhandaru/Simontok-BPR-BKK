@@ -178,8 +178,8 @@ export default function ReportsIndex({
             <Head title="Laporan" />
             <div className="sim-workspace">
                 <SimPageHeader
-                    title="Laporan operasional"
-                    description="Pantau pekerjaan yang perlu ditindaklanjuti, progres notaris, dan performa cabang."
+                    title={filters.branch_id ? 'Laporan cabang' : 'Laporan operasional'}
+                    description={filters.branch_id ? `Pantau order, debitur, dan notaris di ${selectedBranch?.code ?? ''} - ${selectedBranch?.name ?? 'cabang ini'}.` : 'Pilih cabang untuk melihat laporan yang lebih terarah.'}
                     actions={<details className="relative">
                         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                             <Download className="size-4" aria-hidden="true" />
@@ -202,13 +202,15 @@ export default function ReportsIndex({
                     </DialogContent>
                 </Dialog>
 
-                <div className="sim-panel mb-4 flex flex-col gap-1 px-4 py-3 md:px-5">
-                    {filters.branch_id && !branchLocked && <Link href={buildReportUrl(filters, { branch_id: '' })} className="mb-1 inline-flex w-fit items-center gap-1 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"><ChevronRight className="size-4 rotate-180" aria-hidden="true" />Kembali ke semua cabang</Link>}
-                    <div className="text-sm font-medium text-muted-foreground">Cakupan laporan</div>
-                    <div className="text-lg font-semibold">{scopeLabel}</div>
-                    <p className="text-sm text-muted-foreground">
-                        {branchLocked ? 'Data mengikuti cabang yang terdaftar pada akun Anda.' : 'Data dapat mencakup satu cabang atau seluruh cabang.'}
-                    </p>
+                <div className="sim-panel mb-4 px-4 py-3 md:px-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="text-sm text-muted-foreground">Sedang melihat</span>
+                            <span className="text-base font-semibold">{scopeLabel}</span>
+                        </div>
+                        {filters.branch_id && !branchLocked && <Link href={buildReportUrl(filters, { branch_id: '' })} className="inline-flex min-h-9 items-center gap-1 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"><ChevronRight className="size-4 rotate-180" aria-hidden="true" />Semua cabang</Link>}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{branchLocked ? 'Laporan mengikuti cabang yang terhubung dengan akun Anda.' : filters.branch_id ? 'Gunakan tab di bawah untuk melihat bagian laporan yang dibutuhkan.' : 'Pilih cabang atau gunakan semua cabang untuk melihat ringkasan.'}</p>
                 </div>
 
                 <form onSubmit={submit} className="sim-panel mb-4 overflow-hidden">
@@ -216,13 +218,13 @@ export default function ReportsIndex({
                         <Filter className="size-4 text-muted-foreground" aria-hidden="true" />
                         <div>
                             <h2 className="text-base font-semibold">Atur laporan</h2>
-                            <p className="mt-0.5 text-sm text-muted-foreground">Pilih periode, cabang, atau notaris yang ingin dilihat.</p>
+                            <p className="mt-0.5 text-sm text-muted-foreground">Sesuaikan periode atau notaris jika diperlukan.</p>
                         </div>
                     </div>
-                    <div className="grid gap-3 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-[1.25fr_1.25fr_0.8fr_0.8fr_auto] xl:items-end">
-                        <ReportField label="Cabang">
-                            <SimSelect value={branchLocked ? filters.branch_id : data.branch_id} disabled={branchLocked} onChange={(value) => setData('branch_id', value)} options={branches.map((branch) => ({ value: String(branch.id), label: `${branch.code} - ${branch.name}` }))} placeholder={branchLocked ? 'Cabang akun' : 'Semua cabang'} />
-                        </ReportField>
+                    <div className={`grid gap-3 p-4 md:grid-cols-2 md:p-5 ${filters.branch_id ? 'xl:grid-cols-[1.25fr_0.8fr_0.8fr_auto]' : 'xl:grid-cols-[1.25fr_1.25fr_0.8fr_0.8fr_auto]'} xl:items-end`}>
+                        {!filters.branch_id && <ReportField label="Cabang">
+                            <SimSelect value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={branches.map((branch) => ({ value: String(branch.id), label: `${branch.code} - ${branch.name}` }))} placeholder="Semua cabang" />
+                        </ReportField>}
                         <ReportField label="Notaris">
                             <SimSelect value={data.notary_id} onChange={(value) => setData('notary_id', value)} options={notaries.map((notary) => ({ value: String(notary.id), label: notary.name }))} placeholder="Semua notaris" />
                         </ReportField>
