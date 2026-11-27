@@ -29,7 +29,7 @@ class ReportController extends Controller
         }
 
         $filters = $request->validate([
-            'type' => ['required', 'in:overall,branches,notaries,debtors'],
+            'type' => ['required', 'in:overall,branches,notaries,debtors,orders,stalled'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'notary_id' => ['nullable', 'integer', 'exists:notaries,id'],
             'date_from' => ['nullable', 'date'],
@@ -44,7 +44,23 @@ class ReportController extends Controller
         return response()->streamDownload(function () use ($orders, $filters, $user, $notaryBranches): void {
             $output = fopen('php://output', 'w');
             fwrite($output, "\xEF\xBB\xBF");
-            if ($filters['type'] === 'debtors') {
+            if ($filters['type'] === 'orders' || $filters['type'] === 'stalled') {
+                $closedStatuses = [TrackAStatus::Selesai->value, TrackAStatus::Dibatalkan->value, TrackAStatus::DitolakNotaris->value];
+                $orderRows = (clone $orders)->whereNotIn('status', $closedStatuses);
+                if ($filters['type'] === 'stalled') {
+                    $orderRows->where('updated_at', '<', now()->subDays(7));
+                }
+                fputcsv($output, $filters['type'] === 'orders'
+                    ? ['Nomor order', 'Debitur', 'Nomor rekening', 'Cabang', 'Notaris', 'Status', 'Risiko', 'Tanggal masuk']
+                    : ['Nomor order', 'Debitur', 'Nomor rekening', 'Cabang', 'Notaris', 'Status', 'Terakhir diperbarui'], ';');
+                $orderRows->with(['branch:id,name', 'notary:id,name'])->orderByDesc('updated_at')->chunk(500, function ($rows) use ($output, $filters): void {
+                    foreach ($rows as $order) {
+                        fputcsv($output, $filters['type'] === 'orders'
+                            ? [$order->order_no, $order->customer_name, $order->no_rekening, $order->branch?->name, $order->notary?->name, $order->status->label(), $order->risk_flag ? 'Ya' : 'Tidak', $order->created_at?->format('d/m/Y H:i')]
+                            : [$order->order_no, $order->customer_name, $order->no_rekening, $order->branch?->name, $order->notary?->name, $order->status->label(), $order->updated_at?->format('d/m/Y H:i')], ';');
+                    }
+                });
+            } elseif ($filters['type'] === 'debtors') {
                 fputcsv($output, ['Nama debitur', 'Nomor rekening', 'Status kredit', 'Tanggal realisasi', 'Tanggal jatuh tempo', 'Kolek', 'Cabang', 'Notaris', 'Nomor order'], ';');
                 $orders->with(['branch:id,name', 'notary:id,name'])->orderBy('orders.created_at')->chunk(500, function ($rows) use ($output): void {
                     foreach ($rows as $order) {
