@@ -186,7 +186,7 @@ export default function ReportsIndex({
                         <EmptyReport message="Belum ada data cabang pada laporan ini." />
                     ) : (
                         <section aria-label="Daftar laporan" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {branchDirectory.length > 1 && <GlobalReportCard summary={summary} filters={filters} />}
+                            {branchDirectory.length > 1 && <GlobalReportCard filters={filters} />}
                             {branchDirectory.map((branch) => <BranchFolderCard key={branch.branch_id} branch={branch} filters={filters} />)}
                         </section>
                     )}
@@ -770,16 +770,11 @@ function SimpleReportTable({ headers, rows }: { headers: string[]; rows: (string
 }
 
 function GlobalReportCard({
-    summary,
     filters,
 }: {
-    summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number };
     filters: { branch_id: string; notary_id: string; date_from: string; date_to: string };
 }) {
-    return <Link href={buildReportUrl(filters, { scope: 'global', view: 'summary' })} className="group flex min-h-44 flex-col justify-between rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Buka laporan semua cabang">
-        <div className="flex items-start justify-between gap-3"><FolderOpen className="size-12 stroke-[1.35] text-foreground" aria-hidden="true" /><ChevronRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" /></div>
-        <div><div className="text-xs font-semibold tracking-wide text-muted-foreground">GLOBAL</div><h3 className="mt-1 text-base font-semibold leading-6">Semua cabang</h3><div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs"><ReportValue label="Total" value={String(summary.total_orders)} /><ReportValue label="Aktif" value={String(summary.active_orders)} /><ReportValue label="Risiko" value={String(summary.risk_orders)} /></div></div>
-    </Link>;
+    return <ReportFolderCard href={buildReportUrl(filters, { scope: 'global', view: 'summary' })} code="GLOBAL" name="Semua cabang" ariaLabel="Buka laporan semua cabang" />;
 }
 
 function BranchFolderCard({
@@ -797,22 +792,15 @@ function BranchFolderCard({
     };
     filters: { branch_id: string; notary_id: string; date_from: string; date_to: string };
 }) {
-    return (
-        <Link
-            href={buildReportUrl(filters, { branch_id: String(branch.branch_id), view: 'summary' })}
-            className="group flex min-h-28 items-center gap-4 rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            aria-label={`Buka laporan cabang ${branch.code} ${branch.name}`}
-        >
-            <div className="shrink-0">
-                <FolderOpen className="size-14 stroke-[1.25] text-foreground" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-                <div className="text-xs font-medium text-muted-foreground">{branch.code}</div>
-                <h3 className="mt-0.5 truncate text-base font-semibold leading-6">{branch.name}</h3>
-            </div>
-            <ChevronRight className="ml-auto size-6 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-        </Link>
-    );
+    return <ReportFolderCard href={buildReportUrl(filters, { branch_id: String(branch.branch_id), view: 'summary' })} code={branch.code} name={branch.name} ariaLabel={`Buka laporan cabang ${branch.code} ${branch.name}`} />;
+}
+
+function ReportFolderCard({ href, code, name, ariaLabel }: { href: string; code: string; name: string; ariaLabel: string }) {
+    return <Link href={href} className="group flex min-h-28 items-center gap-4 rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label={ariaLabel}>
+        <div className="shrink-0"><FolderOpen className="size-14 stroke-[1.25] text-foreground" aria-hidden="true" /></div>
+        <div className="min-w-0"><div className="text-xs font-medium text-muted-foreground">{code}</div><h3 className="mt-0.5 truncate text-base font-semibold leading-6">{name}</h3></div>
+        <ChevronRight className="ml-auto size-6 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+    </Link>;
 }
 
 function buildReportUrl(
