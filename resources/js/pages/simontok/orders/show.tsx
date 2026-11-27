@@ -2763,6 +2763,7 @@ function DraftOrderForm({
         index: number;
         tab: 'summary' | 'jobs' | 'documents';
     } | null>(null);
+    const [orderDocumentsOpen, setOrderDocumentsOpen] = useState(false);
     const activeCollateral = collateralModal
         ? draft.data.collaterals[collateralModal.index]
         : null;
@@ -2792,6 +2793,10 @@ function DraftOrderForm({
         ...savedOrderDocuments.filter((document: any) => !document.document_checklist_id).map((document: any) => ({ ...document, pending: false })),
         ...pendingOrderDocuments.filter((document) => !document.checklistMasterId).map((document) => ({ id: document.id, display_name: document.displayName, original_name: document.originalName, pending: true, source: document })),
     ];
+    const requiredUploadedCount = requiredDocuments.filter((document) => documentFilesFor(document.id).length > 0).length;
+    const addonUploadedCount = addonDocuments.filter((document) => documentFilesFor(document.id).length > 0).length;
+    const totalDocumentCount = requiredDocuments.length + addonDocuments.length + untypedOrderDocuments.length;
+    const totalUploadedCount = requiredUploadedCount + addonUploadedCount + untypedOrderDocuments.length;
     const activeSummaryDocuments = [
               ...pendingDocumentsFor(collateralModal?.index ?? -1).map((document) => ({
                   id: document.id,
@@ -2870,16 +2875,34 @@ function DraftOrderForm({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h3 className="font-medium">Dokumen order</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">Dokumen wajib dihitung otomatis dari seluruh pekerjaan. Dokumen tambahan bisa dipilih sesuai kebutuhan notaris.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Kelola dokumen wajib dan dokumen tambahan dari satu tempat.</p>
                     </div>
-                    <Button type="button" variant="outline" className="w-fit" onClick={() => openDocumentEditor({ collateralIndex: -1, displayName: '', file: null, kind: 'pendukung' })}>
-                        <FilePlus2 className="size-4" />Tambah dokumen
+                    <Button type="button" variant="outline" className="w-fit" onClick={() => setOrderDocumentsOpen(true)}>
+                        <FileText className="size-4" />Kelola dokumen
                     </Button>
                 </div>
-                <DocumentSection title="Dokumen wajib" description="Harus lengkap sebelum order diajukan." documents={requiredDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} required />
-                <DocumentSection title="Dokumen tambahan" description="Opsional, pilih jika diperlukan oleh notaris." documents={addonDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} />
-                {untypedOrderDocuments.length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-medium">Dokumen lain yang sudah ditambahkan</div><div className="grid gap-2 md:grid-cols-2">{untypedOrderDocuments.map((document: any) => <div key={`${document.pending ? 'pending' : 'saved'}-${document.id}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm"><div className="min-w-0"><div className="truncate font-medium">{document.display_name || document.original_name || 'Dokumen'}</div><div className="mt-1 truncate text-xs text-muted-foreground">{document.original_name}</div></div>{document.pending ? <TemporaryDocumentDetails document={document.source} onReplace={() => openDocumentEditor({ collateralIndex: -1, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })} onDelete={() => removePendingDocument(document.source)} /> : <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>}</div>)}</div></div>}
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <DocumentSummary label="Dokumen wajib" value={`${requiredUploadedCount}/${requiredDocuments.length}`} note="sudah diunggah" />
+                    <DocumentSummary label="Dokumen tambahan" value={`${addonUploadedCount}/${addonDocuments.length}`} note="sudah diunggah" />
+                    <DocumentSummary label="Total dokumen" value={`${totalUploadedCount}/${totalDocumentCount}`} note="tersedia" />
+                </div>
             </section>
+            <Dialog open={orderDocumentsOpen} onOpenChange={setOrderDocumentsOpen}>
+                <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Dokumen order</DialogTitle>
+                        <DialogDescription>Lengkapi dokumen wajib dan tambahkan dokumen lain bila diperlukan.</DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end">
+                        <Button type="button" variant="outline" onClick={() => openDocumentEditor({ collateralIndex: -1, displayName: '', file: null, kind: 'pendukung' })}>
+                            <FilePlus2 className="size-4" />Tambah dokumen
+                        </Button>
+                    </div>
+                    <DocumentSection title="Dokumen wajib" description="Harus lengkap sebelum order diajukan." documents={requiredDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} required />
+                    <DocumentSection title="Dokumen tambahan" description="Opsional, pilih jika diperlukan oleh notaris." documents={addonDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} />
+                    {untypedOrderDocuments.length > 0 && <div className="border-t pt-4"><div className="mb-2 text-sm font-medium">Dokumen lain yang sudah ditambahkan</div><div className="grid gap-2 md:grid-cols-2">{untypedOrderDocuments.map((document: any) => <div key={`${document.pending ? 'pending' : 'saved'}-${document.id}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm"><div className="min-w-0"><div className="truncate font-medium">{document.display_name || document.original_name || 'Dokumen'}</div><div className="mt-1 truncate text-xs text-muted-foreground">{document.original_name}</div></div>{document.pending ? <TemporaryDocumentDetails document={document.source} onReplace={() => openDocumentEditor({ collateralIndex: -1, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })} onDelete={() => removePendingDocument(document.source)} /> : <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>}</div>)}</div></div>}
+                </DialogContent>
+            </Dialog>
             {incompleteFields.length > 0 && (
                 <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
                     <span className="font-medium">Belum siap dikirim.</span>{' '}
@@ -4150,6 +4173,10 @@ function checklistNameForDocument(
             return checklist.document_checklist.name;
     }
     return null;
+}
+
+function DocumentSummary({ label, value, note }: { label: string; value: string; note: string }) {
+    return <div className="rounded-md border bg-background p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 text-lg font-semibold tabular-nums">{value}</div><div className="text-xs text-muted-foreground">{note}</div></div>;
 }
 
 function DocumentSection({ title, description, documents, documentFilesFor, onAdd, onReplace, onDelete, orderId, required = false }: { title: string; description: string; documents: { id: number; name: string; job_type_names?: string[] }[]; documentFilesFor: (id: number) => any[]; onAdd: (document: { id: number; name: string }, file: File) => void; onReplace: (document: { id: number; name: string }, file: any) => void; onDelete: (document: PendingDocument) => void; orderId: number; required?: boolean }) {
