@@ -179,16 +179,13 @@ export default function ReportsIndex({
         <>
             <Head title="Laporan" />
             <div className="sim-workspace">
-                <section aria-label="Ringkasan laporan" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <SimKpiCard label="Total order" value={summary.total_orders} note="Seluruh order pada cakupan laporan" icon={FileText} tone="info" />
-                    <SimKpiCard label="Sedang diproses" value={summary.active_orders} note="Order yang belum selesai" icon={TimerReset} tone="info" />
-                    <SimKpiCard label="Order selesai" value={summary.completed_orders} note="Order yang sudah ditutup" icon={FileCheck2} tone="success" />
-                    <SimKpiCard label="Order berisiko" value={summary.risk_orders} note="Perlu perhatian operasional" icon={AlertTriangle} tone="danger" />
-                    <SimKpiCard label="Penyelesaian" value={`${reportKpis.completion_rate}%`} note="Order selesai dari total periode terpilih" icon={FileText} tone="success" href="/orders?status=selesai" linkLabel="Buka order selesai" />
-                    <SimKpiCard label="Validasi final" value={`${reportKpis.validation_rate}%`} note="Dokumen final yang sudah tervalidasi" icon={FileCheck2} tone="success" href="/orders?doc=final_divalidasi" linkLabel="Buka dokumen tervalidasi" />
-                    <SimKpiCard label="Covernote perhatian" value={reportKpis.covernote_attention} note="Agunan kedaluwarsa atau mendekati jatuh tempo" icon={CalendarDays} tone="warning" href="/orders?covernote=expired" linkLabel="Buka covernote" />
-                    <SimKpiCard label="SLA terlambat" value={reportKpis.overdue_sla} note="Agunan melewati batas SLA" icon={AlertTriangle} tone="danger" href="/orders?sla=overdue" linkLabel="Buka SLA terlambat" />
-                </section>
+                {branchDirectory.length === 0 ? (
+                    <EmptyReport message="Belum ada data cabang pada laporan ini." />
+                ) : (
+                    <section aria-label="Daftar cabang" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {branchDirectory.map((branch) => <BranchFolderCard key={branch.branch_id} branch={branch} filters={filters} />)}
+                    </section>
+                )}
             </div>
         </>
     );
