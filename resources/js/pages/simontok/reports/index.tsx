@@ -175,6 +175,23 @@ export default function ReportsIndex({
     };
     const exportAction = <ExportReportMenu onSelect={setPreviewType} />;
 
+    if (!filters.branch_id) {
+        return (
+            <>
+                <Head title="Laporan" />
+                <div className="sim-workspace">
+                    {branchDirectory.length === 0 ? (
+                        <EmptyReport message="Belum ada data cabang pada laporan ini." />
+                    ) : (
+                        <section aria-label="Daftar cabang" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {branchDirectory.map((branch) => <BranchFolderCard key={branch.branch_id} branch={branch} filters={filters} />)}
+                        </section>
+                    )}
+                </div>
+            </>
+        );
+    }
+
     return (
         <>
             <Head title="Laporan" />
