@@ -746,9 +746,18 @@ function OrderReportTable({
     exportAction: ReactNode;
 }) {
     return <ReportPanel title="Laporan order" subtitle="Daftar order aktif yang perlu dipantau pada cakupan ini." icon={FileText} action={exportAction}>
-        <div className="overflow-x-auto"><table className="sim-table min-w-[840px]"><thead className="bg-muted/30 text-left text-xs text-muted-foreground"><tr><th>Order</th><th>Debitur</th><th>Cabang / Notaris</th><th>Status</th><th>Tanggal masuk</th><th className="text-right">Aksi</th></tr></thead><tbody>{orders.data.length === 0 ? <tr><td colSpan={6}><EmptyReport message="Belum ada order aktif pada cakupan ini." /></td></tr> : orders.data.map((order) => <tr key={order.id} className="border-t align-top"><td><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}`}>{order.order_no}</Link>{order.risk_flag && <div className="mt-2"><SimStatusBadge label="Risiko" tone="danger" /></div>}</td><td><div className="font-medium">{order.customer_name}</div><div className="text-muted-foreground">{order.no_rekening}</div></td><td><div>{order.branch ?? '—'}</div><div className="text-muted-foreground">{order.notary ?? '—'}</div></td><td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td><td>{order.created_at}</td><td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka order</Link></Button></td></tr>)}</tbody></table></div>
+        <div className="overflow-x-auto">
+            <table className="sim-table min-w-[900px] table-fixed">
+                <colgroup><col className="w-[18%]" /><col className="w-[23%]" /><col className="w-[25%]" /><col className="w-[15%]" /><col className="w-[11%]" /><col className="w-[8%]" /></colgroup>
+                <thead className="bg-muted/30 text-left text-xs text-muted-foreground"><tr><th>Order</th><th>Debitur</th><th>Cabang / Notaris</th><th>Status</th><th>Tanggal masuk</th><th className="text-right">Aksi</th></tr></thead>
+                <tbody>{orders.data.length === 0 ? <tr><td colSpan={6}><EmptyReport message="Belum ada order aktif pada cakupan ini." /></td></tr> : orders.data.map((order) => <tr key={order.id} className="border-t align-top"><td><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}`}>{order.order_no}</Link>{order.risk_flag && <div className="mt-2"><SimStatusBadge label="Risiko" tone="danger" /></div>}</td><td><div className="truncate font-medium">{order.customer_name}</div><div className="truncate text-sm text-muted-foreground">{order.no_rekening}</div></td><td><div className="truncate">{order.branch ?? '—'}</div><div className="truncate text-sm text-muted-foreground">{order.notary ?? '—'}</div></td><td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td><td className="whitespace-nowrap text-sm">{order.created_at}</td><td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka</Link></Button></td></tr>)}</tbody>
+            </table>
+        </div>
         <SimPagination links={orders.links} />
-        <div className="border-t border-border"><div className="px-4 py-3 text-sm font-semibold">Order tidak bergerak lebih dari 7 hari</div>{stalledOrders.length === 0 ? <EmptyReport message="Tidak ada order yang terindikasi macet." /> : <SimpleReportTable headers={['Order', 'Debitur', 'Cabang / Notaris', 'Terakhir diperbarui']} rows={stalledOrders.map((order) => [order.order_no, order.customer_name, `${order.branch ?? '—'} / ${order.notary ?? '—'}`, order.updated_at])} />}</div>
+        <div className="border-t border-border">
+            <div className="flex items-center justify-between gap-3 bg-muted/20 px-4 py-3 md:px-5"><div><h3 className="text-sm font-semibold">Order tidak bergerak lebih dari 7 hari</h3><p className="mt-0.5 text-xs text-muted-foreground">Perlu dicek karena belum ada pembaruan terbaru.</p></div><TimerReset className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></div>
+            {stalledOrders.length === 0 ? <EmptyReport message="Tidak ada order yang terindikasi macet." /> : <SimpleReportTable headers={['Order', 'Debitur', 'Cabang / Notaris', 'Terakhir diperbarui']} rows={stalledOrders.map((order) => [order.order_no, order.customer_name, `${order.branch ?? '—'} / ${order.notary ?? '—'}`, order.updated_at])} />}
+        </div>
     </ReportPanel>;
 }
 
@@ -789,13 +798,8 @@ function BranchFolderCard({
                 <ChevronRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
             </div>
             <div>
-                <div className="text-xs font-semibold tracking-wide text-muted-foreground">{branch.code}</div>
-                <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-6">{branch.name}</h3>
-                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs">
-                    <ReportValue label="Total" value={String(branch.total_orders)} />
-                    <ReportValue label="Aktif" value={String(branch.active_orders)} />
-                    <ReportValue label="Risiko" value={String(branch.risk_orders)} />
-                </div>
+                <div className="text-sm font-medium text-muted-foreground">{branch.code}</div>
+                <h3 className="mt-1 line-clamp-2 text-xl font-semibold leading-7">{branch.name}</h3>
             </div>
         </Link>
     );
