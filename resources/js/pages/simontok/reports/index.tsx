@@ -790,17 +790,17 @@ function BranchFolderCard({
     return (
         <Link
             href={buildReportUrl(filters, { branch_id: String(branch.branch_id), view: 'summary' })}
-            className="group flex h-40 flex-col gap-3 rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="group flex min-h-28 items-center gap-4 rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label={`Buka laporan cabang ${branch.code} ${branch.name}`}
         >
-            <div className="flex items-start justify-between gap-3">
+            <div className="shrink-0">
                 <FolderOpen className="size-14 stroke-[1.25] text-foreground" aria-hidden="true" />
-                <ChevronRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
             </div>
-            <div>
+            <div className="min-w-0">
                 <div className="text-sm font-medium text-muted-foreground">{branch.code}</div>
-                <h3 className="mt-1 line-clamp-2 text-xl font-semibold leading-7">{branch.name}</h3>
+                <h3 className="mt-0.5 truncate text-xl font-semibold leading-7">{branch.name}</h3>
             </div>
+            <ChevronRight className="ml-auto size-6 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
     );
 }
