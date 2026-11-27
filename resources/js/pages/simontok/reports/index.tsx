@@ -52,7 +52,6 @@ const reportTrendConfig = {
 
 export default function ReportsIndex({
     filters,
-    directoryMode,
     initialTab,
     branchLocked,
     branches,
@@ -70,7 +69,6 @@ export default function ReportsIndex({
     stalledOrders,
     reportDebtors,
 }: {
-    directoryMode: boolean;
     initialTab: 'summary' | 'orders' | 'debtors' | 'branches' | 'notaries';
     branchLocked: boolean;
     filters: {
@@ -177,7 +175,7 @@ export default function ReportsIndex({
     };
     const exportAction = <ExportReportMenu onSelect={setPreviewType} />;
 
-    if (directoryMode) {
+    if (!filters.branch_id) {
         return (
             <>
                 <Head title="Laporan" />
@@ -212,8 +210,15 @@ export default function ReportsIndex({
                     </DialogContent>
                 </Dialog>
 
-                <form onSubmit={submit} className="mb-4">
-                    <div className={`grid gap-3 md:grid-cols-2 ${filters.branch_id ? 'lg:grid-cols-[1.25fr_0.8fr_0.8fr_auto]' : 'lg:grid-cols-[1.25fr_1.25fr_0.8fr_0.8fr_auto]'} lg:items-end`}>
+                <form onSubmit={submit} className="sim-panel mb-4 overflow-hidden">
+                    <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-3 md:px-5">
+                        <Filter className="size-4 text-muted-foreground" aria-hidden="true" />
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                            <h2 className="text-base font-semibold">Filter laporan</h2>
+                            <p className="text-sm text-muted-foreground">Sesuaikan periode atau notaris bila diperlukan.</p>
+                        </div>
+                    </div>
+                    <div className={`grid gap-3 p-3 md:grid-cols-2 md:p-4 ${filters.branch_id ? 'lg:grid-cols-[1.25fr_0.8fr_0.8fr_auto]' : 'lg:grid-cols-[1.25fr_1.25fr_0.8fr_0.8fr_auto]'} lg:items-end`}>
                         {!filters.branch_id && <ReportField label="Cabang">
                             <SimSelect value={data.branch_id} onChange={(value) => setData('branch_id', value)} options={branches.map((branch) => ({ value: String(branch.id), label: `${branch.code} - ${branch.name}` }))} placeholder="Semua cabang" />
                         </ReportField>}
@@ -229,7 +234,7 @@ export default function ReportsIndex({
                     </div>
                 </form>
 
-                {directoryMode && <section className="sim-panel mb-5 overflow-hidden">
+                {!filters.branch_id && <section className="sim-panel mb-5 overflow-hidden">
                     <div className="flex items-start justify-between gap-4 border-b bg-muted/30 px-4 py-3 md:px-5">
                         <div>
                             <h2 className="text-base font-semibold">Pilih cabang</h2>
@@ -255,7 +260,7 @@ export default function ReportsIndex({
                 {activeTab === 'notaries' && <ReportPanel title="Laporan notaris" subtitle="Beban kerja dan penyelesaian notaris pada cakupan laporan." icon={Users} action={exportAction}><DistributionTable rows={byNotary} firstLabel="Notaris" firstValue={(row) => row.name} action={(row) => <Button variant="outline" size="sm" asChild><Link href={buildReportUrl(filters, { notary_id: String(row.notary_id), view: 'debtors' })}>Buka</Link></Button>} /></ReportPanel>}
 
                 {activeTab === 'actions' && <>
-                {directoryMode && <section className="sim-panel mb-4 overflow-hidden">
+                {!filters.branch_id && <section className="sim-panel mb-4 overflow-hidden">
                     <div className="flex items-start justify-between gap-4 border-b bg-muted/30 px-4 py-3 md:px-5">
                         <div>
                             <h2 className="text-base font-semibold">Pilih cabang</h2>
@@ -741,8 +746,7 @@ function OrderReportTable({
     stalledOrders: { id: number; order_no: string; customer_name: string; branch: string | null; notary: string | null; status: string; risk_flag: boolean; updated_at: string }[];
     exportAction: ReactNode;
 }) {
-    return <div className="grid gap-4">
-        <ReportPanel title="Order aktif" subtitle="Daftar order yang masih berjalan pada cabang ini." icon={FileText} action={exportAction}>
+    return <ReportPanel title="Laporan order" subtitle="Daftar order aktif yang perlu dipantau pada cakupan ini." icon={FileText} action={exportAction}>
         <div className="overflow-x-auto">
             <table className="sim-table min-w-[900px] table-fixed">
                 <colgroup><col className="w-[18%]" /><col className="w-[23%]" /><col className="w-[25%]" /><col className="w-[15%]" /><col className="w-[11%]" /><col className="w-[8%]" /></colgroup>
@@ -750,12 +754,12 @@ function OrderReportTable({
                 <tbody>{orders.data.length === 0 ? <tr><td colSpan={6}><EmptyReport message="Belum ada order aktif pada cakupan ini." /></td></tr> : orders.data.map((order) => <tr key={order.id} className="border-t align-top"><td><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}`}>{order.order_no}</Link>{order.risk_flag && <div className="mt-2"><SimStatusBadge label="Risiko" tone="danger" /></div>}</td><td><div className="truncate font-medium">{order.customer_name}</div><div className="truncate text-sm text-muted-foreground">{order.no_rekening}</div></td><td><div className="truncate">{order.branch ?? '—'}</div><div className="truncate text-sm text-muted-foreground">{order.notary ?? '—'}</div></td><td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td><td className="whitespace-nowrap text-sm">{order.created_at}</td><td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka</Link></Button></td></tr>)}</tbody>
             </table>
         </div>
-        <div className="flex justify-end border-t border-border px-4 py-3 md:px-5"><SimPagination links={orders.links} /></div>
-        </ReportPanel>
-        <ReportPanel title="Order tidak bergerak lebih dari 7 hari" subtitle="Order aktif yang belum mengalami pembaruan terbaru." icon={TimerReset}>
+        <SimPagination links={orders.links} />
+        <div className="border-t border-border">
+            <div className="flex items-center justify-between gap-3 bg-muted/20 px-4 py-3 md:px-5"><div><h3 className="text-sm font-semibold">Order tidak bergerak lebih dari 7 hari</h3><p className="mt-0.5 text-xs text-muted-foreground">Perlu dicek karena belum ada pembaruan terbaru.</p></div><TimerReset className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></div>
             {stalledOrders.length === 0 ? <EmptyReport message="Tidak ada order yang terindikasi macet." /> : <SimpleReportTable headers={['Order', 'Debitur', 'Cabang / Notaris', 'Terakhir diperbarui']} rows={stalledOrders.map((order) => [order.order_no, order.customer_name, `${order.branch ?? '—'} / ${order.notary ?? '—'}`, order.updated_at])} />}
-        </ReportPanel>
-    </div>;
+        </div>
+    </ReportPanel>;
 }
 
 function DebtorReportTable({ debtors, exportAction }: { debtors: ReportDebtor[]; exportAction: ReactNode }) {
