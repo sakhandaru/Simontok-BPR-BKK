@@ -69,7 +69,7 @@ export default function ReportsIndex({
     stalledOrders,
     reportDebtors,
 }: {
-    initialTab: 'actions' | 'progress';
+    initialTab: 'summary' | 'orders' | 'debtors' | 'branches' | 'notaries';
     branchLocked: boolean;
     filters: {
         branch_id: string;
@@ -151,7 +151,7 @@ export default function ReportsIndex({
     reportDebtors: ReportDebtor[];
 }) {
     const { data, setData } = useForm(filters);
-    const [activeTab, setActiveTab] = useState<'actions' | 'progress' | 'performance'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'summary' | 'orders' | 'debtors' | 'branches' | 'notaries' | 'actions' | 'progress' | 'performance'>(initialTab);
     const [previewType, setPreviewType] = useState<ExportType | null>(null);
     const selectedBranch = branches.find((branch) => String(branch.id) === filters.branch_id);
     const scopeLabel = branchLocked
@@ -235,11 +235,30 @@ export default function ReportsIndex({
                     </div>
                 </form>
 
-                <nav aria-label="Bagian laporan" className="mb-5 grid grid-cols-3 border-b border-border">
-                    <ReportTab active={activeTab === 'actions'} onClick={() => setActiveTab('actions')}>Perlu tindakan</ReportTab>
-                    <ReportTab active={activeTab === 'progress'} onClick={() => setActiveTab('progress')}>Progres pekerjaan</ReportTab>
-                    <ReportTab active={activeTab === 'performance'} onClick={() => setActiveTab('performance')}>Performa</ReportTab>
+                {!filters.branch_id && <section className="sim-panel mb-5 overflow-hidden">
+                    <div className="flex items-start justify-between gap-4 border-b bg-muted/30 px-4 py-3 md:px-5">
+                        <div>
+                            <h2 className="text-base font-semibold">Pilih cabang</h2>
+                            <p className="mt-1 text-sm text-muted-foreground">Buka folder cabang untuk melihat laporan dalam satu konteks.</p>
+                        </div>
+                        <Building2 className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    </div>
+                    {branchDirectory.length === 0 ? <EmptyReport message="Belum ada data cabang pada filter ini." /> : <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:p-5">{branchDirectory.map((branch) => <BranchFolderCard key={branch.branch_id} branch={branch} filters={filters} />)}</div>}
+                </section>}
+
+                <nav aria-label="Bagian laporan" className="mb-5 grid grid-cols-2 border-b border-border sm:grid-cols-5">
+                    <ReportTab active={activeTab === 'summary'} onClick={() => setActiveTab('summary')}>Ringkasan</ReportTab>
+                    <ReportTab active={activeTab === 'orders'} onClick={() => setActiveTab('orders')}>Order</ReportTab>
+                    <ReportTab active={activeTab === 'debtors'} onClick={() => setActiveTab('debtors')}>Debitur</ReportTab>
+                    <ReportTab active={activeTab === 'branches'} onClick={() => setActiveTab('branches')}>Cabang</ReportTab>
+                    <ReportTab active={activeTab === 'notaries'} onClick={() => setActiveTab('notaries')}>Notaris</ReportTab>
                 </nav>
+
+                {activeTab === 'summary' && <SummaryReportTable summary={summary} reportKpis={reportKpis} documentValidation={documentValidation} stageSummary={stageSummary} />}
+                {activeTab === 'orders' && <OrderReportTable orders={outstandingOrders} stalledOrders={stalledOrders} />}
+                {activeTab === 'debtors' && <DebtorReportTable debtors={reportDebtors} />}
+                {activeTab === 'branches' && <ReportPanel title="Laporan cabang" subtitle="Perbandingan jumlah dan penyelesaian order per cabang." icon={Building2}><DistributionTable rows={byBranch} firstLabel="Cabang" firstValue={(row) => `${row.code} - ${row.name}`} action={(row) => <Button variant="outline" size="sm" asChild><Link href={buildReportUrl(filters, { branch_id: String(row.branch_id), view: 'summary' })}>Buka</Link></Button>} /></ReportPanel>}
+                {activeTab === 'notaries' && <ReportPanel title="Laporan notaris" subtitle="Beban kerja dan penyelesaian notaris pada cakupan laporan." icon={Users}><DistributionTable rows={byNotary} firstLabel="Notaris" firstValue={(row) => row.name} action={(row) => <Button variant="outline" size="sm" asChild><Link href={buildReportUrl(filters, { notary_id: String(row.notary_id), view: 'debtors' })}>Buka</Link></Button>} /></ReportPanel>}
 
                 {activeTab === 'actions' && <>
                 {!filters.branch_id && <section className="sim-panel mb-4 overflow-hidden">
@@ -669,6 +688,64 @@ function ExportMenuButton({ label, onClick }: { label: string; onClick: () => vo
     );
 }
 
+function SummaryReportTable({
+    summary,
+    reportKpis,
+    documentValidation,
+    stageSummary,
+}: {
+    summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number };
+    reportKpis: { completion_rate: number; validation_rate: number; covernote_attention: number; overdue_sla: number };
+    documentValidation: { final_validated: number; final_uploaded: number };
+    stageSummary: { key: string; label: string; total: number }[];
+}) {
+    const rows = [
+        ['Total order', summary.total_orders],
+        ['Order aktif', summary.active_orders],
+        ['Order selesai', summary.completed_orders],
+        ['Order berisiko', summary.risk_orders],
+        ['Rasio penyelesaian', `${reportKpis.completion_rate}%`],
+        ['Dokumen final diunggah', documentValidation.final_uploaded],
+        ['Dokumen final tervalidasi', documentValidation.final_validated],
+        ['Covernote perlu perhatian', reportKpis.covernote_attention],
+        ['SLA terlambat', reportKpis.overdue_sla],
+    ];
+
+    return <div className="grid items-start gap-4 xl:grid-cols-2">
+        <ReportPanel title="Ringkasan laporan" subtitle="Angka utama pada cakupan dan periode yang dipilih." icon={FileText}>
+            <SimpleReportTable headers={['Indikator', 'Nilai']} rows={rows} />
+        </ReportPanel>
+        <ReportPanel title="Tahap pekerjaan aktif" subtitle="Jumlah order pada setiap tahap yang masih berjalan." icon={TimerReset}>
+            <SimpleReportTable headers={['Tahap', 'Jumlah']} rows={stageSummary.map((stage) => [stage.label, stage.total])} />
+        </ReportPanel>
+    </div>;
+}
+
+function OrderReportTable({
+    orders,
+    stalledOrders,
+}: {
+    orders: PaginatedRows<{ id: number; order_no: string; customer_name: string; no_rekening: string; branch: string | null; notary: string | null; status: string; risk_flag: boolean; created_at: string; }>;
+    stalledOrders: { id: number; order_no: string; customer_name: string; branch: string | null; notary: string | null; status: string; risk_flag: boolean; updated_at: string }[];
+}) {
+    return <ReportPanel title="Laporan order" subtitle="Daftar order aktif yang perlu dipantau pada cakupan ini." icon={FileText}>
+        <div className="overflow-x-auto"><table className="sim-table min-w-[840px]"><thead className="bg-muted/30 text-left text-xs text-muted-foreground"><tr><th>Order</th><th>Debitur</th><th>Cabang / Notaris</th><th>Status</th><th>Tanggal masuk</th><th className="text-right">Aksi</th></tr></thead><tbody>{orders.data.length === 0 ? <tr><td colSpan={6}><EmptyReport message="Belum ada order aktif pada cakupan ini." /></td></tr> : orders.data.map((order) => <tr key={order.id} className="border-t align-top"><td><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}`}>{order.order_no}</Link>{order.risk_flag && <div className="mt-2"><SimStatusBadge label="Risiko" tone="danger" /></div>}</td><td><div className="font-medium">{order.customer_name}</div><div className="text-muted-foreground">{order.no_rekening}</div></td><td><div>{order.branch ?? '—'}</div><div className="text-muted-foreground">{order.notary ?? '—'}</div></td><td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td><td>{order.created_at}</td><td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka order</Link></Button></td></tr>)}</tbody></table></div>
+        <SimPagination links={orders.links} />
+        <div className="border-t border-border"><div className="px-4 py-3 text-sm font-semibold">Order tidak bergerak lebih dari 7 hari</div>{stalledOrders.length === 0 ? <EmptyReport message="Tidak ada order yang terindikasi macet." /> : <SimpleReportTable headers={['Order', 'Debitur', 'Cabang / Notaris', 'Terakhir diperbarui']} rows={stalledOrders.map((order) => [order.order_no, order.customer_name, `${order.branch ?? '—'} / ${order.notary ?? '—'}`, order.updated_at])} />}</div>
+    </ReportPanel>;
+}
+
+function DebtorReportTable({ debtors }: { debtors: ReportDebtor[] }) {
+    return <ReportPanel title="Laporan debitur" subtitle="Daftar debitur dan rekening pada cakupan laporan." icon={Users}>
+        <div className="overflow-x-auto"><table className="sim-table min-w-[980px]"><thead className="bg-muted/30 text-left text-xs text-muted-foreground"><tr><th>Debitur</th><th>No. rekening</th><th>Status kredit</th><th>Realisasi</th><th>Jatuh tempo</th><th>Kolek</th><th>Cabang</th><th>Notaris</th><th>Order</th></tr></thead><tbody>{debtors.length === 0 ? <tr><td colSpan={9}><EmptyReport message="Belum ada data debitur pada cakupan ini." /></td></tr> : debtors.map((debtor) => <tr key={debtor.id} className="border-t"><td className="font-medium">{debtor.customer_name}</td><td>{debtor.no_rekening}</td><td>{debtor.status_kredit || '—'}</td><td>{debtor.tgl_realisasi || '—'}</td><td>{debtor.tgl_jatuh_tempo || '—'}</td><td>{debtor.kolek ?? '—'}</td><td>{debtor.branch || '—'}</td><td>{debtor.notary || '—'}</td><td><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${debtor.id}`}>{debtor.order_no}</Link></td></tr>)}</tbody></table></div>
+        {debtors.length === 25 && <div className="border-t px-4 py-3 text-sm text-muted-foreground">Menampilkan 25 debitur terbaru. Gunakan filter atau buka laporan Order untuk daftar lengkap.</div>}
+    </ReportPanel>;
+}
+
+function SimpleReportTable({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
+    return <div className="overflow-x-auto"><table className="sim-table min-w-[420px]"><thead className="bg-muted/30 text-left text-xs text-muted-foreground"><tr>{headers.map((header) => <th key={header} className="last:text-right">{header}</th>)}</tr></thead><tbody>{rows.length === 0 ? <tr><td colSpan={headers.length}><EmptyReport message="Belum ada data pada cakupan ini." /></td></tr> : rows.map((row, rowIndex) => <tr key={rowIndex} className="border-t">{row.map((value, cellIndex) => <td key={cellIndex} className={cellIndex === row.length - 1 ? 'text-right tabular-nums' : ''}>{value}</td>)}</tr>)}</tbody></table></div>;
+}
+
 function BranchFolderCard({
     branch,
     filters,
@@ -686,7 +763,7 @@ function BranchFolderCard({
 }) {
     return (
         <Link
-            href={buildReportUrl(filters, { branch_id: String(branch.branch_id), view: 'actions' })}
+            href={buildReportUrl(filters, { branch_id: String(branch.branch_id), view: 'summary' })}
             className="group flex min-h-44 flex-col justify-between rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label={`Buka laporan cabang ${branch.code} ${branch.name}`}
         >

@@ -172,7 +172,13 @@ class ReportController extends Controller
             ->values();
 
         return Inertia::render('simontok/reports/index', [
-            'initialTab' => $request->string('view')->value() === 'progress' ? 'progress' : 'actions',
+            'initialTab' => match ($request->string('view')->value()) {
+                'orders' => 'orders',
+                'debtors' => 'debtors',
+                'branches' => 'branches',
+                'notaries' => 'notaries',
+                default => 'summary',
+            },
             'branchLocked' => $branchScopeId !== null,
             'filters' => [
                 'branch_id' => (string) ($filters['branch_id'] ?? ''),
