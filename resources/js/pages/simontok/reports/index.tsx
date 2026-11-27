@@ -154,10 +154,11 @@ export default function ReportsIndex({
     const [activeTab, setActiveTab] = useState<'summary' | 'orders' | 'debtors' | 'branches' | 'notaries' | 'actions' | 'progress' | 'performance'>(initialTab);
     const [previewType, setPreviewType] = useState<ExportType | null>(null);
     const selectedBranch = branches.find((branch) => String(branch.id) === filters.branch_id);
+    const branchName = selectedBranch?.name?.replace(/^Kc\.\s*/i, '') ?? 'cabang ini';
     const scopeLabel = branchLocked
-        ? `Cabang ${selectedBranch?.name ?? 'akun Anda'}`
+        ? `Cabang ${branchName === 'cabang ini' ? 'akun Anda' : branchName}`
         : filters.branch_id && selectedBranch
-          ? `Cabang ${selectedBranch.name}`
+          ? `Cabang ${branchName}`
           : 'Seluruh cabang';
 
     const submit = (event: FormEvent) => {
@@ -178,20 +179,8 @@ export default function ReportsIndex({
             <Head title="Laporan" />
             <div className="sim-workspace">
                 <SimPageHeader
-                    title={filters.branch_id ? 'Laporan cabang' : 'Laporan operasional'}
-                    description={filters.branch_id ? `Pantau order, debitur, dan notaris di ${selectedBranch?.code ?? ''} - ${selectedBranch?.name ?? 'cabang ini'}.` : 'Pilih cabang untuk melihat laporan yang lebih terarah.'}
-                    actions={<details className="relative">
-                        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-                            <Download className="size-4" aria-hidden="true" />
-                            <span>Unduh laporan</span>
-                        </summary>
-                        <div className="absolute right-0 z-20 mt-2 grid w-64 gap-1 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md">
-                            <ExportMenuButton label="Ringkasan keseluruhan" onClick={() => setPreviewType('overall')} />
-                            <ExportMenuButton label="Data debitur" onClick={() => setPreviewType('debtors')} />
-                            <ExportMenuButton label="Rekap cabang" onClick={() => setPreviewType('branches')} />
-                            <ExportMenuButton label="Rekap notaris" onClick={() => setPreviewType('notaries')} />
-                        </div>
-                    </details>}
+                    title={filters.branch_id ? `Laporan Cabang ${branchName}` : 'Laporan operasional'}
+                    description={filters.branch_id ? undefined : 'Pilih cabang untuk melihat laporan yang lebih terarah.'}
                 />
 
                 <Dialog open={previewType !== null} onOpenChange={(open) => !open && setPreviewType(null)}>
@@ -255,6 +244,21 @@ export default function ReportsIndex({
                     <ReportTab active={activeTab === 'branches'} onClick={() => setActiveTab('branches')}>Cabang</ReportTab>
                     <ReportTab active={activeTab === 'notaries'} onClick={() => setActiveTab('notaries')}>Notaris</ReportTab>
                 </nav>
+
+                <div className="mb-3 flex justify-end">
+                    <details className="relative">
+                        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                            <Download className="size-4" aria-hidden="true" />
+                            <span>Unduh laporan</span>
+                        </summary>
+                        <div className="absolute right-0 z-20 mt-2 grid w-64 gap-1 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md">
+                            <ExportMenuButton label="Ringkasan keseluruhan" onClick={() => setPreviewType('overall')} />
+                            <ExportMenuButton label="Data debitur" onClick={() => setPreviewType('debtors')} />
+                            <ExportMenuButton label="Rekap cabang" onClick={() => setPreviewType('branches')} />
+                            <ExportMenuButton label="Rekap notaris" onClick={() => setPreviewType('notaries')} />
+                        </div>
+                    </details>
+                </div>
 
                 {activeTab === 'summary' && <SummaryReportTable summary={summary} reportKpis={reportKpis} documentValidation={documentValidation} stageSummary={stageSummary} />}
                 {activeTab === 'orders' && <OrderReportTable orders={outstandingOrders} stalledOrders={stalledOrders} />}
