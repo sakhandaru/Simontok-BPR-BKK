@@ -751,12 +751,12 @@ function OrderReportTable({
             <table className="sim-table min-w-[900px] table-fixed">
                 <colgroup><col className="w-[18%]" /><col className="w-[23%]" /><col className="w-[25%]" /><col className="w-[15%]" /><col className="w-[11%]" /><col className="w-[8%]" /></colgroup>
                 <thead className="bg-muted/30 text-left text-xs text-muted-foreground"><tr><th>Order</th><th>Debitur</th><th>Cabang / Notaris</th><th>Status</th><th>Tanggal masuk</th><th className="text-right">Aksi</th></tr></thead>
-                <tbody>{orders.data.length === 0 ? <tr><td colSpan={6}><EmptyReport message="Belum ada order aktif pada cakupan ini." /></td></tr> : orders.data.map((order) => <tr key={order.id} className="border-t align-top"><td><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}`}>{order.order_no}</Link>{order.risk_flag && <div className="mt-2"><SimStatusBadge label="Risiko" tone="danger" /></div>}</td><td><div className="truncate font-medium">{order.customer_name}</div><div className="truncate text-sm text-muted-foreground">{order.no_rekening}</div></td><td><div className="truncate">{order.branch ?? '—'}</div><div className="truncate text-sm text-muted-foreground">{order.notary ?? '—'}</div></td><td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td><td className="whitespace-nowrap text-sm">{order.created_at}</td><td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka</Link></Button></td></tr>)}</tbody>
+                <tbody>{orders.data.length === 0 ? <tr><td colSpan={6}><EmptyReport message="Belum ada order aktif pada cakupan ini." /></td></tr> : orders.data.map((order) => <tr key={order.id} className={`border-t align-top ${order.risk_flag ? 'border-l-2 border-l-[var(--status-danger)]' : ''}`}><td><Link className="font-medium underline-offset-4 hover:underline" href={`/orders/${order.id}`}>{order.order_no}</Link>{order.risk_flag && <div className="mt-2"><SimStatusBadge label="Risiko" tone="danger" /></div>}</td><td><div className="truncate font-medium">{order.customer_name}</div><div className="truncate text-sm text-muted-foreground">{order.no_rekening}</div></td><td><div className="truncate">{order.branch ?? '—'}</div><div className="truncate text-sm text-muted-foreground">{order.notary ?? '—'}</div></td><td><SimStatusBadge label={order.status} tone={order.risk_flag ? 'danger' : toneForStatus(order.status)} /></td><td className="whitespace-nowrap text-sm">{order.created_at}</td><td className="text-right"><Button variant="outline" size="sm" asChild><Link href={`/orders/${order.id}`}>Buka</Link></Button></td></tr>)}</tbody>
             </table>
         </div>
         <SimPagination links={orders.links} />
         <div className="border-t border-border">
-            <div className="flex items-center justify-between gap-3 bg-muted/20 px-4 py-3 md:px-5"><div><h3 className="text-sm font-semibold">Order tidak bergerak lebih dari 7 hari</h3><p className="mt-0.5 text-xs text-muted-foreground">Perlu dicek karena belum ada pembaruan terbaru.</p></div><TimerReset className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></div>
+            <div className="flex items-center justify-between gap-3 bg-muted/20 px-4 py-3 md:px-5"><div><h3 className="text-sm font-semibold">Order tidak bergerak lebih dari 7 hari</h3><p className="mt-0.5 text-xs text-muted-foreground">Perlu dicek karena belum ada pembaruan terbaru.</p></div><TimerReset className="size-4 shrink-0 text-[var(--status-warning)]" aria-hidden="true" /></div>
             {stalledOrders.length === 0 ? <EmptyReport message="Tidak ada order yang terindikasi macet." /> : <SimpleReportTable headers={['Order', 'Debitur', 'Cabang / Notaris', 'Terakhir diperbarui']} rows={stalledOrders.map((order) => [order.order_no, order.customer_name, `${order.branch ?? '—'} / ${order.notary ?? '—'}`, order.updated_at])} />}
         </div>
     </ReportPanel>;
@@ -800,10 +800,10 @@ function BranchFolderCard({
 }
 
 function ReportFolderCard({ href, code, name, ariaLabel }: { href: string; code: string; name: string; ariaLabel: string }) {
-    return <Link href={href} className="group flex min-h-28 items-center gap-4 rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label={ariaLabel}>
-        <div className="shrink-0"><FolderOpen className="size-14 stroke-[1.25] text-foreground" aria-hidden="true" /></div>
+    return <Link href={href} className="group flex min-h-28 items-center gap-4 rounded-md border border-border bg-card p-4 transition-colors hover:border-[var(--status-info)]/50 hover:bg-[var(--status-info)]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label={ariaLabel}>
+        <div className="shrink-0"><FolderOpen className="size-14 stroke-[1.25] text-[var(--status-info)]" aria-hidden="true" /></div>
         <div className="min-w-0"><div className="text-xs font-medium text-muted-foreground">{code}</div><h3 className="mt-0.5 truncate text-base font-semibold leading-6">{name}</h3></div>
-        <ChevronRight className="ml-auto size-6 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+        <ChevronRight className="ml-auto size-6 shrink-0 text-muted-foreground transition-colors transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--status-info)]" aria-hidden="true" />
     </Link>;
 }
 
