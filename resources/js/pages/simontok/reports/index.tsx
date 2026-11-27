@@ -152,7 +152,7 @@ export default function ReportsIndex({
 }) {
     const { data, setData } = useForm(filters);
     const [activeTab, setActiveTab] = useState<'summary' | 'orders' | 'debtors' | 'branches' | 'notaries' | 'actions' | 'progress' | 'performance'>(initialTab);
-    const [previewType, setPreviewType] = useState<ExportType>('overall');
+    const [previewType, setPreviewType] = useState<ExportType | null>(null);
     const selectedBranch = branches.find((branch) => String(branch.id) === filters.branch_id);
     const branchName = selectedBranch?.name?.replace(/^Kc\.\s*/i, '') ?? 'cabang ini';
     const scopeLabel = branchLocked
@@ -173,22 +173,7 @@ export default function ReportsIndex({
         if (data.date_to) params.set('date_to', data.date_to);
         return `/reports/export?${params.toString()}`;
     };
-    const exportAction = null;
-
-    return (
-        <>
-            <Head title="Laporan" />
-            <div className="sim-workspace">
-                {branchDirectory.length === 0 ? (
-                    <EmptyReport message="Belum ada data cabang pada laporan ini." />
-                ) : (
-                    <section aria-label="Daftar cabang" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {branchDirectory.map((branch) => <BranchFolderCard key={branch.branch_id} branch={branch} filters={filters} />)}
-                    </section>
-                )}
-            </div>
-        </>
-    );
+    const exportAction = <ExportReportMenu onSelect={setPreviewType} />;
 
     return (
         <>
@@ -199,7 +184,7 @@ export default function ReportsIndex({
                     description={filters.branch_id ? undefined : 'Pilih cabang untuk melihat laporan yang lebih terarah.'}
                 />
 
-                <Dialog open={false} onOpenChange={() => undefined}>
+                <Dialog open={previewType !== null} onOpenChange={(open) => !open && setPreviewType(null)}>
                     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
                         <DialogHeader><DialogTitle>{previewType ? exportTitle(previewType ?? 'overall') : 'Preview laporan'}</DialogTitle><DialogDescription>Periksa isi laporan sebelum dicetak atau diunduh.</DialogDescription></DialogHeader>
                         {previewType && <div id="report-export-preview" className="rounded-md border border-border bg-background p-4"><ExportPreview type={previewType ?? 'overall'} summary={summary} reportKpis={reportKpis} documentValidation={documentValidation} byBranch={byBranch.data} byNotary={byNotary.data} debtors={reportDebtors} scopeLabel={scopeLabel} filters={filters} /></div>}
