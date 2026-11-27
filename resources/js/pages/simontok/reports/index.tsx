@@ -776,9 +776,9 @@ function GlobalReportCard({
     summary: { total_orders: number; active_orders: number; completed_orders: number; risk_orders: number };
     filters: { branch_id: string; notary_id: string; date_from: string; date_to: string };
 }) {
-    return <Link href={buildReportUrl(filters, { scope: 'global', view: 'summary' })} className="group flex min-h-44 flex-col justify-between rounded-md border-2 border-foreground/20 bg-card p-4 transition-colors hover:border-foreground/50 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Buka laporan semua cabang">
-        <div className="flex items-start justify-between gap-3"><Building2 className="size-12 stroke-[1.35] text-foreground" aria-hidden="true" /><ChevronRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" /></div>
-        <div><div className="text-xs font-semibold tracking-wide text-muted-foreground">RINGKASAN</div><h3 className="mt-1 text-base font-semibold leading-6">Semua cabang</h3><div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs"><ReportValue label="Total" value={String(summary.total_orders)} /><ReportValue label="Aktif" value={String(summary.active_orders)} /><ReportValue label="Risiko" value={String(summary.risk_orders)} /></div></div>
+    return <Link href={buildReportUrl(filters, { scope: 'global', view: 'summary' })} className="group flex min-h-44 flex-col justify-between rounded-md border border-border bg-card p-4 transition-colors hover:border-foreground/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Buka laporan semua cabang">
+        <div className="flex items-start justify-between gap-3"><FolderOpen className="size-12 stroke-[1.35] text-foreground" aria-hidden="true" /><ChevronRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" /></div>
+        <div><div className="text-xs font-semibold tracking-wide text-muted-foreground">GLOBAL</div><h3 className="mt-1 text-base font-semibold leading-6">Semua cabang</h3><div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-xs"><ReportValue label="Total" value={String(summary.total_orders)} /><ReportValue label="Aktif" value={String(summary.active_orders)} /><ReportValue label="Risiko" value={String(summary.risk_orders)} /></div></div>
     </Link>;
 }
 
