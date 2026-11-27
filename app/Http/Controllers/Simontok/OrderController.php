@@ -1022,28 +1022,42 @@ class OrderController extends Controller
             && in_array($maritalStatus, ['married', 'kawin', 'menikah'], true);
 
         return $documentChecklist?->is_active !== false
-            && ($documentChecklist?->is_required !== false || $spouseRequired);
+            && ($checklist->is_required || $spouseRequired);
     }
 
     private function seedOrderChecklists(Order $order, $collateral, array $jobTypeIds): void
     {
+        $jobs = $collateral->jobs->whereIn('job_type_id', $jobTypeIds);
         $checklists = DocumentChecklist::query()
-            ->where(function ($query) use ($jobTypeIds) {
-                $query->whereNull('job_type_id')->orWhereIn('job_type_id', $jobTypeIds);
-            })
+            ->with(['jobTypes' => fn ($query) => $query->whereIn('job_types.id', $jobTypeIds)])
             ->where('is_active', true)
+            ->where(function ($query) use ($jobTypeIds): void {
+                $query->whereNull('job_type_id')
+                    ->orWhereHas('jobTypes', fn ($jobQuery) => $jobQuery->whereIn('job_types.id', $jobTypeIds))
+                    ->orWhereIn('job_type_id', $jobTypeIds);
+            })
             ->get();
 
         foreach ($checklists as $checklist) {
-            $jobs = $checklist->job_type_id
-                ? $collateral->jobs->where('job_type_id', $checklist->job_type_id)
-                : collect([null]);
-
-            foreach ($jobs as $job) {
+            if ($checklist->job_type_id === null && $checklist->jobTypes->isEmpty()) {
                 $collateral->checklists()->firstOrCreate([
                     'document_checklist_id' => $checklist->id,
-                    'order_collateral_job_id' => $job?->id,
-                ], ['order_id' => $order->id]);
+                    'order_collateral_job_id' => null,
+                ], ['order_id' => $order->id, 'is_required' => $checklist->is_required]);
+                continue;
+            }
+
+            foreach ($jobs as $job) {
+                $pivot = $checklist->jobTypes->firstWhere('id', $job->job_type_id)?->pivot;
+                $legacyMatch = (int) $checklist->job_type_id === (int) $job->job_type_id;
+                if ($pivot === null && ! $legacyMatch) {
+                    continue;
+                }
+
+                $collateral->checklists()->firstOrCreate([
+                    'document_checklist_id' => $checklist->id,
+                    'order_collateral_job_id' => $job->id,
+                ], ['order_id' => $order->id, 'is_required' => $pivot?->is_required ?? $checklist->is_required]);
             }
         }
     }
@@ -1078,6 +1092,9 @@ class OrderController extends Controller
                 return [
                     ...$document->only(['id', 'name', 'job_type_id', 'is_required', 'is_active']),
                     'job_type_ids' => $document->jobTypes->pluck('id')->push($document->job_type_id)->filter()->unique()->values()->all(),
+                    'required_job_type_ids' => $document->jobTypes
+                        ->filter(fn ($jobType) => (bool) $jobType->pivot?->is_required)
+                        ->pluck('id')->values()->all(),
                     'job_type_names' => $document->jobTypes->pluck('name')->values()->all(),
                 ];
             })->values()->all();
@@ -1097,7 +1114,9 @@ class OrderController extends Controller
         return DocumentChecklist::query()
             ->where('is_active', true)
             ->where(function ($query) use ($jobTypeIds): void {
-                $query->whereHas('jobTypes', fn ($jobQuery) => $jobQuery->whereIn('job_types.id', $jobTypeIds))
+                $query->whereHas('jobTypes', fn ($jobQuery) => $jobQuery
+                    ->whereIn('job_types.id', $jobTypeIds)
+                    ->where('document_checklist_job_type.is_required', true))
                     ->orWhereIn('job_type_id', $jobTypeIds);
             })
             ->pluck('id')->map(fn ($id) => (int) $id)->values()->all();

@@ -25,6 +25,8 @@ class DocumentChecklist extends Model
 
     public function jobTypes(): BelongsToMany
     {
-        return $this->belongsToMany(JobType::class, 'document_checklist_job_type')->withTimestamps();
+        return $this->belongsToMany(JobType::class, 'document_checklist_job_type')
+            ->withPivot('is_required')
+            ->withTimestamps();
     }
 }

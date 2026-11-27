@@ -3,13 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\Branch;
-use App\Models\DocumentChecklist;
 use App\Models\JobPosition;
-use App\Models\JobType;
 use App\Models\Notary;
 use App\Models\Permission;
 use App\Models\Role;
-use App\Models\SlaPolicy;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -109,72 +106,7 @@ class DatabaseSeeder extends Seeder
         );
         $branch->notaries()->syncWithoutDetaching([$notary->id => ['is_active' => true]]);
 
-        $jobTypes = collect([
-            ['code' => 'SKMHT', 'name' => 'SKMHT', 'steps' => ['Order', 'Pengecekan sertifikat', 'Validasi notaris', 'Penandaan lokasi jaminan', 'Penilaian kualitas tanah', 'Hasil cek keluar', 'Pendaftaran BPHTB', 'Penerbitan SKMHT/APHT', 'Selesai']],
-            ['code' => 'APHT', 'name' => 'APHT', 'steps' => ['Order', 'Pengecekan sertifikat', 'Validasi notaris', 'Penandaan lokasi jaminan', 'Penilaian kualitas tanah', 'Hasil cek keluar', 'Pendaftaran BPHTB', 'Penerbitan SKMHT/APHT', 'Selesai']],
-            ['code' => 'FIDUSIA', 'name' => 'Fidusia', 'steps' => ['Order', 'Pengecekan ulang kelengkapan dokumen', 'Pendaftaran fidusia di Kemenkumham / akta fidusia', 'Selesai']],
-            ['code' => 'GADAI', 'name' => 'Gadai', 'steps' => ['Order', 'Pengecekan ulang kelengkapan dokumen', 'Pembuatan akta notaril', 'Selesai']],
-            ['code' => 'CESSIE', 'name' => 'Cessie', 'steps' => ['Order', 'Pengecekan ulang kelengkapan dokumen', 'Pembuatan akta notaril', 'Selesai']],
-            ['code' => 'KUASA_PAKAI', 'name' => 'Surat Kuasa Pelimpahan Hak Pemakaian', 'steps' => ['Order', 'Pengecekan ulang kelengkapan dokumen', 'Pembuatan akta notaril', 'Selesai']],
-            ['code' => 'PK', 'name' => 'Perjanjian Kredit', 'steps' => ['Order', 'Pengecekan ulang kelengkapan dokumen', 'Pembuatan akta notaril', 'Selesai']],
-            ['code' => 'LEGALISASI', 'name' => 'Legalisasi', 'steps' => ['Order', 'Pengecekan ulang kelengkapan dokumen', 'Pembuatan akta notaril', 'Selesai']],
-            ['code' => 'BALIK_NAMA', 'name' => 'Balik Nama', 'steps' => ['Order', 'Proses notaris', 'Selesai']],
-            ['code' => 'PENSERTIFIKATAN', 'name' => 'Pensertifikatan', 'steps' => ['Order', 'Proses notaris', 'Selesai']],
-            ['code' => 'PECAH_BIDANG', 'name' => 'Pecah Bidang', 'steps' => ['Order', 'Proses notaris', 'Selesai']],
-            ['code' => 'TURUN_WARIS', 'name' => 'Turun Waris', 'steps' => ['Order', 'Proses notaris', 'Selesai']],
-            ['code' => 'HIBAH', 'name' => 'Hibah', 'steps' => ['Order', 'Proses notaris', 'Selesai']],
-            ['code' => 'PENINGKATAN_HAK', 'name' => 'Peningkatan Hak', 'steps' => ['Order', 'Proses notaris', 'Selesai']],
-        ])->mapWithKeys(function (array $item) {
-            $jobType = JobType::updateOrCreate(
-                ['code' => $item['code']],
-                ['name' => $item['name'], 'is_active' => true]
-            );
-
-            foreach ($item['steps'] as $index => $step) {
-                $jobType->steps()->updateOrCreate(
-                    ['sort_order' => $index + 1],
-                    ['name' => $step, 'is_active' => true]
-                );
-            }
-
-            return [$item['code'] => $jobType];
-        });
-
-        $defaultSlaDays = [
-            'SKMHT' => 30,
-            'APHT' => 60,
-            'FIDUSIA' => 30,
-            'GADAI' => 14,
-            'CESSIE' => 14,
-            'KUASA_PAKAI' => 14,
-            'PK' => 7,
-            'LEGALISASI' => 7,
-        ];
-
-        foreach ($defaultSlaDays as $code => $days) {
-            SlaPolicy::updateOrCreate(
-                ['job_type_id' => $jobTypes[$code]->id, 'branch_id' => null],
-                ['days' => $days, 'is_active' => true]
-            );
-        }
-
-        foreach ([
-            ['name' => 'KTP debitur', 'is_required' => true],
-            ['name' => 'KTP pemilik agunan', 'is_required' => true],
-            ['name' => 'Kartu keluarga', 'is_required' => true],
-            ['name' => 'Sertifikat/BPKB asli', 'is_required' => true],
-            ['name' => 'SPPT PBB', 'is_required' => true],
-            ['name' => 'KTP pasangan', 'is_required' => false],
-            ['name' => 'Surat nikah', 'is_required' => false],
-            ['name' => 'NPWP', 'is_required' => false],
-            ['name' => 'NIB', 'is_required' => false],
-            ['name' => 'Dokumen pendukung lain', 'is_required' => false],
-        ] as $checklist) {
-            DocumentChecklist::updateOrCreate(
-                ['name' => $checklist['name'], 'job_type_id' => null],
-                ['is_active' => true, 'is_required' => $checklist['is_required']]
-            );
-        }
+        $this->call(NotaryWorkMasterSeeder::class);
 
         JobPosition::updateOrCreate(
             ['code' => 'DIREKSI_PUSAT'],

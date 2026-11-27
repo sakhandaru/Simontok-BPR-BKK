@@ -13,7 +13,7 @@ import { SimTable, SimTableHead, SimTableHeader, SimTableSortHeader, useSimTable
 import { SimPagination, type SimPaginationLink } from '@/components/sim-pagination';
 import { SimTableToolbar } from '@/components/sim-table-toolbar';
 
-type JobType = { id: number; code: string; name: string; is_active: boolean; sla_days?: number | null; steps: { id: number; name: string; sort_order: number }[]; document_ids: number[]; documents: { id: number; name: string }[] };
+type JobType = { id: number; code: string; name: string; is_active: boolean; sla_days?: number | null; steps: { id: number; name: string; sort_order: number }[]; document_ids: number[]; documents: { id: number; name: string; is_required?: boolean }[] };
 
 export default function JobTypes({ jobTypes, filters, documents }: { jobTypes: { data: JobType[]; links: SimPaginationLink[] }; filters: { search: string; status: string }; documents: { id: number; name: string }[] }) {
     const { data, setData, post, put, processing, reset, errors } = useForm({ code: '', name: '', steps: '', sla_days: '', document_ids: [] as number[], is_active: true });
@@ -78,11 +78,12 @@ function Field({ label, error, children }: { label: string; error?: string; chil
     return <div className="grid gap-2"><Label>{label}</Label>{children}<InputError message={error} /></div>;
 }
 
-function DocumentSummary({ documents }: { documents: { id: number; name: string }[] }) {
+function DocumentSummary({ documents }: { documents: { id: number; name: string; is_required?: boolean }[] }) {
     if (documents.length === 0) return <span className="text-muted-foreground">Belum diatur</span>;
     const visible = documents.slice(0, 3).map((document) => document.name).join(' · ');
     const remaining = documents.length - Math.min(documents.length, 3);
-    return <span className="leading-5"><span className="font-medium">{documents.length} dokumen</span><span className="mt-0.5 block truncate text-muted-foreground">{visible}{remaining > 0 ? ` · +${remaining} lainnya` : ''}</span></span>;
+    const required = documents.filter((document) => document.is_required).length;
+    return <span className="leading-5"><span className="font-medium">{required} wajib · {documents.length - required} add-on</span><span className="mt-0.5 block truncate text-muted-foreground">{visible}{remaining > 0 ? ` · +${remaining} lainnya` : ''}</span></span>;
 }
 
 JobTypes.layout = { breadcrumbs: [{ title: 'Jenis Pekerjaan', href: '/job-types' }] };

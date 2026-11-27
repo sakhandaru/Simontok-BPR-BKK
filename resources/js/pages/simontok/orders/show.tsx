@@ -170,7 +170,7 @@ export default function OrdersShow({
     paymentSchemes: string[];
     slaPolicies: Record<string, { days: number; source: string }>;
     coreProvider: string;
-    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; job_type_names?: string[]; is_required: boolean; is_active: boolean }[];
+    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; required_job_type_ids?: number[]; job_type_names?: string[]; is_required: boolean; is_active: boolean }[];
     requiredDocumentIds?: number[];
     temporaryDocuments?: TemporaryOrderDocument[];
     temporaryDraftContext?: OrderDraft | null;
@@ -442,7 +442,7 @@ export default function OrdersShow({
     const checklistOrder = order;
     const selectedJobTypeIds = draft.data.collaterals.flatMap((collateral) => collateral.jobs.map((job) => Number(job.job_type_id))).filter(Boolean);
     const effectiveRequiredDocumentIds = selectedJobTypeIds.length > 0
-        ? documentChecklists.filter((document) => (document.job_type_ids ?? [document.job_type_id]).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId)))).map((document) => document.id)
+        ? documentChecklists.filter((document) => (document.required_job_type_ids ?? []).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId))) || (document.is_required && (document.job_type_ids ?? [document.job_type_id]).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId))))).map((document) => document.id)
         : requiredDocumentIds;
     const requiredDocumentMasters = documentChecklists.filter((document) => effectiveRequiredDocumentIds.includes(document.id));
     const uploadedOrderDocumentIds = new Set<number>([
@@ -2747,7 +2747,7 @@ function DraftOrderForm({
     openChecklistEditor: (collateralIndex: number, checklistMasterId: number, jobTypeId?: number | null) => void;
     openDocumentEditor: (editor: DocumentEditor) => void;
     uploadOrderDocumentDirect: (checklistMasterId: number, displayName: string, file: File) => void;
-    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; job_type_names?: string[]; is_required: boolean; is_active: boolean }[];
+    documentChecklists: { id: number; name: string; job_type_id: number | null; job_type_ids?: number[]; required_job_type_ids?: number[]; job_type_names?: string[]; is_required: boolean; is_active: boolean }[];
     requiredDocumentIds?: number[];
     documentFor: (collateralIndex: number, checklistMasterId?: number, jobTypeId?: number | null) => PendingDocument | undefined;
     pendingDocumentsFor: (collateralIndex: number) => PendingDocument[];

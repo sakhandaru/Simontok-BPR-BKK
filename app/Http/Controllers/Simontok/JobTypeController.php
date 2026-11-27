@@ -33,7 +33,10 @@ class JobTypeController extends Controller
                     ...$jobType->only(['id', 'code', 'name', 'is_active']),
                     'steps' => $jobType->steps->map(fn ($step) => $step->only(['id', 'name', 'sort_order']))->values()->all(),
                     'document_ids' => $jobType->documents->pluck('id')->values()->all(),
-                    'documents' => $jobType->documents->map(fn ($document) => $document->only(['id', 'name']))->values()->all(),
+                    'documents' => $jobType->documents->map(fn ($document) => [
+                        ...$document->only(['id', 'name']),
+                        'is_required' => (bool) $document->pivot?->is_required,
+                    ])->values()->all(),
                     'sla_days' => $jobType->slaPolicies->first()?->days,
                 ]),
             'filters' => [

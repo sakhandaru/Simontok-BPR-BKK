@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderChecklist extends Model
 {
     protected $fillable = [
-        'order_id', 'order_collateral_id', 'order_collateral_job_id', 'document_checklist_id',
+        'order_id', 'order_collateral_id', 'order_collateral_job_id', 'document_checklist_id', 'is_required',
         'order_document_id',
         'is_checked', 'checked_by', 'checked_at', 'catatan',
     ];
@@ -17,6 +17,7 @@ class OrderChecklist extends Model
     {
         return [
             'is_checked' => 'boolean',
+            'is_required' => 'boolean',
             'checked_at' => 'datetime',
         ];
     }
