@@ -195,50 +195,6 @@ export default function ReportsIndex({
         );
     }
 
-    if (filters.branch_id) {
-        return (
-            <>
-                <Head title={`Laporan ${branchName}`} />
-                <div className="sim-workspace">
-                    <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                            <Link href="/reports" className="mb-3 inline-flex items-center text-sm text-muted-foreground hover:text-foreground">← Kembali ke daftar cabang</Link>
-                            <h1 className="text-2xl font-semibold tracking-tight">{selectedBranch?.name ?? branchName}</h1>
-                            <p className="mt-1 text-sm text-muted-foreground">{selectedBranch?.code ?? filters.branch_id} · Laporan cabang</p>
-                        </div>
-                        {exportAction}
-                    </div>
-
-                    <Dialog open={previewType !== null} onOpenChange={(open) => !open && setPreviewType(null)}>
-                        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
-                            <DialogHeader><DialogTitle>{previewType ? exportTitle(previewType) : 'Preview laporan'}</DialogTitle><DialogDescription>Periksa isi laporan sebelum dicetak atau diunduh.</DialogDescription></DialogHeader>
-                            {previewType && <div id="report-export-preview" className="rounded-md border border-border bg-background p-4"><ExportPreview type={previewType} summary={summary} reportKpis={reportKpis} documentValidation={documentValidation} byBranch={byBranch.data} byNotary={byNotary.data} debtors={reportDebtors} scopeLabel={scopeLabel} filters={filters} /></div>}
-                            <DialogFooter><Button type="button" variant="outline" onClick={() => previewType && printReport(previewType)}><Printer className="size-4" />Cetak</Button>{previewType && <Button asChild><a href={exportUrl(previewType)}><Download className="size-4" />Unduh CSV untuk Excel</a></Button>}</DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-
-                    <section aria-label="Ringkasan cabang" className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-                        <SimKpiCard label="Total order" value={summary.total_orders} note="Order pada cabang ini" icon={FileText} tone="info" />
-                        <SimKpiCard label="Sedang diproses" value={summary.active_orders} note="Order yang belum selesai" icon={TimerReset} tone="info" />
-                        <SimKpiCard label="Order selesai" value={summary.completed_orders} note="Order yang sudah ditutup" icon={FileCheck2} tone="success" />
-                        <SimKpiCard label="Order berisiko" value={summary.risk_orders} note="Perlu perhatian operasional" icon={AlertTriangle} tone="danger" />
-                    </section>
-
-                    <form onSubmit={submit} className="mb-5">
-                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1.25fr_0.8fr_0.8fr_auto] lg:items-end">
-                            <ReportField label="Notaris"><SimSelect value={data.notary_id} onChange={(value) => setData('notary_id', value)} options={notaries.map((notary) => ({ value: String(notary.id), label: notary.name }))} placeholder="Semua notaris" /></ReportField>
-                            <ReportField label="Mulai"><Input aria-label="Tanggal mulai" type="date" value={data.date_from} onChange={(event) => setData('date_from', event.target.value)} /></ReportField>
-                            <ReportField label="Sampai"><Input aria-label="Tanggal akhir" type="date" value={data.date_to} onChange={(event) => setData('date_to', event.target.value)} /></ReportField>
-                            <div className="flex gap-2 md:col-span-2 lg:col-span-1"><Button type="submit"><Filter className="size-4" />Terapkan</Button><Button type="button" variant="outline" onClick={() => router.get('/reports', { branch_id: filters.branch_id })}><RotateCcw className="size-4" />Reset</Button></div>
-                        </div>
-                    </form>
-
-                    <OrderReportTable orders={outstandingOrders} stalledOrders={stalledOrders} exportAction={null} />
-                </div>
-            </>
-        );
-    }
-
     return (
         <>
             <Head title="Laporan" />
