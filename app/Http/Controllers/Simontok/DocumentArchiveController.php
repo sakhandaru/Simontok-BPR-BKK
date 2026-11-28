@@ -116,7 +116,9 @@ class DocumentArchiveController extends Controller
                 'expiry' => $filters['expiry'] ?? 'all',
             ],
             'notaries' => $notaryOnly ? [] : Notary::query()->when($request->user()?->branchScopeId(), fn ($query, int $branchId) => $query->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('branch_notary.is_active', true)))->orderBy('name')->get(['id', 'name']),
-            'categories' => $notaryOnly ? (clone $filtered)->distinct()->orderBy('category')->pluck('category') : DocumentArchive::query()->distinct()->orderBy('category')->pluck('category'),
+            'categories' => $notaryOnly
+                ? (clone $filtered)->reorder('category')->select('category')->distinct()->pluck('category')
+                : DocumentArchive::query()->select('category')->distinct()->orderBy('category')->pluck('category'),
             'isNotaryArchive' => $notaryOnly,
             'versions' => $versions->paginate(15)->withQueryString()->through(function (DocumentArchive $version) use ($notaryOnly): array {
                 $expiry = $this->expiryDetails($version);
