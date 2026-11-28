@@ -78,7 +78,10 @@ class JobTypeController extends Controller
             ['job_type_id' => $jobType->id, 'branch_id' => null],
             ['days' => $data['sla_days'], 'is_active' => true],
         );
-        $jobType->documents()->sync(DocumentChecklist::whereIn('id', $data['document_ids'] ?? [])->where('is_active', true)->pluck('id'));
+        $jobType->documents()->syncWithPivotValues(
+            DocumentChecklist::whereIn('id', $data['document_ids'] ?? [])->where('is_active', true)->pluck('id'),
+            ['is_required' => true],
+        );
 
         Audit::record($request, 'masters', $jobType, 'create_job_type', 'Jenis pekerjaan ditambahkan.', [
             'after' => $jobType->load('steps')->toArray(),
@@ -104,7 +107,10 @@ class JobTypeController extends Controller
             $jobType->steps()->delete();
             collect(preg_split('/\r\n|\r|\n/', $data['steps'] ?? ''))->map(fn (?string $step) => trim((string) $step))->filter()->values()->each(fn (string $step, int $index) => $jobType->steps()->create(['name' => $step, 'sort_order' => $index + 1, 'is_active' => true]));
             SlaPolicy::updateOrCreate(['job_type_id' => $jobType->id, 'branch_id' => null], ['days' => $data['sla_days'], 'is_active' => true]);
-            $jobType->documents()->sync(DocumentChecklist::whereIn('id', $data['document_ids'] ?? [])->where('is_active', true)->pluck('id'));
+            $jobType->documents()->syncWithPivotValues(
+                DocumentChecklist::whereIn('id', $data['document_ids'] ?? [])->where('is_active', true)->pluck('id'),
+                ['is_required' => true],
+            );
         });
 
         Audit::record($request, 'masters', $jobType, 'update_job_type', 'Jenis pekerjaan diperbarui.', ['after' => $jobType->load('steps')->toArray()]);

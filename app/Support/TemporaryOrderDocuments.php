@@ -68,14 +68,13 @@ class TemporaryOrderDocuments
             if ($checklist && ! $job && $collateral && $checklist->order_collateral_job_id) {
                 $job = $collateral->jobs()->whereKey($checklist->order_collateral_job_id)->first();
             }
-            $checklistMismatch = ($temporary->checklist_master_id && ! $checklist) || ($temporary->job_type_id && ! $job);
-            if ($checklistMismatch && ! config('uat.document_checklist_bypass')) {
+            if (($temporary->checklist_master_id && ! $checklist) || ($temporary->job_type_id && ! $job)) {
                 throw ValidationException::withMessages(['temporary_document_ids' => 'Checklist dokumen tidak sesuai dengan pekerjaan agunan.']);
             }
             if (! Storage::disk('local')->exists($temporary->stored_path)) {
                 throw ValidationException::withMessages(['temporary_document_ids' => 'File '.$temporary->original_name.' tidak tersedia. Unggah ulang sebelum mengajukan.']);
             }
-            $type = ($checklist || $temporary->checklist_master_id) ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
+            $type = $checklist ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
             $document = $order->documents()->create([
                 'document_checklist_id' => $temporary->checklist_master_id,
                 'order_collateral_id' => $collateral?->id,

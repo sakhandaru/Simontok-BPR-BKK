@@ -82,8 +82,7 @@ function DocumentSummary({ documents }: { documents: { id: number; name: string;
     if (documents.length === 0) return <span className="text-muted-foreground">Belum diatur</span>;
     const visible = documents.slice(0, 3).map((document) => document.name).join(' · ');
     const remaining = documents.length - Math.min(documents.length, 3);
-    const required = documents.filter((document) => document.is_required).length;
-    return <span className="leading-5"><span className="font-medium">{required} wajib · {documents.length - required} add-on</span><span className="mt-0.5 block truncate text-muted-foreground">{visible}{remaining > 0 ? ` · +${remaining} lainnya` : ''}</span></span>;
+    return <span className="leading-5"><span className="font-medium">{documents.length} dokumen wajib</span><span className="mt-0.5 block truncate text-muted-foreground">{visible}{remaining > 0 ? ` · +${remaining} lainnya` : ''}</span></span>;
 }
 
 JobTypes.layout = { breadcrumbs: [{ title: 'Jenis Pekerjaan', href: '/job-types' }] };

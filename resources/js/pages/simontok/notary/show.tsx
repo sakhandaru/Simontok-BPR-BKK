@@ -137,7 +137,7 @@ export default function NotaryOrdersShow({
                 .filter(
                     (checklist: any) =>
                         checklist.document_checklist?.is_active !== false &&
-                        checklist.document_checklist?.is_required !== false &&
+            checklist.is_required === true &&
                         (!checklist.is_checked || !checklist.order_document),
                 )
                 .map(

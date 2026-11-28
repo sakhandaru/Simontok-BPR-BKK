@@ -80,15 +80,14 @@ class SyncOrderChecklists extends Command
                     continue;
                 }
 
-                $existing = $collateral->checklists()->where('document_checklist_id', $checklist->id)->exists();
+                $required = $matchingJobs->contains(fn ($job) => $job !== null);
+                $existing = $collateral->checklists()->where('document_checklist_id', $checklist->id)->first();
                 if ($existing) {
+                    if ($required && ! $existing->is_required) {
+                        $existing->update(['is_required' => true]);
+                    }
                     continue;
                 }
-
-                $required = $checklist->is_required || $matchingJobs->contains(function ($job) use ($checklist): bool {
-                    return $job !== null
-                        && (bool) $checklist->jobTypes->firstWhere('id', $job->job_type_id)?->pivot?->is_required;
-                });
 
                 $collateral->checklists()->create([
                     'order_id' => $order->id,

@@ -1043,7 +1043,7 @@ class OrderController extends Controller
                 $collateral->checklists()->firstOrCreate([
                     'document_checklist_id' => $checklist->id,
                     'order_collateral_job_id' => null,
-                ], ['order_id' => $order->id, 'is_required' => $checklist->is_required]);
+                ], ['order_id' => $order->id, 'is_required' => false]);
                 continue;
             }
 
@@ -1057,7 +1057,7 @@ class OrderController extends Controller
                 $collateral->checklists()->firstOrCreate([
                     'document_checklist_id' => $checklist->id,
                     'order_collateral_job_id' => $job->id,
-                ], ['order_id' => $order->id, 'is_required' => $pivot?->is_required ?? $checklist->is_required]);
+                ], ['order_id' => $order->id, 'is_required' => true]);
             }
         }
     }
@@ -1092,9 +1092,7 @@ class OrderController extends Controller
                 return [
                     ...$document->only(['id', 'name', 'job_type_id', 'is_required', 'is_active']),
                     'job_type_ids' => $document->jobTypes->pluck('id')->push($document->job_type_id)->filter()->unique()->values()->all(),
-                    'required_job_type_ids' => $document->jobTypes
-                        ->filter(fn ($jobType) => (bool) $jobType->pivot?->is_required)
-                        ->pluck('id')->values()->all(),
+                    'required_job_type_ids' => $document->jobTypes->pluck('id')->values()->all(),
                     'job_type_names' => $document->jobTypes->pluck('name')->values()->all(),
                 ];
             })->values()->all();
@@ -1115,11 +1113,8 @@ class OrderController extends Controller
             ->where('is_active', true)
             ->where(function ($query) use ($jobTypeIds): void {
                 $query->whereHas('jobTypes', fn ($jobQuery) => $jobQuery
-                    ->whereIn('job_types.id', $jobTypeIds)
-                    ->where('document_checklist_job_type.is_required', true))
-                    ->orWhere(fn ($legacyQuery) => $legacyQuery
-                        ->whereIn('job_type_id', $jobTypeIds)
-                        ->where('is_required', true));
+                    ->whereIn('job_types.id', $jobTypeIds))
+                    ->orWhereIn('job_type_id', $jobTypeIds);
             })
             ->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
     }

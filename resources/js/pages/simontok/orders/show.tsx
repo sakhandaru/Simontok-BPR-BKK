@@ -442,7 +442,7 @@ export default function OrdersShow({
     const checklistOrder = order;
     const selectedJobTypeIds = draft.data.collaterals.flatMap((collateral) => collateral.jobs.map((job) => Number(job.job_type_id))).filter(Boolean);
     const effectiveRequiredDocumentIds = selectedJobTypeIds.length > 0
-        ? documentChecklists.filter((document) => (document.required_job_type_ids ?? []).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId))) || (document.is_required && (document.job_type_ids ?? [document.job_type_id]).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId))))).map((document) => document.id)
+        ? documentChecklists.filter((document) => (document.job_type_ids ?? [document.job_type_id]).some((jobTypeId) => selectedJobTypeIds.includes(Number(jobTypeId)))).map((document) => document.id)
         : requiredDocumentIds;
     const requiredDocumentMasters = documentChecklists.filter((document) => effectiveRequiredDocumentIds.includes(document.id));
     const uploadedOrderDocumentIds = new Set<number>([
@@ -3363,7 +3363,7 @@ function DraftOrderForm({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h3 className="font-medium">Dokumen order</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">Kelola dokumen wajib dan dokumen tambahan dari satu tempat.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Kelola dokumen yang dibutuhkan untuk order ini.</p>
                     </div>
                     <Button type="button" variant="outline" className="w-fit" onClick={() => setOrderDocumentsOpen(true)}>
                         <FileText className="size-4" />Kelola dokumen
@@ -3371,7 +3371,7 @@ function DraftOrderForm({
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <DocumentSummary label="Dokumen wajib" value={`${requiredUploadedCount}/${requiredDocuments.length}`} note="sudah diunggah" />
-                    <DocumentSummary label="Dokumen tambahan" value={`${addonUploadedCount}/${addonDocuments.length}`} note="sudah diunggah" />
+                    <DocumentSummary label="Dokumen opsional" value={`${addonUploadedCount}/${addonDocuments.length}`} note="sudah diunggah" />
                     <DocumentSummary label="Total dokumen" value={`${totalUploadedCount}/${totalDocumentCount}`} note="tersedia" />
                 </div>
             </section>
@@ -3379,7 +3379,7 @@ function DraftOrderForm({
                 <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>Dokumen order</DialogTitle>
-                        <DialogDescription>Lengkapi dokumen wajib dan tambahkan dokumen lain bila diperlukan.</DialogDescription>
+                        <DialogDescription>Lengkapi dokumen wajib. Dokumen lain hanya ditambahkan bila diperlukan.</DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-end">
                         <Button type="button" variant="outline" onClick={() => openDocumentEditor({ collateralIndex: -1, displayName: '', file: null, kind: 'pendukung' })}>
@@ -3387,7 +3387,7 @@ function DraftOrderForm({
                         </Button>
                     </div>
                     <DocumentSection title="Dokumen wajib" description="Harus lengkap sebelum order diajukan." documents={requiredDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} required />
-                    <DocumentSection title="Dokumen tambahan" description="Opsional, pilih jika diperlukan oleh notaris." documents={addonDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} />
+                    <DocumentSection title="Dokumen opsional" description="Tidak wajib. Tambahkan hanya jika diperlukan." documents={addonDocuments} documentFilesFor={documentFilesFor} onAdd={(document, file) => uploadOrderDocumentDirect(document.id, document.name, file)} onReplace={(document, file) => openDocumentEditor({ collateralIndex: -1, checklistMasterId: document.id, temporaryId: file.id, displayName: document.name, kind: 'pendukung', file: null })} onDelete={removePendingDocument} orderId={order.id} />
                     {untypedOrderDocuments.length > 0 && <div className="border-t pt-4"><div className="mb-2 text-sm font-medium">Dokumen lain yang sudah ditambahkan</div><div className="grid gap-2 md:grid-cols-2">{untypedOrderDocuments.map((document: any) => <div key={`${document.pending ? 'pending' : 'saved'}-${document.id}`} className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm"><div className="min-w-0"><div className="truncate font-medium">{document.display_name || document.original_name || 'Dokumen'}</div><div className="mt-1 truncate text-xs text-muted-foreground">{document.original_name}</div></div>{document.pending ? <TemporaryDocumentDetails document={document.source} onReplace={() => openDocumentEditor({ collateralIndex: -1, temporaryId: document.id, displayName: document.display_name, kind: 'pendukung', file: null })} onDelete={() => removePendingDocument(document.source)} /> : <Button type="button" variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/documents/${document.id}/preview`, '_blank', 'noopener,noreferrer')}><Eye className="size-4" />Lihat</Button>}</div>)}</div></div>}
                 </DialogContent>
             </Dialog>
@@ -4195,7 +4195,7 @@ function isRequiredChecklist(order: any, checklist: any): boolean {
     const spouseRequired = name === 'ktp pasangan' && ['married', 'kawin', 'menikah'].includes(status);
 
     return checklist.document_checklist?.is_active !== false && (
-        checklist.document_checklist?.is_required !== false ||
+        checklist.is_required === true ||
         spouseRequired
     );
 }
