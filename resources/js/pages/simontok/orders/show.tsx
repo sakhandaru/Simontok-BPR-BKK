@@ -2847,6 +2847,7 @@ function DraftOrderForm({
                 draft_job_type_id: null,
                 order_document: null,
             }]);
+    const checklistJobTypeId = (item: any) => item.job?.job_type_id ?? item.draft_job_type_id ?? item.document_checklist?.job_type_id ?? null;
     return (
         <div className="sim-panel overflow-hidden">
             <div className="sim-panel-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -3285,7 +3286,7 @@ function DraftOrderForm({
                                                 const pending = documentFor(
                                                     collateralModal?.index ?? -1,
                                                     Number(item.document_checklist?.id),
-                                                    item.document_checklist?.job_type_id ?? null,
+                                                    checklistJobTypeId(item),
                                                 );
                                                 const document = item.order_document || pending;
                                                 return (
@@ -3297,7 +3298,7 @@ function DraftOrderForm({
                                                         {pending ? (
                                                             <TemporaryDocumentDetails
                                                                 document={pending}
-                                                                onReplace={() => openChecklistEditor(collateralModal.index, Number(item.document_checklist?.id), item.document_checklist?.job_type_id ?? null)}
+                                                                onReplace={() => openChecklistEditor(collateralModal.index, Number(item.document_checklist?.id), checklistJobTypeId(item))}
                                                                 onDelete={() => removePendingDocument(pending)}
                                                             />
                                                         ) : item.order_document ? (
@@ -3314,7 +3315,7 @@ function DraftOrderForm({
                                                                 onClick={() => openChecklistEditor(
                                                                     collateralModal?.index ?? 0,
                                                                     Number(item.document_checklist?.id),
-                                                                    item.document_checklist?.job_type_id ?? null,
+                                                                    checklistJobTypeId(item),
                                                                 )}
                                                             >
                                                                 <FilePlus2 className="size-4" />Input dokumen

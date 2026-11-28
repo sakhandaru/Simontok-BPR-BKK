@@ -1117,7 +1117,9 @@ class OrderController extends Controller
                 $query->whereHas('jobTypes', fn ($jobQuery) => $jobQuery
                     ->whereIn('job_types.id', $jobTypeIds)
                     ->where('document_checklist_job_type.is_required', true))
-                    ->orWhereIn('job_type_id', $jobTypeIds);
+                    ->orWhere(fn ($legacyQuery) => $legacyQuery
+                        ->whereIn('job_type_id', $jobTypeIds)
+                        ->where('is_required', true));
             })
             ->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
     }
