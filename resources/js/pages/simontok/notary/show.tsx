@@ -557,7 +557,13 @@ export default function NotaryOrdersShow({
                                             ))}
                                         </div>
                                         <div className="mt-3 grid gap-2 md:grid-cols-2">
-                                            {(collateral.checklists ?? []).map(
+                                            {(collateral.checklists ?? [])
+                                                .filter(
+                                                    (checklist: any) =>
+                                                        checklist.is_required === true ||
+                                                        Boolean(checklist.order_document),
+                                                )
+                                                .map(
                                                 (checklist: any) => (
                                                     <div
                                                         key={checklist.id}
@@ -606,7 +612,7 @@ export default function NotaryOrdersShow({
                                                         )}
                                                     </div>
                                                 ),
-                                            )}
+                                                )}
                                         </div>
                                         {(collateral.documents ?? []).filter(
                                             (document: any) =>
