@@ -56,17 +56,26 @@ class TemporaryOrderDocuments
                 throw ValidationException::withMessages(['temporary_document_ids' => 'Dokumen sementara tidak sesuai dengan rekening atau agunan pengajuan.']);
             }
             $job = $collateral && $temporary->job_type_id ? $collateral->jobs()->where('job_type_id', $temporary->job_type_id)->first() : null;
-            $checklist = $temporary->checklist_master_id ? OrderChecklist::where('order_id', $order->id)
+            $checklistQuery = $temporary->checklist_master_id ? OrderChecklist::where('order_id', $order->id)
                 ->when($collateral, fn ($query) => $query->where('order_collateral_id', $collateral->id))
-                ->where('document_checklist_id', $temporary->checklist_master_id)
-                ->where('order_collateral_job_id', $job?->id)->first() : null;
-            if (($temporary->checklist_master_id && ! $checklist) || ($temporary->job_type_id && ! $job)) {
+                ->where('document_checklist_id', $temporary->checklist_master_id) : null;
+            if ($checklistQuery && $temporary->job_type_id) {
+                $checklistQuery->where('order_collateral_job_id', $job?->id);
+            }
+            $checklist = $checklistQuery?->first();
+            // Older staged uploads did not carry job_type_id. The checklist still
+            // identifies the correct collateral job, so recover that relation here.
+            if ($checklist && ! $job && $collateral && $checklist->order_collateral_job_id) {
+                $job = $collateral->jobs()->whereKey($checklist->order_collateral_job_id)->first();
+            }
+            $checklistMismatch = ($temporary->checklist_master_id && ! $checklist) || ($temporary->job_type_id && ! $job);
+            if ($checklistMismatch && ! config('uat.document_checklist_bypass')) {
                 throw ValidationException::withMessages(['temporary_document_ids' => 'Checklist dokumen tidak sesuai dengan pekerjaan agunan.']);
             }
             if (! Storage::disk('local')->exists($temporary->stored_path)) {
                 throw ValidationException::withMessages(['temporary_document_ids' => 'File '.$temporary->original_name.' tidak tersedia. Unggah ulang sebelum mengajukan.']);
             }
-            $type = $checklist ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
+            $type = ($checklist || $temporary->checklist_master_id) ? OrderDocumentType::DokumenAwal : OrderDocumentType::Lainnya;
             $document = $order->documents()->create([
                 'document_checklist_id' => $temporary->checklist_master_id,
                 'order_collateral_id' => $collateral?->id,
