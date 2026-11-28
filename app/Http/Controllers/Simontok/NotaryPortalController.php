@@ -367,6 +367,20 @@ class NotaryPortalController extends Controller
             'fees.*.step_name' => ['required', 'string', 'max:255'],
             'fees.*.amount' => ['required', 'numeric', 'min:0'],
         ]);
+        $submittedFees = collect($data['fees']);
+        $submittedFinals = $submittedFees->filter(fn (array $fee): bool => strtolower(trim((string) ($fee['step_name'] ?? ''))) === 'selesai');
+        $normalizedFees = $submittedFees->reject(fn (array $fee): bool => strtolower(trim((string) ($fee['step_name'] ?? ''))) === 'selesai')->values();
+        foreach ($order->collaterals()->pluck('id') as $collateralId) {
+            $existingFinal = $submittedFinals->first(fn (array $fee): bool => (int) ($fee['order_collateral_id'] ?? 0) === (int) $collateralId);
+            $normalizedFees->push([
+                'id' => $existingFinal['id'] ?? null,
+                'order_collateral_id' => $collateralId,
+                'job_type_step_id' => null,
+                'step_name' => 'Selesai',
+                'amount' => 0,
+            ]);
+        }
+        $data['fees'] = $normalizedFees->values()->all();
 
         DB::transaction(function () use ($request, $order, $data): void {
             $retainedIds = [];

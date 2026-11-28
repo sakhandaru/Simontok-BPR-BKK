@@ -30,19 +30,31 @@ export default function NotaryOrderTransition({
     const [agreementConfirmed, setAgreementConfirmed] = useState(Boolean(agreement?.acknowledged));
     const firstCollateral = order.collaterals?.[0];
     const initialFees = useMemo(
-        () => stepFees.length > 0 ? stepFees.map((fee: any) => ({ ...fee, amount: Number(fee.amount ?? 0) })) : order.collaterals.flatMap((collateral: any) =>
-            (collateral.job_type?.steps ?? [])
+        () => order.collaterals.flatMap((collateral: any) => {
+            const savedSteps = stepFees
+                .filter((fee: any) => Number(fee.order_collateral_id) === Number(collateral.id))
+                .map((fee: any) => ({ ...fee, amount: Number(fee.amount ?? 0) }));
+            const sourceSteps = savedSteps.length > 0 ? savedSteps : (collateral.job_type?.steps ?? [])
                 .filter((step: any) => step.is_active !== false)
-                .map((step: any) => {
-                    return {
-                        id: null,
-                        order_collateral_id: collateral.id,
-                        job_type_step_id: step.id,
-                        step_name: step.name,
-                        amount: 0,
-                    };
-                }),
-        ),
+                .map((step: any) => ({
+                    id: null,
+                    order_collateral_id: collateral.id,
+                    job_type_step_id: step.id,
+                    step_name: step.name,
+                    amount: 0,
+                }));
+            const regularSteps = sourceSteps.filter((step: any) => String(step.step_name ?? '').trim().toLowerCase() !== 'selesai');
+            const savedFinal = sourceSteps.find((step: any) => String(step.step_name ?? '').trim().toLowerCase() === 'selesai');
+
+            return [...regularSteps, {
+                ...(savedFinal ?? { id: null, order_collateral_id: collateral.id }),
+                order_collateral_id: collateral.id,
+                job_type_step_id: null,
+                step_name: 'Selesai',
+                amount: 0,
+                is_auto_final: true,
+            }];
+        }),
         [order.collaterals, stepFees],
     );
     const fees = useForm({ fees: initialFees });
@@ -204,7 +216,7 @@ export default function NotaryOrderTransition({
                 <section className="sim-panel overflow-hidden">
                     <div className="sim-panel-header">
                         <h2 className="font-medium">Langkah dan biaya pekerjaan</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">Biaya ini akan ditambahkan ke harga utama dan disetujui Admin Legal bersama covernote.</p>
+                                <p className="mt-1 text-sm text-muted-foreground">Notaris mengatur langkah pekerjaan. Langkah Selesai ditambahkan otomatis dan tidak perlu diisi.</p>
                     </div>
                     {!agreement?.acknowledged ? (
                         <div className="p-4 text-sm text-muted-foreground">Bagian ini aktif setelah PKS dibaca dan disetujui.</div>
@@ -214,11 +226,11 @@ export default function NotaryOrderTransition({
                                 {fees.data.fees.map((fee: any, index: number) => (
                                     <div key={fee.id ?? `new-${index}`} className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
                                         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.8fr)]">
-                                            <div className="grid gap-1"><Label>Nama langkah</Label><Input value={fee.step_name} onChange={(event) => updateFee(index, 'step_name', event.target.value)} placeholder="Contoh: Pemeriksaan dokumen" /></div>
-                                            <div className="grid gap-1"><Label>Agunan</Label><SimSelect value={String(fee.order_collateral_id)} onChange={(value) => updateFee(index, 'order_collateral_id', Number(value))} options={order.collaterals.map((item: any) => ({ value: String(item.id), label: `${item.nama_agunan || 'Jenis agunan'} - ${item.agunan_id || `AGN-${item.id}`}` }))} placeholder="Pilih agunan" /></div>
+                                            <div className="grid gap-1"><Label>{fee.is_auto_final ? 'Langkah otomatis' : 'Nama langkah'}</Label>{fee.is_auto_final ? <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium">Selesai</div> : <Input value={fee.step_name} onChange={(event) => updateFee(index, 'step_name', event.target.value)} placeholder="Contoh: Pemeriksaan dokumen" />}</div>
+                                            <div className="grid gap-1"><Label>Agunan</Label>{fee.is_auto_final ? <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm">{order.collaterals.find((item: any) => Number(item.id) === Number(fee.order_collateral_id))?.nama_agunan || 'Jenis agunan'}</div> : <SimSelect value={String(fee.order_collateral_id)} onChange={(value) => updateFee(index, 'order_collateral_id', Number(value))} options={order.collaterals.map((item: any) => ({ value: String(item.id), label: `${item.nama_agunan || 'Jenis agunan'} - ${item.agunan_id || `AGN-${item.id}`}` }))} placeholder="Pilih agunan" />}</div>
                                         </div>
-                                        {canEditTransition ? <div className="grid gap-1"><Label>Nominal</Label><RupiahInput value={fee.amount} onChange={(value) => updateFee(index, 'amount', value)} /></div> : <div className="font-medium">{money(fee.amount)}</div>}
-                                        {canEditTransition && <div className="flex items-center gap-1"><Button type="button" size="icon" variant="outline" aria-label="Naikkan langkah" disabled={index === 0} onClick={() => moveFee(index, -1)}><ArrowUp className="size-4" /></Button><Button type="button" size="icon" variant="outline" aria-label="Turunkan langkah" disabled={index === fees.data.fees.length - 1} onClick={() => moveFee(index, 1)}><ArrowDown className="size-4" /></Button><Button type="button" size="icon" variant="outline" aria-label={`Hapus ${fee.step_name || 'langkah'}`} onClick={() => removeFee(index)}><Trash2 className="size-4" /></Button></div>}
+                                        {fee.is_auto_final ? <div className="grid gap-1"><Label>Nominal</Label><div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm">Rp 0</div></div> : canEditTransition ? <div className="grid gap-1"><Label>Nominal</Label><RupiahInput value={fee.amount} onChange={(value) => updateFee(index, 'amount', value)} /></div> : <div className="font-medium">{money(fee.amount)}</div>}
+                                        {canEditTransition && !fee.is_auto_final && <div className="flex items-center gap-1"><Button type="button" size="icon" variant="outline" aria-label="Naikkan langkah" disabled={index === 0} onClick={() => moveFee(index, -1)}><ArrowUp className="size-4" /></Button><Button type="button" size="icon" variant="outline" aria-label="Turunkan langkah" disabled={index === fees.data.fees.length - 1 || fees.data.fees[index + 1]?.is_auto_final} onClick={() => moveFee(index, 1)}><ArrowDown className="size-4" /></Button><Button type="button" size="icon" variant="outline" aria-label={`Hapus ${fee.step_name || 'langkah'}`} onClick={() => removeFee(index)}><Trash2 className="size-4" /></Button></div>}
                                     </div>
                                 ))}
                             </div>
